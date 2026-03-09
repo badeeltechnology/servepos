@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>ServePOS</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/assets/servepos/images/logo.svg" />
+
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#18181b" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ServePOS" />
+    <meta name="application-name" content="ServePOS" />
+    <meta name="description" content="Restaurant Point of Sale System" />
+
+    <!-- Assets -->
+    <script type="module" crossorigin src="/assets/servepos/frontend/assets/index.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/servepos/frontend/assets/index.css">
+  </head>
+  <body class="dark">
+    <div id="root"></div>
+    <script>
+      window.csrf_token = "{{ csrf_token }}";
+      window.frappe_boot = {{ boot | tojson }};
+    </script>
+  </body>
+</html>

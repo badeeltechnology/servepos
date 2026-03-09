@@ -1,0 +1,1 @@
+# ServePOS Doctypes

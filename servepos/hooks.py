@@ -1,5 +1,5 @@
 app_name = "servepos"
-app_title = "Servepos"
+app_title = "ServePOS"
 app_publisher = "Badeel Technology"
 app_description = "An intuitive POS solution built for restaurants to handle orders, payments, and kitchen coordination seamlessly."
 app_email = "developer@badeeltechnology.com"
@@ -8,18 +8,18 @@ app_license = "agpl-3.0"
 # Apps
 # ------------------
 
-# required_apps = []
+required_apps = ["erpnext"]
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "servepos",
-# 		"logo": "/assets/servepos/logo.png",
-# 		"title": "Servepos",
-# 		"route": "/servepos",
-# 		"has_permission": "servepos.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "servepos",
+		"logo": "/assets/servepos/images/logo.svg",
+		"title": "ServePOS",
+		"route": "/pos",
+		"has_permission": "servepos.servepos.api.permission.has_app_permission"
+	}
+]
 
 # Includes in <head>
 # ------------------
@@ -63,6 +63,13 @@ app_license = "agpl-3.0"
 # role_home_page = {
 # 	"Role": "home_page"
 # }
+
+# Website Routes
+# --------------
+website_route_rules = [
+	{"from_route": "/pos/<path:app_path>", "to_route": "pos"},
+	{"from_route": "/pos", "to_route": "pos"},
+]
 
 # Generators
 # ----------
@@ -132,13 +139,12 @@ app_license = "agpl-3.0"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"POS Invoice": {
+		"on_submit": "servepos.servepos.api.stock.create_stock_consumption_for_invoice",
+		"on_cancel": "servepos.servepos.api.stock.reverse_stock_consumption"
+	}
+}
 
 # Scheduled Tasks
 # ---------------
