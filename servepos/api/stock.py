@@ -279,26 +279,16 @@ def create_manufacture_entries_before_submit(doc, method):
         if not bom:
             continue
 
-        try:
-            # Create Stock Entry (Manufacture) for this item
-            stock_entry = create_manufacture_entry(
-                bom=bom,
-                qty=item.qty,
-                warehouse=warehouse,
-                pos_invoice=doc.name
-            )
-            if stock_entry:
-                created_entries.append(stock_entry)
-        except Exception as e:
-            # Log error but allow submission to continue
-            frappe.log_error(
-                f"Failed to create manufacture entry for {item.item_code}: {str(e)}",
-                "ServePOS Manufacture Entry Error"
-            )
-            frappe.msgprint(
-                _("Could not create manufacture entry for {0}: {1}").format(item.item_code, str(e)),
-                indicator="orange"
-            )
+        # Create Stock Entry (Manufacture) for this item
+        # Let errors propagate so user sees actual ERPNext error messages
+        stock_entry = create_manufacture_entry(
+            bom=bom,
+            qty=item.qty,
+            warehouse=warehouse,
+            pos_invoice=doc.name
+        )
+        if stock_entry:
+            created_entries.append(stock_entry)
 
     if created_entries:
         frappe.msgprint(
