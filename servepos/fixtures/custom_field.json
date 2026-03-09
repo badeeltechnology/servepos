@@ -1,0 +1,180 @@
+[
+  {
+    "doctype": "Custom Field",
+    "dt": "Item",
+    "fieldname": "servepos_section",
+    "fieldtype": "Section Break",
+    "label": "ServePOS Settings",
+    "insert_after": "is_fixed_asset",
+    "collapsible": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Item",
+    "fieldname": "servepos_kitchen_station",
+    "fieldtype": "Link",
+    "label": "Kitchen Station",
+    "options": "ServePOS Kitchen Station",
+    "insert_after": "servepos_section"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Item",
+    "fieldname": "servepos_preparation_time",
+    "fieldtype": "Int",
+    "label": "Preparation Time (mins)",
+    "insert_after": "servepos_kitchen_station"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Item",
+    "fieldname": "servepos_column_break",
+    "fieldtype": "Column Break",
+    "insert_after": "servepos_preparation_time"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Item",
+    "fieldname": "servepos_is_available",
+    "fieldtype": "Check",
+    "label": "Available in POS",
+    "default": "1",
+    "insert_after": "servepos_column_break"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Item",
+    "fieldname": "servepos_modifiers",
+    "fieldtype": "Small Text",
+    "label": "Available Modifiers (comma separated)",
+    "insert_after": "servepos_is_available"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Item",
+    "fieldname": "servepos_modifier_groups",
+    "fieldtype": "Table",
+    "label": "ServePOS Modifier Groups",
+    "options": "ServePOS Item Modifier Group",
+    "insert_after": "servepos_kitchen_station"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Item Group",
+    "fieldname": "servepos_modifier_groups",
+    "fieldtype": "Table",
+    "label": "ServePOS Modifier Groups",
+    "options": "ServePOS Item Modifier Group",
+    "insert_after": "item_group_defaults"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Sales Invoice",
+    "fieldname": "servepos_section",
+    "fieldtype": "Section Break",
+    "label": "ServePOS Details",
+    "insert_after": "additional_discount_percentage"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Sales Invoice",
+    "fieldname": "servepos_table",
+    "fieldtype": "Link",
+    "label": "Table",
+    "options": "ServePOS Table",
+    "insert_after": "servepos_section"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Sales Invoice",
+    "fieldname": "servepos_room",
+    "fieldtype": "Link",
+    "label": "Room",
+    "options": "ServePOS Room",
+    "insert_after": "servepos_table"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Sales Invoice",
+    "fieldname": "servepos_order_type",
+    "fieldtype": "Select",
+    "label": "Order Type",
+    "options": "\nDine In\nTakeaway\nDelivery",
+    "insert_after": "servepos_room"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Sales Invoice",
+    "fieldname": "servepos_column_break",
+    "fieldtype": "Column Break",
+    "insert_after": "servepos_order_type"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Sales Invoice",
+    "fieldname": "servepos_guests",
+    "fieldtype": "Int",
+    "label": "Number of Guests",
+    "insert_after": "servepos_column_break"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Sales Invoice",
+    "fieldname": "servepos_waiter",
+    "fieldtype": "Link",
+    "label": "Waiter/Server",
+    "options": "User",
+    "insert_after": "servepos_guests"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Sales Invoice",
+    "fieldname": "servepos_kot_generated",
+    "fieldtype": "Check",
+    "label": "KOT Generated",
+    "insert_after": "servepos_waiter"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Entry",
+    "fieldname": "custom_pos_invoice",
+    "fieldtype": "Link",
+    "label": "POS Invoice",
+    "options": "POS Invoice",
+    "insert_after": "remarks"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Entry",
+    "fieldname": "custom_pos_invoice_item",
+    "fieldtype": "Data",
+    "label": "POS Invoice Item",
+    "read_only": 1,
+    "insert_after": "custom_pos_invoice"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Stock Entry",
+    "fieldname": "custom_sales_invoice",
+    "fieldtype": "Link",
+    "label": "Sales Invoice",
+    "options": "Sales Invoice",
+    "insert_after": "custom_pos_invoice"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "POS Profile",
+    "fieldname": "servepos_section",
+    "fieldtype": "Section Break",
+    "label": "ServePOS Settings",
+    "insert_after": "applicable_for_users",
+    "collapsible": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "POS Profile",
+    "fieldname": "servepos_column_break",
+    "fieldtype": "Column Break",
+    "insert_after": "auto_deduct_stock"
+  }
+]

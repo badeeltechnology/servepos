@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useFrappeGetDocList } from "frappe-react-sdk";
+import { useFrappeGetDocList, useFrappePostCall, useFrappeGetCall } from "frappe-react-sdk";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -25,6 +25,13 @@ import {
   Clock,
   Receipt,
   RefreshCw,
+  Printer,
+  History,
+  Eye,
+  LogOut,
+  RotateCcw,
+  Ban,
+  Store,
 } from "lucide-react";
 
 interface Modifier {
@@ -82,16 +89,57 @@ const paymentIcons: Record<string, React.ReactNode> = {
   "Mobile Payment": <Smartphone className="h-5 w-5" />,
 };
 
-const availableModifiers: Modifier[] = [
-  { name: "Extra Cheese", price: 5 },
-  { name: "Extra Spicy", price: 0 },
-  { name: "No Onion", price: 0 },
-  { name: "No Garlic", price: 0 },
-  { name: "Add Bacon", price: 8 },
-  { name: "Gluten Free", price: 10 },
-];
+interface ModifierGroup {
+  group_name: string;
+  selection_type: "Single" | "Multiple";
+  is_required: number;
+  max_selections: number;
+  modifiers: Modifier[];
+}
 
 type OrderType = "Dine In" | "Takeaway" | "Delivery";
+
+interface POSProfile {
+  name: string;
+  company: string;
+  warehouse: string;
+  customer: string;
+  currency: string;
+  selling_price_list: string;
+  has_open_session?: boolean;
+  open_session?: { name: string; period_start_date: string };
+}
+
+interface OpeningEntry {
+  name: string;
+  pos_profile: string;
+  company: string;
+  period_start_date: string;
+  posting_date: string;
+}
+
+interface PaymentMethod {
+  mode_of_payment: string;
+  opening_amount: number;
+}
+
+interface SessionDetails {
+  opening_entry: string;
+  invoice_count: number;
+  total_sales: number;
+  total_tax: number;
+  net_total: number;
+  payment_breakdown: Record<string, number>;
+  opening_balances: Record<string, number>;
+}
+
+interface ReconciliationEntry {
+  mode_of_payment: string;
+  opening_amount: number;
+  sales_amount: number;
+  expected_amount: number;
+  closing_amount: number;
+}
 
 export default function POSPage() {
   const { theme, toggleTheme } = useTheme();
@@ -102,10 +150,29 @@ export default function POSPage() {
   const [guestCount, setGuestCount] = useState(2);
   const [orderType, setOrderType] = useState<OrderType>("Dine In");
 
-  // Opening entry state
+  // Profile selection state
+  const [selectedProfile, setSelectedProfile] = useState<POSProfile | null>(null);
+  const [showProfileSelector, setShowProfileSelector] = useState(false);
+
+  // Session/Opening entry state
   const [hasOpeningEntry, setHasOpeningEntry] = useState<boolean | null>(null);
+  const [currentOpeningEntry, setCurrentOpeningEntry] = useState<OpeningEntry | null>(null);
   const [showOpeningDialog, setShowOpeningDialog] = useState(false);
-  const [openingCash, setOpeningCash] = useState(0);
+  const [openingBalances, setOpeningBalances] = useState<PaymentMethod[]>([]);
+
+  // Closing entry state
+  const [_showClosingDialog, setShowClosingDialog] = useState(false);
+  const [_sessionDetails, setSessionDetails] = useState<SessionDetails | null>(null);
+  const [reconciliation, setReconciliation] = useState<ReconciliationEntry[]>([]);
+
+  // Void/Cancel state
+  const [_showVoidDialog, setShowVoidDialog] = useState(false);
+  const [voidOrder, setVoidOrder] = useState<{ name: string; grand_total: number } | null>(null);
+  const [voidReason, setVoidReason] = useState("");
+
+  // Return state
+  const [_showReturnDialog, setShowReturnDialog] = useState(false);
+  const [returnOrder, setReturnOrder] = useState<{ name: string; grand_total: number; items: any[] } | null>(null);
 
   // Modifier dialog state
   const [showModifierDialog, setShowModifierDialog] = useState(false);
@@ -113,6 +180,8 @@ export default function POSPage() {
   const [selectedModifiers, setSelectedModifiers] = useState<Modifier[]>([]);
   const [itemComment, setItemComment] = useState("");
   const [selectedVariant, setSelectedVariant] = useState<ItemVariant | null>(null);
+  const [itemModifierGroups, setItemModifierGroups] = useState<ModifierGroup[]>([]);
+  const [loadingModifiers, setLoadingModifiers] = useState(false);
 
   // Payment dialog state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -120,37 +189,49 @@ export default function POSPage() {
 
   // Order status
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successOrder, setSuccessOrder] = useState<{ name: string; total: number } | null>(null);
 
-  // Check for POS Opening Entry
-  const { data: openingEntries, mutate: refreshOpeningEntry } = useFrappeGetDocList(
-    "POS Opening Entry",
-    {
-      fields: ["name", "pos_profile", "status"],
-      filters: [
-        ["user", "=", "Administrator"],
-        ["status", "=", "Open"],
-        ["docstatus", "=", 1],
-      ],
-      limit: 1,
-    }
+  // History state
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+
+  // Invoice type from POS Settings (POS Invoice or Sales Invoice)
+  const [invoiceType, setInvoiceType] = useState<"POS Invoice" | "Sales Invoice">("POS Invoice");
+
+  // Fetch POS Settings for invoice type
+  const { data: posSettings } = useFrappeGetCall<{ message: { invoice_type: string } }>(
+    "servepos.api.pos_session.get_pos_settings"
   );
 
-  // Fetch POS Profile
-  const { data: posProfiles, isLoading: profileLoading } = useFrappeGetDocList(
-    "POS Profile",
-    {
-      fields: ["name", "warehouse", "company", "customer", "currency", "selling_price_list"],
-      filters: [["disabled", "=", 0]],
-      limit: 1,
+  // Update invoice type when POS Settings loads
+  useEffect(() => {
+    const type = posSettings?.message?.invoice_type;
+    if (type === "Sales Invoice" || type === "POS Invoice") {
+      setInvoiceType(type);
     }
+  }, [posSettings]);
+
+  // Fetch available POS Profiles with session status
+  const { data: posProfilesData, isLoading: profileLoading, mutate: refreshProfiles } = useFrappeGetCall<{ message: POSProfile[] }>(
+    "servepos.api.pos_session.get_pos_profiles_for_user"
   );
+
+  const posProfiles = posProfilesData?.message || [];
+
+  // API calls
+  const { call: createOpening } = useFrappePostCall("servepos.api.pos_session.create_opening_entry");
+  const { call: _getSessionDetails } = useFrappePostCall("servepos.api.pos_session.get_session_details");
+  const { call: createClosing } = useFrappePostCall("servepos.api.pos_session.create_closing_entry");
+  const { call: getClosingPreview } = useFrappePostCall("servepos.api.pos_session.get_closing_summary_preview");
+  const { call: voidInvoice } = useFrappePostCall("servepos.api.pos_session.void_invoice");
+  const { call: createReturn } = useFrappePostCall("servepos.api.pos_session.create_return_invoice");
+  const { call: getPaymentMethods } = useFrappePostCall("servepos.api.pos_session.get_payment_methods");
 
   // Fetch POS Profile payments
   const { data: posProfilePayments } = useFrappeGetDocList(
     "POS Payment Method",
     {
       fields: ["mode_of_payment", "default"],
-      filters: posProfiles?.length ? [["parent", "=", posProfiles[0].name]] : [],
+      filters: selectedProfile ? [["parent", "=", selectedProfile.name]] : [],
       limit: 10,
     }
   );
@@ -205,17 +286,66 @@ export default function POSPage() {
     filters: [["status", "=", "Available"]],
   });
 
-  // Check opening entry on load
+  // Fetch Order History (today's orders) - use invoiceType
+  const { data: orderHistory, mutate: refreshHistory } = useFrappeGetDocList(
+    invoiceType,
+    {
+      fields: ["name", "posting_date", "posting_time", "grand_total", "status", "customer_name", "servepos_table", "servepos_order_type", "docstatus"],
+      filters: selectedProfile ? (
+        invoiceType === "Sales Invoice"
+          ? [["pos_profile", "=", selectedProfile.name], ["is_pos", "=", 1]]
+          : [["pos_profile", "=", selectedProfile.name]]
+      ) : [],
+      orderBy: { field: "creation", order: "desc" },
+      limit: 50,
+    }
+  );
+
+  // Initialize profile and session on load
   useEffect(() => {
-    if (openingEntries !== undefined) {
-      if (openingEntries.length > 0) {
+    if (posProfiles.length > 0 && !selectedProfile) {
+      // Check if any profile has an open session
+      const profileWithSession = posProfiles.find(p => p.has_open_session);
+      if (profileWithSession) {
+        setSelectedProfile(profileWithSession);
         setHasOpeningEntry(true);
-      } else {
+        if (profileWithSession.open_session) {
+          setCurrentOpeningEntry({
+            name: profileWithSession.open_session.name,
+            pos_profile: profileWithSession.name,
+            company: profileWithSession.company,
+            period_start_date: profileWithSession.open_session.period_start_date,
+            posting_date: new Date().toISOString().split('T')[0],
+          });
+        }
+      } else if (posProfiles.length === 1) {
+        // Single profile without session - auto-select and show opening dialog
+        setSelectedProfile(posProfiles[0]);
         setHasOpeningEntry(false);
+        initializeOpeningBalances(posProfiles[0].name);
         setShowOpeningDialog(true);
+      } else {
+        // Multiple profiles - show profile selector
+        setShowProfileSelector(true);
       }
     }
-  }, [openingEntries]);
+  }, [posProfiles]);
+
+  // Initialize opening balances for a profile
+  const initializeOpeningBalances = async (profileName: string) => {
+    try {
+      const result = await getPaymentMethods({ pos_profile: profileName });
+      if (result.message) {
+        setOpeningBalances(result.message.map((p: any) => ({
+          mode_of_payment: p.mode_of_payment,
+          opening_amount: 0
+        })));
+      }
+    } catch (error) {
+      console.error("Error getting payment methods:", error);
+      setOpeningBalances([{ mode_of_payment: "Cash", opening_amount: 0 }]);
+    }
+  };
 
   const categories = ["All", ...(itemGroups?.map((g) => g.name) || [])];
 
@@ -234,15 +364,35 @@ export default function POSPage() {
     return matchesCategory && matchesSearch;
   });
 
-  const handleItemClick = (item: MenuItem) => {
-    if (item.has_variants || item.servepos_modifiers) {
-      setSelectedItem(item);
-      setSelectedModifiers([]);
-      setItemComment("");
-      setSelectedVariant(null);
-      setShowModifierDialog(true);
-    } else {
+  const handleItemClick = async (item: MenuItem) => {
+    // Fetch modifiers for this item
+    setLoadingModifiers(true);
+    try {
+      const response = await fetch(
+        `/api/method/servepos.api.pos_session.get_item_modifiers?item_code=${encodeURIComponent(item.name)}`,
+        {
+          headers: { "X-Frappe-CSRF-Token": window.csrf_token || "" },
+        }
+      );
+      const data = await response.json();
+      const modifierGroups: ModifierGroup[] = data.message || [];
+      setItemModifierGroups(modifierGroups);
+
+      // Show dialog if item has variants or modifiers
+      if (item.has_variants || modifierGroups.length > 0) {
+        setSelectedItem(item);
+        setSelectedModifiers([]);
+        setItemComment("");
+        setSelectedVariant(null);
+        setShowModifierDialog(true);
+      } else {
+        addToCartDirect(item);
+      }
+    } catch {
+      // If fetch fails, fall back to direct add
       addToCartDirect(item);
+    } finally {
+      setLoadingModifiers(false);
     }
   };
 
@@ -333,52 +483,183 @@ export default function POSPage() {
   const paidAmount = payments.reduce((sum, p) => sum + p.amount, 0);
   const remainingAmount = total - paidAmount;
 
+  // Select a POS Profile
+  const selectProfile = async (profile: POSProfile) => {
+    setSelectedProfile(profile);
+    setShowProfileSelector(false);
+
+    if (profile.has_open_session && profile.open_session) {
+      setHasOpeningEntry(true);
+      setCurrentOpeningEntry({
+        name: profile.open_session.name,
+        pos_profile: profile.name,
+        company: profile.company,
+        period_start_date: profile.open_session.period_start_date,
+        posting_date: new Date().toISOString().split('T')[0],
+      });
+    } else {
+      setHasOpeningEntry(false);
+      await initializeOpeningBalances(profile.name);
+      setShowOpeningDialog(true);
+    }
+  };
+
   // Create Opening Entry
-  const createOpeningEntry = async () => {
-    if (!posProfiles?.length) return;
+  const handleCreateOpeningEntry = async () => {
+    if (!selectedProfile) return;
 
     try {
-      const doc = {
-        doctype: "POS Opening Entry",
-        pos_profile: posProfiles[0].name,
-        company: posProfiles[0].company,
-        user: "Administrator",
-        period_start_date: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        balance_details: [
-          {
-            mode_of_payment: "Cash",
-            opening_amount: openingCash,
-          },
-        ],
-      };
-
-      const response = await fetch("/api/resource/POS Opening Entry", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Frappe-CSRF-Token": window.csrf_token || "",
-        },
-        body: JSON.stringify(doc),
+      const result = await createOpening({
+        pos_profile: selectedProfile.name,
+        company: selectedProfile.company,
+        balance_details: openingBalances
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        // Submit the entry
-        await fetch(`/api/resource/POS Opening Entry/${data.data.name}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Frappe-CSRF-Token": window.csrf_token || "",
-          },
-          body: JSON.stringify({ docstatus: 1 }),
+      if (result.message) {
+        setCurrentOpeningEntry({
+          name: result.message.name,
+          pos_profile: result.message.pos_profile,
+          company: result.message.company,
+          period_start_date: result.message.period_start_date,
+          posting_date: new Date().toISOString().split('T')[0],
         });
-
         setHasOpeningEntry(true);
         setShowOpeningDialog(false);
-        refreshOpeningEntry();
+        refreshProfiles();
       }
     } catch (error) {
       console.error("Error creating opening entry:", error);
+      alert("Failed to create opening entry: " + (error as Error).message);
+    }
+  };
+
+  // Open closing dialog
+  const openClosingDialog = async () => {
+    if (!currentOpeningEntry) return;
+
+    try {
+      const result = await getClosingPreview({ pos_opening_entry: currentOpeningEntry.name });
+      if (result.message) {
+        setSessionDetails(result.message.session);
+        setReconciliation(result.message.reconciliation);
+        setShowClosingDialog(true);
+      }
+    } catch (error) {
+      console.error("Error getting closing preview:", error);
+      alert("Failed to get session details");
+    }
+  };
+
+  // Create Closing Entry
+  const _handleCreateClosingEntry = async () => {
+    if (!currentOpeningEntry) return;
+
+    try {
+      const result = await createClosing({
+        pos_opening_entry: currentOpeningEntry.name,
+        payment_reconciliation: reconciliation.map(r => ({
+          mode_of_payment: r.mode_of_payment,
+          opening_amount: r.opening_amount,
+          expected_amount: r.expected_amount,
+          closing_amount: r.closing_amount
+        }))
+      });
+
+      if (result.message) {
+        alert(`Session closed successfully!\nClosing Entry: ${result.message.name}\nTotal Sales: ${formatCurrency(result.message.grand_total)}\nInvoices: ${result.message.invoice_count}`);
+        setShowClosingDialog(false);
+        setHasOpeningEntry(false);
+        setCurrentOpeningEntry(null);
+        setSelectedProfile(null);
+        refreshProfiles();
+      }
+    } catch (error) {
+      console.error("Error creating closing entry:", error);
+      alert("Failed to close session: " + (error as Error).message);
+    }
+  };
+
+  // Void/Cancel order
+  const _handleVoidOrder = async () => {
+    if (!voidOrder || !voidReason.trim()) {
+      alert("Please provide a reason for voiding the order");
+      return;
+    }
+
+    try {
+      const result = await voidInvoice({
+        invoice_name: voidOrder.name,
+        reason: voidReason
+      });
+
+      if (result.message) {
+        alert("Order voided successfully");
+        setShowVoidDialog(false);
+        setVoidOrder(null);
+        setVoidReason("");
+        refreshHistory();
+      }
+    } catch (error) {
+      console.error("Error voiding order:", error);
+      alert("Failed to void order: " + (error as Error).message);
+    }
+  };
+
+  // Open return dialog
+  const openReturnDialog = async (order: { name: string; grand_total: number }) => {
+    try {
+      // Fetch order items
+      const response = await fetch(`/api/resource/${encodeURIComponent(invoiceType)}/${order.name}?fields=["items"]`);
+      const data = await response.json();
+
+      if (data.data?.items) {
+        setReturnOrder({
+          ...order,
+          items: data.data.items.map((item: any) => ({
+            ...item,
+            return_qty: item.qty
+          }))
+        });
+        setShowReturnDialog(true);
+      }
+    } catch (error) {
+      console.error("Error fetching order items:", error);
+      alert("Failed to fetch order items");
+    }
+  };
+
+  // Create return invoice
+  const _handleCreateReturn = async () => {
+    if (!returnOrder) return;
+
+    try {
+      const itemsToReturn = returnOrder.items
+        .filter((item: any) => item.return_qty > 0)
+        .map((item: any) => ({
+          item_code: item.item_code,
+          qty: item.return_qty,
+          rate: item.rate
+        }));
+
+      if (itemsToReturn.length === 0) {
+        alert("Please select items to return");
+        return;
+      }
+
+      const result = await createReturn({
+        original_invoice: returnOrder.name,
+        items_to_return: itemsToReturn
+      });
+
+      if (result.message) {
+        alert(`Return invoice created: ${result.message.name}\nRefund Amount: ${formatCurrency(Math.abs(result.message.grand_total))}`);
+        setShowReturnDialog(false);
+        setReturnOrder(null);
+        refreshHistory();
+      }
+    } catch (error) {
+      console.error("Error creating return:", error);
+      alert("Failed to create return: " + (error as Error).message);
     }
   };
 
@@ -405,7 +686,7 @@ export default function POSPage() {
 
   // Submit order
   const submitOrder = async () => {
-    if (!posProfiles?.length || cart.length === 0) return;
+    if (!selectedProfile || cart.length === 0) return;
     if (paidAmount < total) {
       alert("Payment amount is less than total!");
       return;
@@ -421,29 +702,26 @@ export default function POSPage() {
       }));
 
       const paymentEntries = payments.map((p) => ({
-        mode_of_payment: p.mode || "Cash",  // Fallback to Cash if mode is undefined
+        mode_of_payment: p.mode || "Cash",
         amount: p.amount,
       }));
-
-      console.log("Payments state:", payments);
-      console.log("Payment entries:", paymentEntries);
 
       // Get current date/time
       const now = new Date();
       const postingDate = now.toISOString().split('T')[0];
       const postingTime = now.toTimeString().split(' ')[0];
 
-      const invoiceData = {
-        doctype: "POS Invoice",
-        customer: posProfiles[0].customer || "Walk-in Customer",
-        company: posProfiles[0].company,
-        pos_profile: posProfiles[0].name,
+      const invoiceData: Record<string, any> = {
+        doctype: invoiceType,
+        customer: selectedProfile.customer || "Walk-in Customer",
+        company: selectedProfile.company,
+        pos_profile: selectedProfile.name,
         is_pos: 1,
         posting_date: postingDate,
         posting_time: postingTime,
-        set_warehouse: posProfiles[0].warehouse,
-        currency: posProfiles[0].currency || "QAR",
-        selling_price_list: posProfiles[0].selling_price_list || "Standard Selling",
+        set_warehouse: selectedProfile.warehouse,
+        currency: selectedProfile.currency || "QAR",
+        selling_price_list: selectedProfile.selling_price_list || "Standard Selling",
         servepos_table: selectedTable || "",
         servepos_order_type: orderType,
         servepos_guests: guestCount,
@@ -451,7 +729,11 @@ export default function POSPage() {
         payments: paymentEntries,
       };
 
-      console.log("Creating POS Invoice:", invoiceData);
+      // Add Sales Invoice specific fields
+      if (invoiceType === "Sales Invoice") {
+        invoiceData.update_stock = 1;
+        invoiceData.is_created_using_pos = 1;
+      }
 
       // Use frappe.client.insert method
       const response = await fetch("/api/method/frappe.client.insert", {
@@ -464,7 +746,6 @@ export default function POSPage() {
       });
 
       const responseData = await response.json();
-      console.log("Response:", responseData);
 
       if (response.ok && responseData.message) {
         const createdDoc = responseData.message;
@@ -488,7 +769,7 @@ export default function POSPage() {
           setSelectedTable(null);
           setShowPaymentDialog(false);
           refreshTables();
-          alert(`Order ${invoiceName} placed successfully!`);
+          setSuccessOrder({ name: invoiceName, total: total });
         } else {
           console.error("Submit error:", submitData);
           alert(`Order created (${invoiceName}) but could not submit: ${submitData.exc || submitData.message || JSON.stringify(submitData._server_messages) || "Unknown error"}`);
@@ -519,7 +800,7 @@ export default function POSPage() {
   const textMuted = theme === "dark" ? "text-zinc-400" : "text-gray-500";
   const textMuted2 = theme === "dark" ? "text-zinc-500" : "text-gray-400";
 
-  if (profileLoading || hasOpeningEntry === null) {
+  if (profileLoading) {
     return (
       <div className={cn("flex h-screen items-center justify-center", bgMain)}>
         <LoadingSpinner size="lg" />
@@ -527,7 +808,7 @@ export default function POSPage() {
     );
   }
 
-  if (!posProfiles?.length) {
+  if (posProfiles.length === 0) {
     return (
       <div className={cn("flex h-screen flex-col items-center justify-center gap-4", bgMain, textMain)}>
         <h1 className="text-2xl font-bold">No POS Profile Found</h1>
@@ -542,8 +823,56 @@ export default function POSPage() {
     );
   }
 
+  // Profile Selection Screen
+  if (showProfileSelector) {
+    return (
+      <div className={cn("flex h-screen items-center justify-center", bgMain)}>
+        <div className={cn("w-full max-w-lg rounded-2xl p-6", bgCard, textMain)}>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-500 text-white">
+              <Store className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">Select POS Profile</h2>
+              <p className={cn("text-sm", textMuted)}>Choose a profile to start your session</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {posProfiles.map((profile) => (
+              <button
+                key={profile.name}
+                onClick={() => selectProfile(profile)}
+                className={cn(
+                  "w-full rounded-xl p-4 text-left transition-all hover:ring-2 hover:ring-orange-500",
+                  bgButton, bgButtonHover
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold">{profile.name}</h3>
+                    <p className={cn("text-sm", textMuted)}>{profile.company}</p>
+                  </div>
+                  {profile.has_open_session && (
+                    <span className="rounded-full bg-green-500/20 text-green-500 px-3 py-1 text-xs font-medium">
+                      Session Active
+                    </span>
+                  )}
+                </div>
+                <div className={cn("flex gap-4 mt-2 text-xs", textMuted2)}>
+                  <span>Warehouse: {profile.warehouse}</span>
+                  <span>Currency: {profile.currency || "Default"}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Opening Entry Dialog
-  if (showOpeningDialog && !hasOpeningEntry) {
+  if (showOpeningDialog && !hasOpeningEntry && selectedProfile) {
     return (
       <div className={cn("flex h-screen items-center justify-center", bgMain)}>
         <div className={cn("w-full max-w-md rounded-2xl p-6", bgCard, textMain)}>
@@ -562,33 +891,69 @@ export default function POSPage() {
               <label className={cn("block text-sm font-medium mb-1", textMuted)}>
                 POS Profile
               </label>
-              <div className={cn("rounded-lg p-3", bgButton)}>{posProfiles[0].name}</div>
+              <div className={cn("rounded-lg p-3 flex items-center justify-between", bgButton)}>
+                <span>{selectedProfile.name}</span>
+                {posProfiles.length > 1 && (
+                  <button
+                    onClick={() => {
+                      setShowOpeningDialog(false);
+                      setShowProfileSelector(true);
+                    }}
+                    className="text-sm text-orange-500 hover:underline"
+                  >
+                    Change
+                  </button>
+                )}
+              </div>
             </div>
 
             <div>
-              <label className={cn("block text-sm font-medium mb-1", textMuted)}>
-                Opening Cash Balance
+              <label className={cn("block text-sm font-medium mb-2", textMuted)}>
+                Opening Balances
               </label>
-              <input
-                type="number"
-                value={openingCash}
-                onChange={(e) => setOpeningCash(Number(e.target.value))}
-                className={cn(
-                  "w-full rounded-lg p-3 text-lg font-medium focus:outline-none focus:ring-2 focus:ring-orange-500",
-                  bgButton
-                )}
-                placeholder="0.00"
-              />
+              <div className="space-y-3">
+                {openingBalances.map((balance, index) => (
+                  <div key={balance.mode_of_payment} className={cn("rounded-lg p-3", bgButton)}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">{balance.mode_of_payment}</span>
+                      {paymentIcons[balance.mode_of_payment] || <Banknote className="h-4 w-4" />}
+                    </div>
+                    <input
+                      type="number"
+                      value={balance.opening_amount}
+                      onChange={(e) => {
+                        const newBalances = [...openingBalances];
+                        newBalances[index].opening_amount = Number(e.target.value);
+                        setOpeningBalances(newBalances);
+                      }}
+                      className={cn(
+                        "w-full rounded-lg p-2 text-lg font-medium focus:outline-none focus:ring-2 focus:ring-orange-500",
+                        bgCard
+                      )}
+                      placeholder="0.00"
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
 
             <button
-              onClick={createOpeningEntry}
+              onClick={handleCreateOpeningEntry}
               className="w-full rounded-lg bg-orange-500 py-4 font-semibold text-white hover:bg-orange-600"
             >
               Start Session
             </button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Waiting for profile selection or session initialization
+  if (!selectedProfile || hasOpeningEntry === null) {
+    return (
+      <div className={cn("flex h-screen items-center justify-center", bgMain)}>
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -605,7 +970,7 @@ export default function POSPage() {
             </div>
             <div>
               <h1 className="text-lg font-bold">ServePOS</h1>
-              <p className={cn("text-xs", textMuted)}>{posProfiles[0].name}</p>
+              <p className={cn("text-xs", textMuted)}>{selectedProfile.name}</p>
             </div>
           </div>
 
@@ -653,6 +1018,13 @@ export default function POSPage() {
             >
               {theme === "dark" ? <Sun className="h-4 w-4 text-yellow-500" /> : <Moon className="h-4 w-4 text-blue-600" />}
             </button>
+            <button
+              onClick={() => { refreshHistory(); setShowHistoryPanel(true); }}
+              className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm", bgButton, bgButtonHover)}
+            >
+              <History className="h-4 w-4" />
+              Orders
+            </button>
             <a href="/pos/tables" className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm", bgButton, bgButtonHover)}>
               <LayoutGrid className="h-4 w-4" />
               Tables
@@ -661,6 +1033,14 @@ export default function POSPage() {
               <ChefHat className="h-4 w-4" />
               Kitchen
             </a>
+            <button
+              onClick={openClosingDialog}
+              className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-500", bgButton, bgButtonHover)}
+              title="Close Session"
+            >
+              <LogOut className="h-4 w-4" />
+              Close
+            </button>
           </nav>
         </header>
 
@@ -881,30 +1261,50 @@ export default function POSPage() {
               </div>
             )}
 
-            <div className="mb-4">
-              <h3 className={cn("text-sm font-medium mb-2", textMuted)}>Add-ons & Modifiers</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {availableModifiers.map((modifier) => (
-                  <button
-                    key={modifier.name}
-                    onClick={() => toggleModifier(modifier)}
-                    className={cn(
-                      "rounded-lg p-3 text-left",
-                      selectedModifiers.find((m) => m.name === modifier.name)
-                        ? "bg-orange-500 text-white"
-                        : cn(bgButton, bgButtonHover)
-                    )}
-                  >
-                    <p className="font-medium">{modifier.name}</p>
-                    {modifier.price > 0 && (
-                      <p className={selectedModifiers.find((m) => m.name === modifier.name) ? "text-white/80" : "text-orange-500"}>
-                        +{formatCurrency(modifier.price)}
-                      </p>
-                    )}
-                  </button>
-                ))}
+            {itemModifierGroups.length > 0 && itemModifierGroups.map((group) => (
+              <div key={group.group_name} className="mb-4">
+                <h3 className={cn("text-sm font-medium mb-2", textMuted)}>
+                  {group.group_name}
+                  {group.is_required ? <span className="text-red-500 ml-1">*</span> : null}
+                  <span className="text-xs ml-2 opacity-60">
+                    ({group.selection_type === "Single" ? "Select one" : "Select multiple"})
+                  </span>
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {group.modifiers.map((modifier) => (
+                    <button
+                      key={`${group.group_name}-${modifier.name}`}
+                      onClick={() => {
+                        if (group.selection_type === "Single") {
+                          // Remove any existing modifier from this group, then add new one
+                          setSelectedModifiers((prev) => {
+                            const otherGroupModifiers = prev.filter(
+                              (m) => !group.modifiers.some((gm) => gm.name === m.name)
+                            );
+                            return [...otherGroupModifiers, modifier];
+                          });
+                        } else {
+                          toggleModifier(modifier);
+                        }
+                      }}
+                      className={cn(
+                        "rounded-lg p-3 text-left",
+                        selectedModifiers.find((m) => m.name === modifier.name)
+                          ? "bg-orange-500 text-white"
+                          : cn(bgButton, bgButtonHover)
+                      )}
+                    >
+                      <p className="font-medium">{modifier.name}</p>
+                      {modifier.price > 0 && (
+                        <p className={selectedModifiers.find((m) => m.name === modifier.name) ? "text-white/80" : "text-orange-500"}>
+                          +{formatCurrency(modifier.price)}
+                        </p>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            ))}
 
             <div className="mb-4">
               <h3 className={cn("text-sm font-medium mb-2", textMuted)}>Special Instructions</h3>
@@ -927,6 +1327,171 @@ export default function POSPage() {
                 selectedModifiers.reduce((sum, m) => sum + m.price, 0)
               )}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Success Dialog */}
+      {successOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className={cn("w-full max-w-md rounded-2xl p-6 text-center", bgCard)}>
+            <div className="flex justify-center mb-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 text-green-500">
+                <Check className="h-8 w-8" />
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Order Complete!</h2>
+            <p className={cn("text-lg mb-1", textMuted)}>
+              Invoice: <span className="font-mono font-medium">{successOrder.name}</span>
+            </p>
+            <p className="text-2xl font-bold text-orange-500 mb-6">
+              {formatCurrency(successOrder.total)}
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <button
+                onClick={() => {
+                  window.open(`/api/method/frappe.utils.print_format.download_pdf?doctype=${encodeURIComponent(invoiceType)}&name=${successOrder.name}&format=ServePOS%20Bill`, "_blank");
+                }}
+                className={cn("flex items-center justify-center gap-2 rounded-lg py-3 font-medium", bgButton, bgButtonHover)}
+              >
+                <Printer className="h-4 w-4" />
+                Print Bill
+              </button>
+              <button
+                onClick={() => {
+                  window.open(`/printpreview?doctype=${encodeURIComponent(invoiceType)}&name=${successOrder.name}&format=ServePOS%20Bill`, "_blank");
+                }}
+                className={cn("flex items-center justify-center gap-2 rounded-lg py-3 font-medium", bgButton, bgButtonHover)}
+              >
+                <Receipt className="h-4 w-4" />
+                Preview
+              </button>
+            </div>
+
+            <button
+              onClick={() => setSuccessOrder(null)}
+              className="w-full rounded-lg bg-green-500 py-4 font-semibold text-white hover:bg-green-600"
+            >
+              New Order
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Order History Panel */}
+      {showHistoryPanel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className={cn("w-full max-w-2xl max-h-[80vh] rounded-2xl flex flex-col", bgCard)}>
+            <div className={cn("flex items-center justify-between p-4 border-b", borderColor)}>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/20 text-purple-500">
+                  <History className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Order History</h2>
+                  <p className={cn("text-xs", textMuted)}>{orderHistory?.length || 0} orders</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => refreshHistory()}
+                  className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm", bgButton, bgButtonHover)}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setShowHistoryPanel(false)}
+                  className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm", bgButton, bgButtonHover)}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4">
+              {!orderHistory?.length ? (
+                <div className={cn("flex flex-col items-center justify-center py-12", textMuted)}>
+                  <Receipt className="mb-4 h-12 w-12" />
+                  <p className="text-lg">No orders yet</p>
+                  <p className="text-sm">Completed orders will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {orderHistory.map((order) => (
+                    <div
+                      key={order.name}
+                      className={cn("flex items-center justify-between rounded-lg p-4", bgButton)}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-medium">{order.name}</span>
+                          <span className={cn(
+                            "rounded-full px-2 py-0.5 text-xs",
+                            order.status === "Paid" ? "bg-green-500/20 text-green-500" :
+                            order.status === "Consolidated" ? "bg-blue-500/20 text-blue-500" :
+                            "bg-gray-500/20 text-gray-500"
+                          )}>
+                            {order.status}
+                          </span>
+                        </div>
+                        <div className={cn("flex items-center gap-4 text-sm mt-1", textMuted)}>
+                          <span>{order.posting_date} {order.posting_time?.slice(0, 5)}</span>
+                          {order.servepos_table && (
+                            <span>Table: {order.servepos_table}</span>
+                          )}
+                          {order.servepos_order_type && (
+                            <span>{order.servepos_order_type}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg font-bold text-orange-500">
+                          {formatCurrency(order.grand_total)}
+                        </span>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => window.open(`/printpreview?doctype=${encodeURIComponent(invoiceType)}&name=${order.name}&format=ServePOS%20Bill`, "_blank")}
+                            className={cn("rounded-lg p-2", bgButtonHover)}
+                            title="View"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => window.open(`/api/method/frappe.utils.print_format.download_pdf?doctype=${encodeURIComponent(invoiceType)}&name=${order.name}&format=ServePOS%20Bill`, "_blank")}
+                            className={cn("rounded-lg p-2", bgButtonHover)}
+                            title="Print"
+                          >
+                            <Printer className="h-4 w-4" />
+                          </button>
+                          {order.docstatus === 1 && order.status !== "Return" && (
+                            <>
+                              <button
+                                onClick={() => openReturnDialog({ name: order.name, grand_total: order.grand_total })}
+                                className={cn("rounded-lg p-2 text-blue-500", bgButtonHover)}
+                                title="Return"
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setVoidOrder({ name: order.name, grand_total: order.grand_total });
+                                  setShowVoidDialog(true);
+                                }}
+                                className={cn("rounded-lg p-2 text-red-500", bgButtonHover)}
+                                title="Void"
+                              >
+                                <Ban className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

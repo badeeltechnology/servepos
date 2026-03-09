@@ -2,45 +2,59 @@
  "actions": [],
  "allow_rename": 1,
  "autoname": "naming_series:",
- "creation": "2026-03-09 02:01:17.158967",
+ "creation": "2026-03-09 05:07:49.489693",
  "doctype": "DocType",
+ "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "invoice_type",
   "pos_invoice",
+  "kitchen_station",
   "table",
   "column_break_1",
   "status",
   "priority",
-  "section_items",
+  "order_time",
+  "section_break_items",
   "items",
-  "section_times",
-  "started_at",
-  "completed_at",
-  "kitchen_station"
+  "section_break_notes",
+  "notes"
  ],
  "fields": [
   {
-   "default": "KOT-.YYYY.-",
+   "default": "KOT-.YYYY.-.#####",
    "fieldname": "naming_series",
    "fieldtype": "Select",
+   "hidden": 1,
    "label": "Series",
-   "options": "KOT-.YYYY.-",
+   "options": "KOT-.YYYY.-.#####",
    "reqd": 1
   },
   {
    "fieldname": "pos_invoice",
+   "fieldtype": "Dynamic Link",
+   "label": "Invoice",
+   "options": "invoice_type"
+  },
+  {
+   "fieldname": "invoice_type",
    "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "POS Invoice",
-   "options": "POS Invoice"
+   "label": "Invoice Type",
+   "options": "DocType",
+   "hidden": 1,
+   "default": "POS Invoice"
+  },
+  {
+   "fieldname": "kitchen_station",
+   "fieldtype": "Link",
+   "label": "Kitchen Station",
+   "options": "ServePOS Kitchen Station",
+   "reqd": 1
   },
   {
    "fieldname": "table",
    "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
    "label": "Table",
    "options": "ServePOS Table"
   },
@@ -53,61 +67,53 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
-   "in_standard_filter": 1,
    "label": "Status",
-   "options": "Pending\nIn Progress\nCompleted\nCancelled"
+   "options": "Pending\nIn Progress\nReady\nServed\nCancelled",
+   "reqd": 1
   },
   {
    "default": "Normal",
    "fieldname": "priority",
    "fieldtype": "Select",
-   "in_list_view": 1,
    "label": "Priority",
-   "options": "Normal\nHigh\nRush"
+   "options": "Normal\nHigh\nUrgent"
   },
   {
-   "fieldname": "section_items",
+   "default": "now",
+   "fieldname": "order_time",
+   "fieldtype": "Datetime",
+   "label": "Order Time"
+  },
+  {
+   "fieldname": "section_break_items",
    "fieldtype": "Section Break",
    "label": "Items"
   },
   {
-   "description": "JSON array of items: [{item_code, item_name, qty, modifiers, comment}]",
    "fieldname": "items",
-   "fieldtype": "JSON",
-   "label": "Items"
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "ServePOS KOT Item",
+   "reqd": 1
   },
   {
-   "fieldname": "section_times",
+   "fieldname": "section_break_notes",
    "fieldtype": "Section Break",
-   "label": "Timestamps"
+   "label": "Notes"
   },
   {
-   "fieldname": "started_at",
-   "fieldtype": "Datetime",
-   "label": "Started At",
-   "read_only": 1
-  },
-  {
-   "fieldname": "completed_at",
-   "fieldtype": "Datetime",
-   "label": "Completed At",
-   "read_only": 1
-  },
-  {
-   "fieldname": "kitchen_station",
-   "fieldtype": "Data",
-   "in_standard_filter": 1,
-   "label": "Kitchen Station"
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-09 02:01:17.158967",
+ "modified": "2026-03-09 05:07:49.489693",
  "modified_by": "Administrator",
  "module": "Servepos",
  "name": "ServePOS KOT",
- "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
@@ -130,52 +136,14 @@
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "ServePOS Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "ServePOS Kitchen",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "ServePOS Cashier",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "ServePOS Waiter",
+   "role": "Sales User",
    "share": 1,
    "write": 1
   }
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "search_fields": "table,pos_invoice",
  "sort_field": "creation",
  "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+ "states": []
 }

@@ -10,6 +10,13 @@ app_license = "agpl-3.0"
 
 required_apps = ["erpnext"]
 
+# Fixtures
+fixtures = [
+	{"dt": "Custom Field", "filters": [["fieldname", "like", "servepos%"]]},
+	{"dt": "Custom Field", "filters": [["fieldname", "like", "custom_pos_invoice%"]]},
+	{"dt": "Custom Field", "filters": [["fieldname", "=", "custom_sales_invoice"]]},
+]
+
 # Each item in the list will be shown as an app in the apps page
 add_to_apps_screen = [
 	{
@@ -141,8 +148,14 @@ website_route_rules = [
 
 doc_events = {
 	"POS Invoice": {
-		"on_submit": "servepos.servepos.api.stock.create_stock_consumption_for_invoice",
-		"on_cancel": "servepos.servepos.api.stock.reverse_stock_consumption"
+		"before_submit": "servepos.api.stock.create_manufacture_entries_before_submit",
+		"on_submit": "servepos.api.kot.auto_generate_kot_on_submit",
+		"on_cancel": "servepos.api.stock.reverse_stock_on_cancel"
+	},
+	"Sales Invoice": {
+		"before_submit": "servepos.api.stock.create_manufacture_entries_before_submit",
+		"on_submit": "servepos.api.kot.auto_generate_kot_on_submit",
+		"on_cancel": "servepos.api.stock.reverse_stock_on_cancel"
 	}
 }
 
