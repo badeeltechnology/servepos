@@ -302,20 +302,32 @@ def mark_served(kot_name):
 
 
 def auto_generate_kot_on_submit(doc, method):
-    """Hook: Auto generate KOT when POS Invoice is submitted"""
-    # Check if KDS is enabled for this POS Profile
-    pos_profile = frappe.get_doc("POS Profile", doc.pos_profile)
-    auto_generate = cint(pos_profile.get("auto_generate_kot", 1))
-    enable_kds = cint(pos_profile.get("enable_kds", 1))
+    """Hook: Auto generate KOT when POS Invoice/Sales Invoice is submitted"""
+    try:
+        # Skip if no POS profile
+        if not doc.get("pos_profile"):
+            return
 
-    if not auto_generate or not enable_kds:
-        return
+        # Check if KDS is enabled for this POS Profile
+        pos_profile = frappe.get_doc("POS Profile", doc.pos_profile)
+        auto_generate = cint(pos_profile.get("auto_generate_kot", 0))
+        enable_kds = cint(pos_profile.get("enable_kds", 0))
 
-    # Generate KOT
-    result = generate_kot(doc.name)
+        if not auto_generate or not enable_kds:
+            return
 
-    if result.get("kots"):
-        frappe.msgprint(
-            _("Generated {0} Kitchen Order Ticket(s)").format(len(result["kots"])),
-            indicator="green"
-        )
+        # Check if any kitchen stations exist
+        if not frappe.db.exists("ServePOS Kitchen Station", {"is_active": 1}):
+            return
+
+        # Generate KOT
+        result = generate_kot(doc.name, doc.doctype)
+
+        if result.get("kots"):
+            frappe.msgprint(
+                _("Generated {0} Kitchen Order Ticket(s)").format(len(result["kots"])),
+                indicator="green"
+            )
+    except Exception as e:
+        # Log error but don't fail the invoice submission
+        frappe.log_error(f"KOT generation failed for {doc.name}: {str(e)}", "ServePOS KOT Error")
