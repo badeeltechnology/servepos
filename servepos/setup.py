@@ -93,10 +93,31 @@ def create_custom_fields_for_item():
     custom_fields = {
         "Item": [
             {
+                "fieldname": "servepos_arabic_section",
+                "fieldtype": "Section Break",
+                "label": "Arabic / Translation",
+                "insert_after": "description",
+                "collapsible": 1
+            },
+            {
+                "fieldname": "servepos_item_name_ar",
+                "fieldtype": "Data",
+                "label": "Item Name (Arabic)",
+                "insert_after": "servepos_arabic_section",
+                "translatable": 1
+            },
+            {
+                "fieldname": "servepos_description_ar",
+                "fieldtype": "Small Text",
+                "label": "Description (Arabic)",
+                "insert_after": "servepos_item_name_ar",
+                "translatable": 1
+            },
+            {
                 "fieldname": "servepos_section",
                 "fieldtype": "Section Break",
                 "label": "ServePOS Settings",
-                "insert_after": "is_fixed_asset",
+                "insert_after": "servepos_description_ar",
                 "collapsible": 1
             },
             {
@@ -205,11 +226,17 @@ def create_custom_fields_for_pos_invoice():
                 "collapsible": 1
             },
             {
+                "fieldname": "servepos_cashier",
+                "fieldtype": "Data",
+                "label": "Cashier",
+                "insert_after": "servepos_section"
+            },
+            {
                 "fieldname": "servepos_table",
                 "fieldtype": "Link",
                 "label": "Table",
                 "options": "ServePOS Table",
-                "insert_after": "servepos_section"
+                "insert_after": "servepos_cashier"
             },
             {
                 "fieldname": "servepos_room",
@@ -276,6 +303,88 @@ def create_custom_fields_for_pos_invoice():
     }
     create_custom_fields(custom_fields)
     print("Created custom fields for POS Invoice")
+
+
+def create_custom_fields_for_sales_invoice():
+    """Add ServePOS custom fields to Sales Invoice and Sales Invoice Item"""
+    custom_fields = {
+        "Sales Invoice": [
+            {
+                "fieldname": "servepos_section",
+                "fieldtype": "Section Break",
+                "label": "ServePOS Details",
+                "insert_after": "amended_from",
+                "collapsible": 1
+            },
+            {
+                "fieldname": "servepos_cashier",
+                "fieldtype": "Data",
+                "label": "Cashier",
+                "insert_after": "servepos_section"
+            },
+            {
+                "fieldname": "servepos_table",
+                "fieldtype": "Data",
+                "label": "Table",
+                "insert_after": "servepos_cashier"
+            },
+            {
+                "fieldname": "servepos_room",
+                "fieldtype": "Data",
+                "label": "Room",
+                "insert_after": "servepos_table"
+            },
+            {
+                "fieldname": "servepos_order_type",
+                "fieldtype": "Select",
+                "label": "Order Type",
+                "options": "\nDine In\nTakeaway\nDelivery",
+                "default": "Dine In",
+                "insert_after": "servepos_room"
+            },
+            {
+                "fieldname": "servepos_column_break",
+                "fieldtype": "Column Break",
+                "insert_after": "servepos_order_type"
+            },
+            {
+                "fieldname": "servepos_guests",
+                "fieldtype": "Int",
+                "label": "Number of Guests",
+                "insert_after": "servepos_column_break"
+            },
+            {
+                "fieldname": "servepos_order_number",
+                "fieldtype": "Data",
+                "label": "POS Order Number",
+                "read_only": 1,
+                "insert_after": "servepos_guests"
+            },
+            {
+                "fieldname": "servepos_kot_generated",
+                "fieldtype": "Check",
+                "label": "KOT Generated",
+                "read_only": 1,
+                "insert_after": "servepos_order_number"
+            }
+        ],
+        "Sales Invoice Item": [
+            {
+                "fieldname": "servepos_modifiers",
+                "fieldtype": "Small Text",
+                "label": "Modifiers",
+                "insert_after": "description"
+            },
+            {
+                "fieldname": "servepos_comment",
+                "fieldtype": "Small Text",
+                "label": "Special Instructions",
+                "insert_after": "servepos_modifiers"
+            }
+        ]
+    }
+    create_custom_fields(custom_fields)
+    print("Created custom fields for Sales Invoice")
 
 
 def create_kot_item_doctype():
@@ -750,6 +859,7 @@ def setup_all():
     create_custom_fields_for_item()
     create_custom_fields_for_pos_profile()
     create_custom_fields_for_pos_invoice()
+    create_custom_fields_for_sales_invoice()
     create_custom_fields_for_stock_entry()
 
     # Create print formats
