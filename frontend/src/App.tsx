@@ -1,54 +1,74 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useFrappeAuth } from "frappe-react-sdk";
+import { useState, createContext, useContext } from "react";
 
 // Pages
-import POSPage from "@/pages/POS";
-import KDSPage from "@/pages/KDS";
-import TablesPage from "@/pages/Tables";
-import SettingsPage from "@/pages/Settings";
-
-// Context
-import { ThemeProvider } from "@/contexts/ThemeContext";
+import Dashboard from "@/pages/Dashboard";
+import MenuManagement from "@/pages/MenuManagement";
+import ModifierManagement from "@/pages/ModifierManagement";
+import RestaurantSetup from "@/pages/RestaurantSetup";
+import ItemVisibility from "@/pages/ItemVisibility";
+import Layout from "@/components/Layout";
 
 // Components
 import { Toaster } from "@/components/ui/toaster";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
+// POS Profile Context
+interface ProfileContextType {
+  profile: string;
+  profileData: any;
+  setProfile: (p: string) => void;
+  setProfileData: (d: any) => void;
+}
+
+export const ProfileContext = createContext<ProfileContextType>({
+  profile: "",
+  profileData: null,
+  setProfile: () => {},
+  setProfileData: () => {},
+});
+
+export const useProfile = () => useContext(ProfileContext);
+
 function App() {
   const { currentUser, isLoading } = useFrappeAuth();
+  const [profile, setProfile] = useState("");
+  const [profileData, setProfileData] = useState<any>(null);
 
-  // Show loading while checking auth
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950">
+      <div className="flex h-screen items-center justify-center bg-slate-50">
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
-  // Redirect to login if not authenticated
   if (!currentUser || currentUser === "Guest") {
     window.location.href = "/login?redirect-to=/pos";
     return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950">
+      <div className="flex h-screen items-center justify-center bg-slate-50">
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
   return (
-    <ThemeProvider>
+    <ProfileContext.Provider value={{ profile, profileData, setProfile, setProfileData }}>
       <BrowserRouter basename="/pos">
         <Routes>
-          <Route path="/" element={<POSPage />} />
-          <Route path="/kds" element={<KDSPage />} />
-          <Route path="/tables" element={<TablesPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route element={<Layout />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/menu" element={<MenuManagement />} />
+            <Route path="/modifiers" element={<ModifierManagement />} />
+            <Route path="/restaurant" element={<RestaurantSetup />} />
+            <Route path="/visibility" element={<ItemVisibility />} />
+          </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Toaster />
       </BrowserRouter>
-    </ThemeProvider>
+    </ProfileContext.Provider>
   );
 }
 

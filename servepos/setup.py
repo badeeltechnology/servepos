@@ -88,6 +88,24 @@ def create_kitchen_station_doctype():
     print("Created ServePOS Kitchen Station")
 
 
+def create_custom_fields_for_item_group():
+    """Add ServePOS custom fields to Item Group doctype"""
+    custom_fields = {
+        "Item Group": [
+            {
+                "fieldname": "servepos_is_menu_group",
+                "fieldtype": "Check",
+                "label": "Is Menu Group (ServePOS)",
+                "description": "Check this to show this group in the POS menu management portal",
+                "insert_after": "is_group",
+                "default": "0"
+            }
+        ]
+    }
+    create_custom_fields(custom_fields)
+    print("Created custom fields for Item Group")
+
+
 def create_custom_fields_for_item():
     """Add ServePOS custom fields to Item doctype"""
     custom_fields = {
@@ -303,6 +321,34 @@ def create_custom_fields_for_pos_invoice():
     }
     create_custom_fields(custom_fields)
     print("Created custom fields for POS Invoice")
+
+
+def create_custom_fields_for_restaurant():
+    """Add branch field to ServePOS Table and Room"""
+    custom_fields = {
+        "ServePOS Table": [
+            {
+                "fieldname": "branch",
+                "fieldtype": "Link",
+                "label": "Branch",
+                "options": "Branch",
+                "insert_after": "table_name",
+                "reqd": 0
+            }
+        ],
+        "ServePOS Room": [
+            {
+                "fieldname": "branch",
+                "fieldtype": "Link",
+                "label": "Branch",
+                "options": "Branch",
+                "insert_after": "room_name",
+                "reqd": 0
+            }
+        ]
+    }
+    create_custom_fields(custom_fields)
+    print("Created custom fields for ServePOS Table and Room")
 
 
 def create_custom_fields_for_sales_invoice():
@@ -856,10 +902,12 @@ def setup_all():
 
     # Create custom fields
     print("\nCreating custom fields...")
+    create_custom_fields_for_item_group()
     create_custom_fields_for_item()
     create_custom_fields_for_pos_profile()
     create_custom_fields_for_pos_invoice()
     create_custom_fields_for_sales_invoice()
+    create_custom_fields_for_restaurant()
     create_custom_fields_for_stock_entry()
 
     # Create print formats

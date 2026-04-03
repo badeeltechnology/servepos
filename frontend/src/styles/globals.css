@@ -86,6 +86,12 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+  input, textarea, select {
+    color: #111827 !important;
+  }
+  input::placeholder, textarea::placeholder {
+    color: #9ca3af !important;
+  }
 }
 
 /* POS-specific styles */

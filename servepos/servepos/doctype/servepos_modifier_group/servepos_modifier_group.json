@@ -2,7 +2,7 @@
  "actions": [],
  "allow_rename": 1,
  "autoname": "field:group_name",
- "creation": "2026-03-09 10:00:00.000000",
+ "creation": "2026-03-09 10:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -58,14 +58,13 @@
    "fieldname": "modifiers",
    "fieldtype": "Table",
    "label": "Modifiers",
-   "options": "ServePOS Modifier",
-   "reqd": 1
+   "options": "ServePOS Modifier"
   }
  ],
  "links": [],
- "modified": "2026-03-09 10:00:00.000000",
+ "modified": "2026-04-04 00:10:43.477769",
  "modified_by": "Administrator",
- "module": "ServePOS",
+ "module": "Servepos",
  "name": "ServePOS Modifier Group",
  "naming_rule": "By fieldname",
  "owner": "Administrator",
@@ -83,6 +82,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
