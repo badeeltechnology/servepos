@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useFrappeGetDocList, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
 import { useProfile } from "@/App";
 import { Plus, Search, Edit3, Trash2, X, Eye, EyeOff, FolderPlus } from "lucide-react";
@@ -34,16 +34,37 @@ export default function MenuManagement() {
     filters, limit: 200, orderBy: { field: "item_name", order: "asc" },
   });
 
+  // Modifier groups
+  const { data: allModifierGroups } = useFrappeGetDocList("ServePOS Modifier Group", {
+    fields: ["name", "group_name"], limit: 100,
+  });
+  const [itemModifiers, setItemModifiers] = useState<{ modifier_group: string; is_required: number; display_order: number }[]>([]);
+
+  // Fetch item's modifier assignments when editing
+  const fetchItemModifiers = useCallback(async (itemName: string) => {
+    try {
+      const res = await fetch(`/api/resource/Item/${encodeURIComponent(itemName)}?fields=["name","servepos_modifier_groups"]`);
+      const data = await res.json();
+      if (data.data?.servepos_modifier_groups?.length) {
+        setItemModifiers(data.data.servepos_modifier_groups.map((m: any) => ({
+          modifier_group: m.modifier_group, is_required: m.is_required || 0, display_order: m.display_order || 0,
+        })));
+      } else {
+        setItemModifiers([]);
+      }
+    } catch { setItemModifiers([]); }
+  }, []);
+
   const { createDoc } = useFrappeCreateDoc();
   const { updateDoc } = useFrappeUpdateDoc();
   const { deleteDoc } = useFrappeDeleteDoc();
 
-  function resetForm() { setFormData({ item_code: "", item_name: "", item_group: "", standard_rate: 0, description: "", servepos_item_name_ar: "", servepos_description_ar: "", servepos_visible_profiles: "" }); setEditingItem(null); setShowForm(false); }
+  function resetForm() { setFormData({ item_code: "", item_name: "", item_group: "", standard_rate: 0, description: "", servepos_item_name_ar: "", servepos_description_ar: "", servepos_visible_profiles: "" }); setEditingItem(null); setShowForm(false); setItemModifiers([]); }
 
   async function handleSave() {
     try {
       if (editingItem) {
-        const updateData: any = { item_name: formData.item_name, item_group: formData.item_group, standard_rate: formData.standard_rate, description: formData.description, servepos_visible_profiles: formData.servepos_visible_profiles, servepos_item_name_ar: formData.servepos_item_name_ar || "", servepos_description_ar: formData.servepos_description_ar || "" };
+        const updateData: any = { item_name: formData.item_name, item_group: formData.item_group, standard_rate: formData.standard_rate, description: formData.description, servepos_visible_profiles: formData.servepos_visible_profiles, servepos_item_name_ar: formData.servepos_item_name_ar || "", servepos_description_ar: formData.servepos_description_ar || "", servepos_modifier_groups: itemModifiers };
         await updateDoc("Item", editingItem, updateData);
       } else {
         // New item — default visible on all profiles
@@ -163,7 +184,7 @@ export default function MenuManagement() {
                 <td className="px-4 py-3 text-right"><span className="text-[13px] font-semibold text-gray-900">{(item.standard_rate || 0).toFixed(2)}</span></td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <button onClick={() => { setEditingItem(item.name); setFormData({ item_code: item.name, item_name: item.item_name, item_group: item.item_group, standard_rate: item.standard_rate || 0, description: item.description || "", servepos_item_name_ar: item.servepos_item_name_ar || "", servepos_description_ar: item.servepos_description_ar || "", servepos_visible_profiles: item.servepos_visible_profiles || "" }); setShowForm(true); }}
+                    <button onClick={() => { setEditingItem(item.name); setFormData({ item_code: item.name, item_name: item.item_name, item_group: item.item_group, standard_rate: item.standard_rate || 0, description: item.description || "", servepos_item_name_ar: item.servepos_item_name_ar || "", servepos_description_ar: item.servepos_description_ar || "", servepos_visible_profiles: item.servepos_visible_profiles || "" }); fetchItemModifiers(item.name); setShowForm(true); }}
                       className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"><Edit3 className="h-3.5 w-3.5" /></button>
                     <button onClick={async () => { if (confirm("Delete?")) { await deleteDoc("Item", item.name); refreshItems(); } }}
                       className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -183,12 +204,12 @@ export default function MenuManagement() {
       {/* Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 pt-[10vh]">
-          <div className="w-[520px] rounded-lg border border-gray-200 bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3.5">
+          <div className="w-[520px] max-h-[80vh] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3.5 flex-shrink-0">
               <h2 className="text-[14px] font-semibold text-gray-900">{editingItem ? "Edit item" : "Add new item"}</h2>
               <button onClick={resetForm} className="rounded p-1 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
             </div>
-            <div className="space-y-3 px-5 py-4">
+            <div className="space-y-3 px-5 py-4 overflow-y-auto flex-1">
               {!editingItem && (
                 <div>
                   <label className="mb-1 block text-[12px] font-medium text-gray-600">Item Code</label>
@@ -245,6 +266,34 @@ export default function MenuManagement() {
                 <textarea value={formData.servepos_description_ar} onChange={(e) => setFormData({ ...formData, servepos_description_ar: e.target.value })}
                   className="w-full resize-none rounded-md border border-gray-200 px-3 py-2 text-right text-[13px] focus:border-gray-400 focus:outline-none" rows={2} dir="rtl" />
               </div>
+              {/* Modifier Group Assignments — shown when editing */}
+              {editingItem && allModifierGroups && allModifierGroups.length > 0 && (
+                <div>
+                  <label className="mb-2 block text-[12px] font-medium text-gray-600">Modifier Groups</label>
+                  <div className="space-y-1.5">
+                    {allModifierGroups.map((mg) => {
+                      const assigned = itemModifiers.find((m) => m.modifier_group === mg.name);
+                      return (
+                        <label key={mg.name} className="flex items-center gap-2.5 cursor-pointer rounded-md px-2 py-1.5 hover:bg-gray-50">
+                          <input
+                            type="checkbox"
+                            checked={!!assigned}
+                            onChange={() => {
+                              if (assigned) {
+                                setItemModifiers(itemModifiers.filter((m) => m.modifier_group !== mg.name));
+                              } else {
+                                setItemModifiers([...itemModifiers, { modifier_group: mg.name, is_required: 0, display_order: itemModifiers.length }]);
+                              }
+                            }}
+                            className="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+                          />
+                          <span className="text-[13px] text-gray-800">{mg.group_name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {/* POS Profile Visibility — shown when editing and "All Profiles" selected */}
               {editingItem && profile === "__all__" && posProfiles && posProfiles.length > 0 && (
                 <div>
@@ -282,7 +331,7 @@ export default function MenuManagement() {
                 </div>
               )}
             </div>
-            <div className="flex gap-2 border-t border-gray-200 px-5 py-3">
+            <div className="flex gap-2 border-t border-gray-200 px-5 py-3 flex-shrink-0">
               <button onClick={resetForm} className="flex-1 rounded-md border border-gray-200 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
               <button onClick={handleSave} disabled={!formData.item_name || !formData.item_group}
                 className="flex-1 rounded-md bg-gray-900 py-2 text-[13px] font-medium text-white hover:bg-gray-800 disabled:opacity-40">{editingItem ? "Update" : "Create"}</button>
