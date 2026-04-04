@@ -1,0 +1,193 @@
+{
+  "actions": [],
+  "autoname": "naming_series:",
+  "creation": "2026-04-04 22:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "naming_series",
+    "waiter",
+    "waiter_name",
+    "section_break_1",
+    "table",
+    "room",
+    "order_type",
+    "column_break_1",
+    "guests",
+    "branch",
+    "pos_profile",
+    "status",
+    "section_break_2",
+    "items",
+    "section_break_3",
+    "notes",
+    "section_break_4",
+    "edit_log",
+    "pos_order_id"
+  ],
+  "fields": [
+    {
+      "default": "WO-.YYYY.-.#####",
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "hidden": 1,
+      "label": "Naming Series",
+      "options": "WO-.YYYY.-.#####"
+    },
+    {
+      "default": "__user",
+      "fieldname": "waiter",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Waiter",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "waiter_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Waiter Name",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_break_1",
+      "fieldtype": "Section Break",
+      "label": "Order Details"
+    },
+    {
+      "fieldname": "table",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Table",
+      "options": "ServePOS Table"
+    },
+    {
+      "fieldname": "room",
+      "fieldtype": "Link",
+      "in_standard_filter": 1,
+      "label": "Room",
+      "options": "ServePOS Room"
+    },
+    {
+      "default": "Dine In",
+      "fieldname": "order_type",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Order Type",
+      "options": "Dine In\nTakeaway\nDelivery"
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "default": "1",
+      "fieldname": "guests",
+      "fieldtype": "Int",
+      "label": "Guests"
+    },
+    {
+      "fieldname": "branch",
+      "fieldtype": "Link",
+      "label": "Branch",
+      "options": "Branch"
+    },
+    {
+      "fieldname": "pos_profile",
+      "fieldtype": "Link",
+      "label": "POS Profile",
+      "options": "POS Profile"
+    },
+    {
+      "default": "Pending",
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Status",
+      "options": "Pending\nAccepted\nIn Kitchen\nReady\nServed\nPaid\nCancelled"
+    },
+    {
+      "fieldname": "section_break_2",
+      "fieldtype": "Section Break",
+      "label": "Items"
+    },
+    {
+      "fieldname": "items",
+      "fieldtype": "Table",
+      "label": "Items",
+      "options": "ServePOS Waiter Order Item",
+      "reqd": 1
+    },
+    {
+      "fieldname": "section_break_3",
+      "fieldtype": "Section Break",
+      "label": "Notes"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "Notes"
+    },
+    {
+      "fieldname": "section_break_4",
+      "fieldtype": "Section Break",
+      "label": "Audit"
+    },
+    {
+      "fieldname": "edit_log",
+      "fieldtype": "Small Text",
+      "label": "Edit History",
+      "read_only": 1
+    },
+    {
+      "fieldname": "pos_order_id",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "label": "POS Order ID",
+      "read_only": 1
+    }
+  ],
+  "links": [],
+  "modified": "2026-04-04 22:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Servepos",
+  "name": "ServePOS Waiter Order",
+  "naming_rule": "By \"Naming Series\" field",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 1,
+      "read": 1,
+      "role": "Sales User",
+      "write": 1
+    },
+    {
+      "create": 1,
+      "read": 1,
+      "role": "Sales User",
+      "write": 1
+    }
+  ],
+  "search_fields": "waiter_name,table,status",
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "states": [],
+  "title_field": "waiter_name",
+  "track_changes": 1
+}
