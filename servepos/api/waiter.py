@@ -57,6 +57,20 @@ def create_order(waiter_name=None, order_type="Dine In", table=None, room=None, 
     doc.guests = cint(guests) or 1
     doc.notes = notes
 
+    # Auto-set branch and pos_profile from table or defaults
+    if table:
+        table_branch = frappe.db.get_value("ServePOS Table", table, "branch")
+        if table_branch:
+            doc.branch = table_branch
+
+    # Get first active POS Profile as default
+    if not doc.pos_profile:
+        pos_profiles = frappe.get_all("POS Profile", filters={"disabled": 0}, limit=1)
+        if pos_profiles:
+            doc.pos_profile = pos_profiles[0].name
+            if not doc.branch:
+                doc.branch = frappe.db.get_value("POS Profile", doc.pos_profile, "branch")
+
     for item in items:
         doc.append("items", {
             "item_code": item.get("item_code"),
