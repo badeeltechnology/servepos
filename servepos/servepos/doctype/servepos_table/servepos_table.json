@@ -82,7 +82,7 @@
    "fieldname": "shape",
    "fieldtype": "Select",
    "label": "Shape",
-   "options": "Round\nSquare\nRectangle\nBed\nLounge\nBar Stool\nBooth"
+   "options": "Round\nSquare\nRectangle\nBed\nLounge\nBar Stool\nBooth\nUmbrella"
   },
   {
    "fieldname": "column_break_fp",
