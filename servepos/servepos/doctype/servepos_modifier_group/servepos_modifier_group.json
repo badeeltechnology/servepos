@@ -80,6 +80,17 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "ServePOS Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "ServePOS Cashier"
   }
  ],
  "row_format": "Dynamic",

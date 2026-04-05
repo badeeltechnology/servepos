@@ -73,6 +73,14 @@
    "role": "ServePOS Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "read": 1,
+   "role": "ServePOS Cashier"
+  },
+  {
+   "read": 1,
+   "role": "ServePOS Waiter"
   }
  ],
  "row_format": "Dynamic",

@@ -1,0 +1,34 @@
+[
+ {
+  "doctype": "Role",
+  "name": "ServePOS Manager",
+  "role_name": "ServePOS Manager",
+  "desk_access": 1,
+  "is_custom": 1,
+  "home_page": "/pos"
+ },
+ {
+  "doctype": "Role",
+  "name": "ServePOS Cashier",
+  "role_name": "ServePOS Cashier",
+  "desk_access": 1,
+  "is_custom": 1,
+  "home_page": "/pos"
+ },
+ {
+  "doctype": "Role",
+  "name": "ServePOS Waiter",
+  "role_name": "ServePOS Waiter",
+  "desk_access": 1,
+  "is_custom": 1,
+  "home_page": "/pos"
+ },
+ {
+  "doctype": "Role",
+  "name": "ServePOS Kitchen",
+  "role_name": "ServePOS Kitchen",
+  "desk_access": 1,
+  "is_custom": 1,
+  "home_page": "/pos"
+ }
+]

@@ -15,6 +15,7 @@ fixtures = [
 	{"dt": "Custom Field", "filters": [["fieldname", "like", "servepos%"]]},
 	{"dt": "Custom Field", "filters": [["fieldname", "like", "custom_pos_invoice%"]]},
 	{"dt": "Custom Field", "filters": [["fieldname", "=", "custom_sales_invoice"]]},
+	{"dt": "Role", "filters": [["name", "like", "ServePOS%"]]},
 ]
 
 # Each item in the list will be shown as an app in the apps page
@@ -67,9 +68,12 @@ add_to_apps_screen = [
 # home_page = "login"
 
 # website user home page (by Role)
-# role_home_page = {
-# 	"Role": "home_page"
-# }
+role_home_page = {
+	"ServePOS Manager": "pos",
+	"ServePOS Cashier": "pos",
+	"ServePOS Waiter": "pos",
+	"ServePOS Kitchen": "pos",
+}
 
 # Website Routes
 # --------------

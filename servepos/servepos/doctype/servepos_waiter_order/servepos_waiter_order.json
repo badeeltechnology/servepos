@@ -179,8 +179,21 @@
     },
     {
       "create": 1,
+      "delete": 1,
       "read": 1,
-      "role": "Sales User",
+      "role": "ServePOS Manager",
+      "write": 1
+    },
+    {
+      "create": 1,
+      "read": 1,
+      "role": "ServePOS Cashier",
+      "write": 1
+    },
+    {
+      "create": 1,
+      "read": 1,
+      "role": "ServePOS Waiter",
       "write": 1
     }
   ],

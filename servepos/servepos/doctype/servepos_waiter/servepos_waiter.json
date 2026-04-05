@@ -68,6 +68,21 @@
       "read": 1,
       "role": "Sales User",
       "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 1,
+      "read": 1,
+      "role": "ServePOS Manager",
+      "write": 1
+    },
+    {
+      "read": 1,
+      "role": "ServePOS Cashier"
+    },
+    {
+      "read": 1,
+      "role": "ServePOS Waiter"
     }
   ],
   "search_fields": "waiter_name",
