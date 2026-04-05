@@ -9,7 +9,9 @@
   "room_name",
   "description",
   "capacity",
-  "is_active"
+  "is_active",
+  "floor_plan_section",
+  "floor_plan_image"
  ],
  "fields": [
   {
@@ -38,6 +40,17 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Is Active"
+  },
+  {
+   "fieldname": "floor_plan_section",
+   "fieldtype": "Section Break",
+   "label": "Floor Plan"
+  },
+  {
+   "description": "Upload a floor plan image for this room. Tables will be positioned on this image.",
+   "fieldname": "floor_plan_image",
+   "fieldtype": "Attach Image",
+   "label": "Floor Plan Image"
   }
  ],
  "grid_page_length": 50,

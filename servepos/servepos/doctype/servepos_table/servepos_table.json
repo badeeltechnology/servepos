@@ -12,7 +12,12 @@
   "column_break_1",
   "status",
   "current_invoice",
-  "is_active"
+  "is_active",
+  "floor_plan_section",
+  "shape",
+  "column_break_fp",
+  "pos_x",
+  "pos_y"
  ],
  "fields": [
   {
@@ -65,6 +70,37 @@
    "fieldname": "is_active",
    "fieldtype": "Check",
    "label": "Is Active"
+  },
+  {
+   "fieldname": "floor_plan_section",
+   "fieldtype": "Section Break",
+   "label": "Floor Plan Position"
+  },
+  {
+   "default": "Round",
+   "description": "Visual shape for floor plan display",
+   "fieldname": "shape",
+   "fieldtype": "Select",
+   "label": "Shape",
+   "options": "Round\nSquare\nRectangle\nBed\nLounge\nBar Stool\nBooth"
+  },
+  {
+   "fieldname": "column_break_fp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "X position on floor plan (percentage 0-100)",
+   "fieldname": "pos_x",
+   "fieldtype": "Float",
+   "label": "Position X"
+  },
+  {
+   "default": "0",
+   "description": "Y position on floor plan (percentage 0-100)",
+   "fieldname": "pos_y",
+   "fieldtype": "Float",
+   "label": "Position Y"
   }
  ],
  "grid_page_length": 50,

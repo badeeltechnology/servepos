@@ -191,3 +191,41 @@ def accept_order(order_name, pos_order_id=None):
         doc.pos_order_id = pos_order_id
     doc.save()
     return {"success": True}
+
+
+# Status mapping: Desktop POS status → ERPNext Waiter Order status
+POS_TO_WAITER_STATUS = {
+    "Open": "Accepted",
+    "Preparing": "In Kitchen",
+    "Ready to Serve": "Ready",
+    "Invoiced": "Served",
+    "Completed": "Paid",
+}
+
+
+@frappe.whitelist()
+def update_order_status_by_pos(pos_order_id, status):
+    """Update waiter order status from the Desktop POS (coordinator/cashier).
+    Called when coordinator marks Ready to Serve, etc.
+    Maps POS statuses to waiter order statuses."""
+
+    # Find the waiter order linked to this POS order
+    orders = frappe.get_all(
+        "ServePOS Waiter Order",
+        filters={"pos_order_id": pos_order_id},
+        fields=["name"],
+        limit=1
+    )
+
+    if not orders:
+        return {"success": False, "error": "No waiter order linked to this POS order"}
+
+    mapped_status = POS_TO_WAITER_STATUS.get(status)
+    if not mapped_status:
+        return {"success": False, "error": f"Unknown status: {status}"}
+
+    doc = frappe.get_doc("ServePOS Waiter Order", orders[0].name)
+    doc.status = mapped_status
+    doc.save()
+
+    return {"success": True, "waiter_order": doc.name, "status": mapped_status}
