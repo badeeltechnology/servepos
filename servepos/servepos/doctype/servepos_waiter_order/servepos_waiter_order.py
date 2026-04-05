@@ -6,7 +6,9 @@ from frappe.utils import now_datetime
 class ServePOSWaiterOrder(Document):
 	def before_insert(self):
 		self.waiter = frappe.session.user
-		self.waiter_name = frappe.get_value("User", self.waiter, "full_name") or self.waiter
+		# Only set waiter_name if not already provided (e.g. by waiter app)
+		if not self.waiter_name:
+			self.waiter_name = frappe.get_value("User", self.waiter, "full_name") or self.waiter
 		if not self.status:
 			self.status = "Pending"
 
