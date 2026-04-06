@@ -418,41 +418,72 @@ export default function Dashboard() {
           {/* Hourly Sales Chart */}
           {(data.hourly_sales || []).length > 0 && (
             <div className="mb-5 rounded-lg border border-gray-200 bg-white">
-              <div className="border-b border-gray-200 px-5 py-3 flex items-center gap-2">
-                <Clock className="h-3.5 w-3.5 text-gray-400" />
-                <h2 className="text-[13px] font-semibold text-gray-700">Sales by Hour</h2>
-              </div>
-              <div className="p-4">
-                <div className="flex items-end gap-1" style={{ height: 140 }}>
-                  {Array.from({ length: 24 }, (_, h) => {
-                    const found = (data.hourly_sales || []).find((s: any) => s.hour === h);
-                    const val = found ? found.total : 0;
-                    const count = found ? found.count : 0;
-                    const height = hourlyMax ? (val / hourlyMax) * 100 : 0;
-                    return (
-                      <div key={h} className="flex-1 flex flex-col items-center group relative">
-                        {val > 0 && (
-                          <div className="absolute -top-14 left-1/2 -translate-x-1/2 hidden group-hover:block z-10 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1.5 text-[10px] text-white shadow-lg">
-                            <div className="font-semibold">{fmtCurrency(val)}</div>
-                            <div className="text-gray-400">{count} orders</div>
-                          </div>
-                        )}
-                        <div
-                          className="w-full rounded-t transition-all duration-300 hover:opacity-80"
-                          style={{
-                            height: `${Math.max(height, val > 0 ? 4 : 0)}%`,
-                            backgroundColor: val > 0 ? "#111827" : "#f3f4f6",
-                            minHeight: val > 0 ? 4 : 2,
-                          }}
-                        />
-                      </div>
-                    );
-                  })}
+              <div className="border-b border-gray-200 px-5 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-gray-400" />
+                  <h2 className="text-[13px] font-semibold text-gray-700">Sales by Hour</h2>
                 </div>
-                <div className="flex gap-1 mt-1.5">
+                <div className="flex items-center gap-4 text-[11px] text-gray-400">
+                  <span>Peak: <strong className="text-gray-700">{fmtHour((data.hourly_sales || []).reduce((max: any, h: any) => h.total > (max?.total || 0) ? h : max, { hour: 0, total: 0 }).hour)}</strong></span>
+                  <span>Peak Revenue: <strong className="text-gray-700">{fmtCurrency(hourlyMax)}</strong></span>
+                </div>
+              </div>
+              <div className="px-5 py-5">
+                {/* Y-axis labels + bars */}
+                <div className="flex gap-2">
+                  {/* Y-axis */}
+                  <div className="flex flex-col justify-between text-[10px] text-gray-400 text-right w-12 flex-shrink-0" style={{ height: 200 }}>
+                    <span>{fmtCurrency(hourlyMax)}</span>
+                    <span>{fmtCurrency(hourlyMax * 0.75)}</span>
+                    <span>{fmtCurrency(hourlyMax * 0.5)}</span>
+                    <span>{fmtCurrency(hourlyMax * 0.25)}</span>
+                    <span>0</span>
+                  </div>
+                  {/* Bars */}
+                  <div className="flex-1 relative">
+                    {/* Grid lines */}
+                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none" style={{ height: 200 }}>
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <div key={i} className="border-b border-gray-100 w-full" />
+                      ))}
+                    </div>
+                    <div className="flex items-end gap-[3px] relative" style={{ height: 200 }}>
+                      {Array.from({ length: 24 }, (_, h) => {
+                        const found = (data.hourly_sales || []).find((s: any) => s.hour === h);
+                        const val = found ? found.total : 0;
+                        const count = found ? found.count : 0;
+                        const height = hourlyMax ? (val / hourlyMax) * 100 : 0;
+                        const isActive = val > 0;
+                        return (
+                          <div key={h} className="flex-1 flex flex-col items-center group relative">
+                            {isActive && (
+                              <div className="absolute -top-16 left-1/2 -translate-x-1/2 hidden group-hover:block z-10 whitespace-nowrap rounded-lg bg-gray-900 px-3 py-2 text-[11px] text-white shadow-xl">
+                                <div className="font-bold text-[13px]">{fmtCurrency(val)}</div>
+                                <div className="text-gray-400 mt-0.5">{count} order{count !== 1 ? "s" : ""} · {fmtHour(h)}</div>
+                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rotate-45 h-2 w-2 bg-gray-900" />
+                              </div>
+                            )}
+                            <div
+                              className={`w-full rounded-t-sm transition-all duration-300 ${isActive ? "hover:opacity-75 cursor-pointer" : ""}`}
+                              style={{
+                                height: `${Math.max(height, isActive ? 3 : 0)}%`,
+                                backgroundColor: isActive
+                                  ? height > 75 ? "#111827" : height > 50 ? "#374151" : height > 25 ? "#6b7280" : "#9ca3af"
+                                  : "transparent",
+                                minHeight: isActive ? 6 : 0,
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+                {/* X-axis labels */}
+                <div className="flex gap-[3px] ml-14 mt-2">
                   {Array.from({ length: 24 }, (_, h) => (
-                    <div key={h} className="flex-1 text-center text-[9px] text-gray-400">
-                      {h % 3 === 0 ? fmtHour(h) : ""}
+                    <div key={h} className="flex-1 text-center text-[9px] text-gray-400 font-medium">
+                      {h % 2 === 0 ? fmtHour(h) : ""}
                     </div>
                   ))}
                 </div>
