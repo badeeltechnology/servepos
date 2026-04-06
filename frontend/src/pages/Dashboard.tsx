@@ -89,8 +89,11 @@ export default function Dashboard() {
     const payHtml = (data.payment_breakdown || []).map((p: any) =>
       `<tr><td>${p.mode_of_payment}</td><td class="num">${fmtCurrency(p.total)}</td><td class="num">${paymentTotal ? ((p.total / paymentTotal) * 100).toFixed(1) : 0}%</td></tr>`
     ).join("");
-    const itemsHtml = (data.top_items || []).slice(0, 15).map((it: any, i: number) =>
-      `<tr><td>${i + 1}</td><td>${it.item_name}</td><td>${it.item_group || ""}</td><td class="num">${it.total_qty}</td><td class="num">${fmtCurrency(it.total_amount)}</td></tr>`
+    const itemsByQtyHtml = [...(data.top_items || [])].sort((a: any, b: any) => b.total_qty - a.total_qty).slice(0, 10).map((it: any, i: number) =>
+      `<tr><td>${i + 1}</td><td>${it.item_name}</td><td class="num">${it.total_qty}</td><td class="num">${fmtCurrency(it.total_amount)}</td></tr>`
+    ).join("");
+    const itemsByRevHtml = (data.top_items || []).slice(0, 10).map((it: any, i: number) =>
+      `<tr><td>${i + 1}</td><td>${it.item_name}</td><td class="num">${fmtCurrency(it.total_amount)}</td><td class="num">${it.total_qty}</td></tr>`
     ).join("");
     const catHtml = (data.category_breakdown || []).map((c: any) =>
       `<tr><td>${c.category}</td><td class="num">${c.items}</td><td class="num">${c.qty}</td><td class="num">${fmtCurrency(c.amount)}</td></tr>`
@@ -133,8 +136,10 @@ export default function Dashboard() {
         <div><h2>Payment Methods</h2><table><thead><tr><th>Method</th><th class="num">Amount</th><th class="num">%</th></tr></thead><tbody>${payHtml}</tbody></table></div>
         <div><h2>Order Types</h2><table><thead><tr><th>Type</th><th class="num">Orders</th><th class="num">Total</th></tr></thead><tbody>${orderTypeHtml}</tbody></table></div>
       </div>
-      <h2>Top Selling Items</h2>
-      <table><thead><tr><th>#</th><th>Item</th><th>Category</th><th class="num">Qty</th><th class="num">Revenue</th></tr></thead><tbody>${itemsHtml}</tbody></table>
+      <div class="two-col">
+        <div><h2>Top Items by Quantity</h2><table><thead><tr><th>#</th><th>Item</th><th class="num">Qty</th><th class="num">Revenue</th></tr></thead><tbody>${itemsByQtyHtml}</tbody></table></div>
+        <div><h2>Top Items by Revenue</h2><table><thead><tr><th>#</th><th>Item</th><th class="num">Revenue</th><th class="num">Qty</th></tr></thead><tbody>${itemsByRevHtml}</tbody></table></div>
+      </div>
       <h2>Category Breakdown</h2>
       <table><thead><tr><th>Category</th><th class="num">Items</th><th class="num">Qty Sold</th><th class="num">Revenue</th></tr></thead><tbody>${catHtml}</tbody></table>
       ${waiterHtml ? `<div class="two-col"><div><h2>Waiter Performance</h2><table><thead><tr><th>Waiter</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody>${waiterHtml}</tbody></table></div><div><h2>Cashier Performance</h2><table><thead><tr><th>Cashier</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody>${cashierHtml}</tbody></table></div></div>` : ""}
@@ -447,12 +452,12 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Top Items + Category — side by side */}
+          {/* Top Items by Qty + Top Items by Revenue — side by side */}
           <div className="mb-5 grid grid-cols-2 gap-4">
-            {/* Top Selling Items */}
+            {/* Top by Quantity */}
             <div className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-3">
-                <h2 className="text-[13px] font-semibold text-gray-700">Top Selling Items</h2>
+                <h2 className="text-[13px] font-semibold text-gray-700">Top Items by Quantity</h2>
               </div>
               <div className="max-h-[360px] overflow-y-auto">
                 <table className="w-full">
@@ -465,19 +470,19 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(data.top_items || []).map((it: any, i: number) => (
+                    {[...(data.top_items || [])].sort((a: any, b: any) => b.total_qty - a.total_qty).slice(0, 10).map((it: any, i: number) => (
                       <tr key={it.item_code} className="border-b border-gray-50 hover:bg-gray-50">
                         <td className="px-4 py-2.5">
                           <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
-                            i < 3 ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"
+                            i < 3 ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500"
                           }`}>{i + 1}</span>
                         </td>
                         <td className="px-4 py-2.5">
-                          <p className="text-[12px] font-medium text-gray-900 truncate max-w-[200px]">{it.item_name}</p>
+                          <p className="text-[12px] font-medium text-gray-900 truncate max-w-[180px]">{it.item_name}</p>
                           <p className="text-[10px] text-gray-400">{it.item_group}</p>
                         </td>
-                        <td className="px-4 py-2.5 text-right text-[12px] font-medium text-gray-700">{it.total_qty}</td>
-                        <td className="px-4 py-2.5 text-right text-[12px] font-semibold text-gray-900">{fmtCurrency(it.total_amount)}</td>
+                        <td className="px-4 py-2.5 text-right text-[12px] font-bold text-gray-900">{it.total_qty}</td>
+                        <td className="px-4 py-2.5 text-right text-[12px] text-gray-500">{fmtCurrency(it.total_amount)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -488,7 +493,48 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Category Breakdown */}
+            {/* Top by Revenue */}
+            <div className="rounded-lg border border-gray-200 bg-white">
+              <div className="border-b border-gray-200 px-5 py-3">
+                <h2 className="text-[13px] font-semibold text-gray-700">Top Items by Revenue</h2>
+              </div>
+              <div className="max-h-[360px] overflow-y-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50 sticky top-0">
+                      <th className="px-4 py-2 text-left text-[10px] font-semibold text-gray-500 uppercase w-8">#</th>
+                      <th className="px-4 py-2 text-left text-[10px] font-semibold text-gray-500 uppercase">Item</th>
+                      <th className="px-4 py-2 text-right text-[10px] font-semibold text-gray-500 uppercase">Revenue</th>
+                      <th className="px-4 py-2 text-right text-[10px] font-semibold text-gray-500 uppercase">Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data.top_items || []).slice(0, 10).map((it: any, i: number) => (
+                      <tr key={it.item_code} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="px-4 py-2.5">
+                          <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
+                            i < 3 ? "bg-green-600 text-white" : "bg-gray-100 text-gray-500"
+                          }`}>{i + 1}</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <p className="text-[12px] font-medium text-gray-900 truncate max-w-[180px]">{it.item_name}</p>
+                          <p className="text-[10px] text-gray-400">{it.item_group}</p>
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-[12px] font-bold text-gray-900">{fmtCurrency(it.total_amount)}</td>
+                        <td className="px-4 py-2.5 text-right text-[12px] text-gray-500">{it.total_qty}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {(data.top_items || []).length === 0 && (
+                  <p className="py-6 text-center text-[12px] text-gray-400">No items sold</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Category Breakdown */}
+          <div className="mb-5">
             <div className="rounded-lg border border-gray-200 bg-white">
               <div className="border-b border-gray-200 px-5 py-3">
                 <h2 className="text-[13px] font-semibold text-gray-700">Category Breakdown</h2>
