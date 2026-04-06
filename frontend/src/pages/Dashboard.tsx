@@ -107,6 +107,12 @@ export default function Dashboard() {
     const cashierHtml = (data.cashier_breakdown || []).map((c: any) =>
       `<tr><td>${c.cashier}</td><td class="num">${c.count}</td><td class="num">${fmtCurrency(c.total)}</td></tr>`
     ).join("");
+    const hourlyHtml = (data.hourly_sales || []).map((h: any) =>
+      `<tr><td>${fmtHour(h.hour)}</td><td class="num">${h.count}</td><td class="num">${fmtCurrency(h.total)}</td></tr>`
+    ).join("");
+    const dailyHtml = (data.daily_sales || []).length > 1 ? (data.daily_sales || []).map((d: any) =>
+      `<tr><td>${d.date}</td><td class="num">${d.count}</td><td class="num">${fmtCurrency(d.total)}</td></tr>`
+    ).join("") : "";
 
     printWindow.document.write(`<!DOCTYPE html><html><head><title>Sales Report - ${profileName}</title>
       <style>
@@ -142,7 +148,9 @@ export default function Dashboard() {
       </div>
       <h2>Category Breakdown</h2>
       <table><thead><tr><th>Category</th><th class="num">Items</th><th class="num">Qty Sold</th><th class="num">Revenue</th></tr></thead><tbody>${catHtml}</tbody></table>
-      ${waiterHtml ? `<div class="two-col"><div><h2>Waiter Performance</h2><table><thead><tr><th>Waiter</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody>${waiterHtml}</tbody></table></div><div><h2>Cashier Performance</h2><table><thead><tr><th>Cashier</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody>${cashierHtml}</tbody></table></div></div>` : ""}
+      ${waiterHtml || cashierHtml ? `<div class="two-col">${waiterHtml ? `<div><h2>Waiter Performance</h2><table><thead><tr><th>Waiter</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody>${waiterHtml}</tbody></table></div>` : "<div></div>"}${cashierHtml ? `<div><h2>Cashier Performance</h2><table><thead><tr><th>Cashier</th><th class="num">Orders</th><th class="num">Revenue</th></tr></thead><tbody>${cashierHtml}</tbody></table></div>` : ""}</div>` : ""}
+      ${hourlyHtml ? `<h2>Sales by Hour</h2><table><thead><tr><th>Hour</th><th class="num">Orders</th><th class="num">Total</th></tr></thead><tbody>${hourlyHtml}</tbody></table>` : ""}
+      ${dailyHtml ? `<h2>Daily Sales</h2><table><thead><tr><th>Date</th><th class="num">Orders</th><th class="num">Total</th></tr></thead><tbody>${dailyHtml}</tbody></table>` : ""}
       <script>window.print();</script>
     </body></html>`);
     printWindow.document.close();
