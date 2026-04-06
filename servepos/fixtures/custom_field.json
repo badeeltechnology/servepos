@@ -151,6 +151,16 @@
   "name": "Sales Invoice-servepos_kot_generated"
  },
  {
+  "name": "Sales Invoice-servepos_promo",
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "servepos_promo",
+  "fieldtype": "Link",
+  "label": "Promo",
+  "options": "ServePOS Promo",
+  "insert_after": "servepos_kot_generated"
+ },
+ {
   "doctype": "Custom Field",
   "dt": "Stock Entry",
   "fieldname": "custom_pos_invoice",
