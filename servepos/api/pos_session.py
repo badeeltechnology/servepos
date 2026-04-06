@@ -514,3 +514,195 @@ def get_all_modifier_groups():
         )
 
     return groups
+
+
+@frappe.whitelist()
+def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
+    """Get comprehensive sales analytics for the dashboard"""
+    if not from_date:
+        from_date = nowdate()
+    if not to_date:
+        to_date = nowdate()
+
+    # Build base filters for both invoice types
+    base_filters = {"docstatus": 1, "posting_date": ["between", [from_date, to_date]]}
+    if pos_profile:
+        base_filters["pos_profile"] = pos_profile
+
+    inv_fields = ["name", "grand_total", "net_total", "total_taxes_and_charges",
+                   "posting_date", "posting_time", "pos_profile", "customer_name",
+                   "servepos_order_type", "servepos_guests", "servepos_waiter", "servepos_cashier"]
+
+    # --- Fetch POS Invoices ---
+    pos_invoices = frappe.get_all(
+        "POS Invoice",
+        filters=base_filters,
+        fields=inv_fields,
+        limit_page_length=0
+    )
+
+    # --- Fetch Sales Invoices (POS) ---
+    si_filters = {**base_filters, "is_pos": 1}
+    sales_invoices = frappe.get_all(
+        "Sales Invoice",
+        filters=si_filters,
+        fields=inv_fields,
+        limit_page_length=0
+    )
+
+    all_invoices = pos_invoices + sales_invoices
+    invoice_names_pos = [i.name for i in pos_invoices]
+    invoice_names_si = [i.name for i in sales_invoices]
+
+    if not all_invoices:
+        return {
+            "total_sales": 0, "net_total": 0, "total_tax": 0,
+            "order_count": 0, "avg_order": 0, "total_guests": 0,
+            "payment_breakdown": [], "top_items": [], "category_breakdown": [],
+            "order_type_breakdown": [], "hourly_sales": [], "daily_sales": [],
+            "cashier_breakdown": [],
+        }
+
+    # --- Payment Breakdown ---
+    payment_data = []
+    if invoice_names_pos:
+        payment_data += frappe.get_all(
+            "POS Invoice Payment",
+            filters={"parent": ["in", invoice_names_pos], "docstatus": 1},
+            fields=["mode_of_payment", "sum(amount) as total"],
+            group_by="mode_of_payment"
+        )
+    if invoice_names_si:
+        si_payments = frappe.get_all(
+            "Sales Invoice Payment",
+            filters={"parent": ["in", invoice_names_si], "docstatus": 1},
+            fields=["mode_of_payment", "sum(amount) as total"],
+            group_by="mode_of_payment"
+        )
+        # Merge with existing
+        pay_map = {p.mode_of_payment: p.total for p in payment_data}
+        for sp in si_payments:
+            pay_map[sp.mode_of_payment] = pay_map.get(sp.mode_of_payment, 0) + sp.total
+        payment_data = [{"mode_of_payment": k, "total": v} for k, v in pay_map.items()]
+
+    payment_breakdown = sorted(payment_data, key=lambda x: x["total"], reverse=True)
+
+    # --- Top Selling Items ---
+    item_data = []
+    if invoice_names_pos:
+        item_data += frappe.get_all(
+            "POS Invoice Item",
+            filters={"parent": ["in", invoice_names_pos], "docstatus": 1},
+            fields=["item_code", "item_name", "item_group",
+                    "sum(qty) as total_qty", "sum(amount) as total_amount"],
+            group_by="item_code",
+        )
+    if invoice_names_si:
+        si_items = frappe.get_all(
+            "Sales Invoice Item",
+            filters={"parent": ["in", invoice_names_si], "docstatus": 1},
+            fields=["item_code", "item_name", "item_group",
+                    "sum(qty) as total_qty", "sum(amount) as total_amount"],
+            group_by="item_code",
+        )
+        item_map = {}
+        for it in item_data:
+            item_map[it.item_code] = it
+        for si in si_items:
+            if si.item_code in item_map:
+                item_map[si.item_code]["total_qty"] += si.total_qty
+                item_map[si.item_code]["total_amount"] += si.total_amount
+            else:
+                item_map[si.item_code] = si
+        item_data = list(item_map.values())
+
+    top_items = sorted(item_data, key=lambda x: x["total_amount"], reverse=True)[:15]
+
+    # --- Category Breakdown ---
+    cat_map = {}
+    for it in item_data:
+        g = it.get("item_group") or "Uncategorized"
+        if g not in cat_map:
+            cat_map[g] = {"category": g, "qty": 0, "amount": 0, "items": 0}
+        cat_map[g]["qty"] += it["total_qty"]
+        cat_map[g]["amount"] += it["total_amount"]
+        cat_map[g]["items"] += 1
+    category_breakdown = sorted(cat_map.values(), key=lambda x: x["amount"], reverse=True)
+
+    # --- Order Type Breakdown ---
+    type_map = {}
+    for inv in all_invoices:
+        ot = inv.get("servepos_order_type") or "Other"
+        if ot not in type_map:
+            type_map[ot] = {"type": ot, "count": 0, "total": 0}
+        type_map[ot]["count"] += 1
+        type_map[ot]["total"] += inv.grand_total or 0
+    order_type_breakdown = sorted(type_map.values(), key=lambda x: x["total"], reverse=True)
+
+    # --- Hourly Sales Distribution ---
+    hourly_map = {}
+    for inv in all_invoices:
+        hour = int(str(inv.posting_time or "0").split(":")[0])
+        if hour not in hourly_map:
+            hourly_map[hour] = {"hour": hour, "count": 0, "total": 0}
+        hourly_map[hour]["count"] += 1
+        hourly_map[hour]["total"] += inv.grand_total or 0
+    hourly_sales = sorted(hourly_map.values(), key=lambda x: x["hour"])
+
+    # --- Daily Sales (for multi-day ranges) ---
+    daily_map = {}
+    for inv in all_invoices:
+        d = str(inv.posting_date)
+        if d not in daily_map:
+            daily_map[d] = {"date": d, "count": 0, "total": 0}
+        daily_map[d]["count"] += 1
+        daily_map[d]["total"] += inv.grand_total or 0
+    daily_sales = sorted(daily_map.values(), key=lambda x: x["date"])
+
+    # --- Waiter Breakdown ---
+    waiter_map = {}
+    for inv in all_invoices:
+        w = inv.get("servepos_waiter") or ""
+        if not w:
+            continue
+        if w not in waiter_map:
+            waiter_map[w] = {"waiter": w, "count": 0, "total": 0}
+        waiter_map[w]["count"] += 1
+        waiter_map[w]["total"] += inv.grand_total or 0
+    waiter_breakdown = sorted(waiter_map.values(), key=lambda x: x["total"], reverse=True)
+
+    # --- Cashier Breakdown ---
+    cashier_map = {}
+    for inv in all_invoices:
+        c = inv.get("servepos_cashier") or ""
+        if not c:
+            continue
+        if c not in cashier_map:
+            cashier_map[c] = {"cashier": c, "count": 0, "total": 0}
+        cashier_map[c]["count"] += 1
+        cashier_map[c]["total"] += inv.grand_total or 0
+    cashier_breakdown = sorted(cashier_map.values(), key=lambda x: x["total"], reverse=True)
+
+    # --- Totals ---
+    total_sales = sum(inv.grand_total or 0 for inv in all_invoices)
+    net_total = sum(inv.net_total or 0 for inv in all_invoices)
+    total_tax = sum(inv.total_taxes_and_charges or 0 for inv in all_invoices)
+    total_guests = sum(inv.servepos_guests or 0 for inv in all_invoices)
+    order_count = len(all_invoices)
+
+    return {
+        "total_sales": total_sales,
+        "net_total": net_total,
+        "total_tax": total_tax,
+        "order_count": order_count,
+        "avg_order": total_sales / order_count if order_count else 0,
+        "total_guests": total_guests,
+        "payment_breakdown": payment_breakdown,
+        "top_items": top_items,
+        "category_breakdown": category_breakdown,
+        "order_type_breakdown": order_type_breakdown,
+        "hourly_sales": hourly_sales,
+        "daily_sales": daily_sales,
+        "waiter_breakdown": waiter_breakdown,
+        "cashier_breakdown": cashier_breakdown,
+    }
