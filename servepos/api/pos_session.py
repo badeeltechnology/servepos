@@ -566,57 +566,55 @@ def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
         }
 
     # --- Payment Breakdown ---
-    payment_data = []
-    if invoice_names_pos:
-        payment_data += frappe.get_all(
-            "POS Invoice Payment",
-            filters={"parent": ["in", invoice_names_pos], "docstatus": 1},
-            fields=["mode_of_payment", "sum(amount) as total"],
-            group_by="mode_of_payment"
+    pay_map = {}
+    for pay_doctype, inv_names in [("POS Invoice Payment", invoice_names_pos), ("Sales Invoice Payment", invoice_names_si)]:
+        if not inv_names:
+            continue
+        table = frappe.qb.DocType(pay_doctype)
+        rows = (
+            frappe.qb.from_(table)
+            .select(table.mode_of_payment, frappe.query_builder.functions.Sum(table.amount).as_("total"))
+            .where(table.parent.isin(inv_names))
+            .where(table.docstatus == 1)
+            .groupby(table.mode_of_payment)
+            .run(as_dict=True)
         )
-    if invoice_names_si:
-        si_payments = frappe.get_all(
-            "Sales Invoice Payment",
-            filters={"parent": ["in", invoice_names_si], "docstatus": 1},
-            fields=["mode_of_payment", "sum(amount) as total"],
-            group_by="mode_of_payment"
-        )
-        # Merge with existing
-        pay_map = {p.mode_of_payment: p.total for p in payment_data}
-        for sp in si_payments:
-            pay_map[sp.mode_of_payment] = pay_map.get(sp.mode_of_payment, 0) + sp.total
-        payment_data = [{"mode_of_payment": k, "total": v} for k, v in pay_map.items()]
-
-    payment_breakdown = sorted(payment_data, key=lambda x: x["total"], reverse=True)
+        for r in rows:
+            pay_map[r.mode_of_payment] = pay_map.get(r.mode_of_payment, 0) + flt(r.total)
+    payment_breakdown = sorted(
+        [{"mode_of_payment": k, "total": v} for k, v in pay_map.items()],
+        key=lambda x: x["total"], reverse=True
+    )
 
     # --- Top Selling Items ---
-    item_data = []
-    if invoice_names_pos:
-        item_data += frappe.get_all(
-            "POS Invoice Item",
-            filters={"parent": ["in", invoice_names_pos], "docstatus": 1},
-            fields=["item_code", "item_name", "item_group",
-                    "sum(qty) as total_qty", "sum(amount) as total_amount"],
-            group_by="item_code",
+    item_map = {}
+    for item_doctype, inv_names in [("POS Invoice Item", invoice_names_pos), ("Sales Invoice Item", invoice_names_si)]:
+        if not inv_names:
+            continue
+        table = frappe.qb.DocType(item_doctype)
+        rows = (
+            frappe.qb.from_(table)
+            .select(
+                table.item_code, table.item_name, table.item_group,
+                frappe.query_builder.functions.Sum(table.qty).as_("total_qty"),
+                frappe.query_builder.functions.Sum(table.amount).as_("total_amount"),
+            )
+            .where(table.parent.isin(inv_names))
+            .where(table.docstatus == 1)
+            .groupby(table.item_code)
+            .run(as_dict=True)
         )
-    if invoice_names_si:
-        si_items = frappe.get_all(
-            "Sales Invoice Item",
-            filters={"parent": ["in", invoice_names_si], "docstatus": 1},
-            fields=["item_code", "item_name", "item_group",
-                    "sum(qty) as total_qty", "sum(amount) as total_amount"],
-            group_by="item_code",
-        )
-        item_map = {}
-        for it in item_data:
-            item_map[it.item_code] = it
-        for si in si_items:
-            if si.item_code in item_map:
-                item_map[si.item_code]["total_qty"] += si.total_qty
-                item_map[si.item_code]["total_amount"] += si.total_amount
+        for r in rows:
+            if r.item_code in item_map:
+                item_map[r.item_code]["total_qty"] += flt(r.total_qty)
+                item_map[r.item_code]["total_amount"] += flt(r.total_amount)
             else:
-                item_map[si.item_code] = si
-        item_data = list(item_map.values())
+                item_map[r.item_code] = {
+                    "item_code": r.item_code, "item_name": r.item_name,
+                    "item_group": r.item_group, "total_qty": flt(r.total_qty),
+                    "total_amount": flt(r.total_amount),
+                }
+    item_data = list(item_map.values())
 
     top_items = sorted(item_data, key=lambda x: x["total_amount"], reverse=True)[:15]
 
