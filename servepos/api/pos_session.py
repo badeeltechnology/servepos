@@ -529,24 +529,24 @@ def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
     if pos_profile:
         base_filters["pos_profile"] = pos_profile
 
-    inv_fields = ["name", "grand_total", "net_total", "total_taxes_and_charges",
-                   "posting_date", "posting_time", "pos_profile", "customer_name",
-                   "servepos_order_type", "servepos_guests", "servepos_waiter", "servepos_cashier"]
+    common_fields = ["name", "grand_total", "net_total", "total_taxes_and_charges",
+                     "posting_date", "posting_time", "pos_profile", "customer_name",
+                     "servepos_order_type", "servepos_guests", "servepos_cashier"]
 
     # --- Fetch POS Invoices ---
     pos_invoices = frappe.get_all(
         "POS Invoice",
         filters=base_filters,
-        fields=inv_fields,
+        fields=common_fields,
         limit_page_length=0
     )
 
-    # --- Fetch Sales Invoices (POS) ---
+    # --- Fetch Sales Invoices (POS) — includes servepos_waiter field ---
     si_filters = {**base_filters, "is_pos": 1}
     sales_invoices = frappe.get_all(
         "Sales Invoice",
         filters=si_filters,
-        fields=inv_fields,
+        fields=common_fields + ["servepos_waiter"],
         limit_page_length=0
     )
 
