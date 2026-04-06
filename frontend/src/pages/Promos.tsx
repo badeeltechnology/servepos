@@ -1,17 +1,34 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useFrappeGetDocList, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
+import { useProfile } from "@/App";
 import { Plus, Trash2, Edit3, X, Tag, ToggleLeft, ToggleRight } from "lucide-react";
 
 export default function Promos() {
+  const { profile } = useProfile();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [promoName, setPromoName] = useState("");
   const [discountType, setDiscountType] = useState("Percentage");
   const [discountValue, setDiscountValue] = useState<number>(0);
   const [description, setDescription] = useState("");
+  const [posProfile, setPosProfile] = useState("");
+
+  // Fetch all POS profiles for the dropdown
+  const { data: posProfiles } = useFrappeGetDocList("POS Profile", {
+    fields: ["name"], limit: 50,
+  });
+
+  // Fetch promos — filter by selected profile (show profile-specific + global ones)
+  const promoFilters = useMemo(() => {
+    if (profile && profile !== "__all__") {
+      return [["pos_profile", "in", [profile, "", null]]] as any;
+    }
+    return [] as any;
+  }, [profile]);
 
   const { data: promos, mutate: refresh } = useFrappeGetDocList("ServePOS Promo", {
-    fields: ["name", "promo_name", "discount_type", "discount_value", "enabled", "description"],
+    fields: ["name", "promo_name", "discount_type", "discount_value", "enabled", "description", "pos_profile"],
+    filters: promoFilters,
     limit: 100,
     orderBy: { field: "promo_name", order: "asc" },
   });
@@ -30,6 +47,7 @@ export default function Promos() {
     setDiscountType("Percentage");
     setDiscountValue(0);
     setDescription("");
+    setPosProfile(profile && profile !== "__all__" ? profile : "");
   }
 
   function startEdit(promo: any) {
@@ -38,6 +56,7 @@ export default function Promos() {
     setDiscountType(promo.discount_type);
     setDiscountValue(promo.discount_value);
     setDescription(promo.description || "");
+    setPosProfile(promo.pos_profile || "");
     setShowForm(true);
   }
 
@@ -50,6 +69,7 @@ export default function Promos() {
           discount_type: discountType,
           discount_value: discountValue,
           description,
+          pos_profile: posProfile || "",
         });
       } else {
         await createDoc("ServePOS Promo", {
@@ -58,6 +78,7 @@ export default function Promos() {
           discount_value: discountValue,
           enabled: 1,
           description,
+          pos_profile: posProfile || "",
         });
       }
       resetForm();
@@ -96,6 +117,9 @@ export default function Promos() {
             <span className="text-green-600 font-medium">{enabledCount} active</span>
             {" · "}
             {totalCount} total
+            {profile && profile !== "__all__" && (
+              <span className="text-gray-400"> · {profile}</span>
+            )}
           </p>
         </div>
         <button
@@ -156,15 +180,30 @@ export default function Promos() {
               />
             </div>
           </div>
-          <div className="mt-3">
-            <label className="mb-1 block text-[12px] font-medium text-gray-500">Description (optional)</label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-md border border-gray-200 px-3 py-2 text-[13px] focus:border-gray-400 focus:outline-none"
-              placeholder="e.g., 20% discount for Neema staff members"
-            />
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-[12px] font-medium text-gray-500">POS Profile</label>
+              <select
+                value={posProfile}
+                onChange={(e) => setPosProfile(e.target.value)}
+                className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-[13px] focus:border-gray-400 focus:outline-none"
+              >
+                <option value="">All Profiles</option>
+                {(posProfiles || []).map((p) => (
+                  <option key={p.name} value={p.name}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[12px] font-medium text-gray-500">Description (optional)</label>
+              <input
+                type="text"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full rounded-md border border-gray-200 px-3 py-2 text-[13px] focus:border-gray-400 focus:outline-none"
+                placeholder="e.g., 20% discount for Neema staff members"
+              />
+            </div>
           </div>
           <div className="mt-3 flex gap-2">
             <button onClick={resetForm} className="rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-500 hover:bg-gray-50">
@@ -194,6 +233,7 @@ export default function Promos() {
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Promo</th>
                 <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Discount</th>
+                <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">POS Profile</th>
                 <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-500">Description</th>
                 <th className="px-4 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wider text-gray-500">Status</th>
                 <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-500">Actions</th>
@@ -210,6 +250,11 @@ export default function Promos() {
                       {promo.discount_type === "Percentage"
                         ? `${promo.discount_value}%`
                         : `${promo.discount_value.toFixed(2)}`}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-[12px] ${promo.pos_profile ? "text-gray-700 font-medium" : "text-gray-400"}`}>
+                      {promo.pos_profile || "All"}
                     </span>
                   </td>
                   <td className="px-4 py-3">

@@ -8,6 +8,7 @@
  "field_order": [
   "promo_name",
   "enabled",
+  "pos_profile",
   "column_break_1",
   "discount_type",
   "discount_value",
@@ -29,6 +30,14 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Enabled"
+  },
+  {
+   "description": "Leave empty to apply to all POS Profiles",
+   "fieldname": "pos_profile",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "POS Profile",
+   "options": "POS Profile"
   },
   {
    "fieldname": "column_break_1",
