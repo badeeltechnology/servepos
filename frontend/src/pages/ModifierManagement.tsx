@@ -101,6 +101,10 @@ function GroupCard({ group, onEdit, onDelete, onRefresh }: { group: any; onEdit:
   const [adding, setAdding] = useState(false);
   const [modName, setModName] = useState("");
   const [modPrice, setModPrice] = useState(0);
+  const [editingPrice, setEditingPrice] = useState<number | null>(null);
+  const [editPriceValue, setEditPriceValue] = useState(0);
+  const [editingName, setEditingName] = useState<number | null>(null);
+  const [editNameValue, setEditNameValue] = useState("");
 
   const { data: fullGroup, mutate: refreshGroup } = useFrappeGetDoc("ServePOS Modifier Group", group.name);
   const { updateDoc } = useFrappeUpdateDoc();
@@ -122,6 +126,33 @@ function GroupCard({ group, onEdit, onDelete, onRefresh }: { group: any; onEdit:
       await updateDoc("ServePOS Modifier Group", group.name, {
         modifiers: modifiers.filter((_: any, i: number) => i !== idx).map((m: any) => ({ modifier_name: m.modifier_name, price: m.price, is_default: m.is_default })),
       });
+      refreshGroup(); onRefresh();
+    } catch (err: any) { alert(err.message); }
+  }
+
+  async function saveModifierPrice(idx: number) {
+    try {
+      const updated = modifiers.map((m: any, i: number) => ({
+        modifier_name: m.modifier_name,
+        price: i === idx ? editPriceValue : m.price,
+        is_default: m.is_default,
+      }));
+      await updateDoc("ServePOS Modifier Group", group.name, { modifiers: updated });
+      setEditingPrice(null);
+      refreshGroup(); onRefresh();
+    } catch (err: any) { alert(err.message); }
+  }
+
+  async function saveModifierName(idx: number) {
+    if (!editNameValue.trim()) return;
+    try {
+      const updated = modifiers.map((m: any, i: number) => ({
+        modifier_name: i === idx ? editNameValue : m.modifier_name,
+        price: m.price,
+        is_default: m.is_default,
+      }));
+      await updateDoc("ServePOS Modifier Group", group.name, { modifiers: updated });
+      setEditingName(null);
       refreshGroup(); onRefresh();
     } catch (err: any) { alert(err.message); }
   }
@@ -161,9 +192,49 @@ function GroupCard({ group, onEdit, onDelete, onRefresh }: { group: any; onEdit:
               <tbody>
                 {modifiers.map((mod: any, idx: number) => (
                   <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50">
-                    <td className="px-4 py-2.5 pl-10 text-[13px] text-gray-700">{mod.modifier_name}</td>
+                    <td className="px-4 py-2.5 pl-10 text-[13px] text-gray-700">
+                      {editingName === idx ? (
+                        <input
+                          type="text"
+                          value={editNameValue}
+                          onChange={(e) => setEditNameValue(e.target.value)}
+                          onBlur={() => saveModifierName(idx)}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveModifierName(idx); if (e.key === "Escape") setEditingName(null); }}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1 text-[13px] focus:border-gray-400 focus:outline-none"
+                          autoFocus
+                        />
+                      ) : (
+                        <span
+                          onClick={() => { setEditingName(idx); setEditNameValue(mod.modifier_name); }}
+                          className="cursor-pointer rounded px-1 py-0.5 hover:bg-gray-100"
+                          title="Click to edit name"
+                        >
+                          {mod.modifier_name}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-right text-[13px] font-medium">
-                      {mod.price > 0 ? <span className="text-green-600">+{mod.price.toFixed(2)}</span> : <span className="text-gray-400">Free</span>}
+                      {editingPrice === idx ? (
+                        <input
+                          type="number"
+                          value={editPriceValue}
+                          onChange={(e) => setEditPriceValue(parseFloat(e.target.value) || 0)}
+                          onBlur={() => saveModifierPrice(idx)}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveModifierPrice(idx); if (e.key === "Escape") setEditingPrice(null); }}
+                          className="w-24 rounded-md border border-gray-300 px-2 py-1 text-right text-[13px] focus:border-gray-400 focus:outline-none"
+                          min={0}
+                          step={0.5}
+                          autoFocus
+                        />
+                      ) : (
+                        <span
+                          onClick={() => { setEditingPrice(idx); setEditPriceValue(mod.price || 0); }}
+                          className="cursor-pointer rounded px-1.5 py-0.5 hover:bg-gray-100"
+                          title="Click to edit price"
+                        >
+                          {mod.price > 0 ? <span className="text-green-600">+{mod.price.toFixed(2)}</span> : <span className="text-gray-400">Free</span>}
+                        </span>
+                      )}
                     </td>
                     <td className="w-10 px-2 py-2.5 text-right">
                       <button onClick={() => deleteModifier(idx)} className="rounded p-1 text-gray-300 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3 w-3" /></button>

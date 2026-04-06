@@ -8,6 +8,7 @@ import MenuManagement from "@/pages/MenuManagement";
 import ModifierManagement from "@/pages/ModifierManagement";
 import RestaurantSetup from "@/pages/RestaurantSetup";
 import ItemVisibility from "@/pages/ItemVisibility";
+import Promos from "@/pages/Promos";
 import Layout from "@/components/Layout";
 
 // Components
@@ -63,6 +64,7 @@ function App() {
             <Route path="/modifiers" element={<ModifierManagement />} />
             <Route path="/restaurant" element={<RestaurantSetup />} />
             <Route path="/visibility" element={<ItemVisibility />} />
+            <Route path="/promos" element={<Promos />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
