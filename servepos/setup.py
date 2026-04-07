@@ -501,6 +501,39 @@ def create_kot_doctype():
     print("Created ServePOS KOT")
 
 
+def create_visible_profiles_fields():
+    """
+    Add `servepos_visible_profiles` (Small Text, comma-separated POS Profile
+    names) to every doctype that should be filterable per POS Profile.
+    This is the single schema backing the centralized registry API.
+    """
+    doctypes = [
+        ("Item Group", "servepos_is_menu_group"),
+        ("ServePOS Modifier Group", None),
+        ("ServePOS Waiter", None),
+        ("ServePOS Table", None),
+        ("ServePOS Room", None),
+        ("ServePOS Kitchen Station", None),
+        ("ServePOS Promo", None),
+    ]
+    custom_fields = {}
+    for dt, insert_after in doctypes:
+        if not frappe.db.exists("DocType", dt):
+            continue
+        custom_fields[dt] = [
+            {
+                "fieldname": "servepos_visible_profiles",
+                "fieldtype": "Small Text",
+                "label": "Visible on POS Profiles",
+                "description": "Comma-separated POS Profile names. Leave empty to show everywhere.",
+                "insert_after": insert_after or "name",
+            }
+        ]
+    if custom_fields:
+        create_custom_fields(custom_fields)
+        print("Created servepos_visible_profiles fields on:", ", ".join(custom_fields.keys()))
+
+
 def create_custom_fields_for_stock_entry():
     """Add ServePOS custom fields to Stock Entry"""
     custom_fields = {
@@ -909,6 +942,7 @@ def setup_all():
     create_custom_fields_for_sales_invoice()
     create_custom_fields_for_restaurant()
     create_custom_fields_for_stock_entry()
+    create_visible_profiles_fields()
 
     # Create print formats
     print("\nCreating print formats...")

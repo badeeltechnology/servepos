@@ -498,22 +498,8 @@ def get_item_modifiers(item_code):
     return result
 
 
-@frappe.whitelist()
-def get_all_modifier_groups():
-    """Get all modifier groups for configuration"""
-    groups = frappe.get_all(
-        "ServePOS Modifier Group",
-        fields=["name", "group_name", "selection_type", "is_required", "max_selections"]
-    )
-
-    for group in groups:
-        group["modifiers"] = frappe.get_all(
-            "ServePOS Modifier",
-            filters={"parent": group.name},
-            fields=["modifier_name", "price", "is_default"]
-        )
-
-    return groups
+# Legacy get_all_modifier_groups removed —
+# use servepos.api.registry.get_modifier_groups(pos_profile).
 
 
 @frappe.whitelist()

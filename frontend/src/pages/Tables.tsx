@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useFrappeGetDocList } from "frappe-react-sdk";
+import { useFrappeGetDocList, useFrappeGetCall } from "frappe-react-sdk";
+import { useProfile } from "@/App";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -42,25 +43,53 @@ const roomIcons: Record<string, React.ReactNode> = {
 
 export default function TablesPage() {
   const { theme, toggleTheme } = useTheme();
+  const { profile } = useProfile();
   const [selectedRoom, setSelectedRoom] = useState<string>("All");
 
-  // Fetch rooms
-  const { data: rooms, isLoading: roomsLoading } = useFrappeGetDocList<Room>(
+  // Centralized registry path (filtered by POS Profile). Admin "__all__"
+  // view falls back to direct doctype list so nothing is hidden.
+  const isAdminView = !profile || profile === "__all__";
+  const activeProfile = isAdminView ? null : profile;
+
+  // --- Admin fallback ---
+  const { data: adminRooms, isLoading: adminRoomsLoading } = useFrappeGetDocList<Room>(
     "ServePOS Room",
     {
       fields: ["name", "room_name", "capacity", "description"],
       orderBy: { field: "room_name", order: "asc" },
-    }
+    },
+    isAdminView ? undefined : null,
   );
-
-  // Fetch tables
-  const { data: tables, isLoading: tablesLoading, mutate: refreshTables } = useFrappeGetDocList<Table>(
+  const { data: adminTables, isLoading: adminTablesLoading, mutate: refreshAdminTables } = useFrappeGetDocList<Table>(
     "ServePOS Table",
     {
       fields: ["name", "table_name", "room", "capacity", "status"],
       orderBy: { field: "table_name", order: "asc" },
-    }
+    },
+    isAdminView ? undefined : null,
   );
+
+  // --- Registry path ---
+  const { data: registryRoomsResp, isLoading: registryRoomsLoading } = useFrappeGetCall(
+    "servepos.api.registry.get_rooms",
+    activeProfile ? { pos_profile: activeProfile } : undefined,
+    activeProfile ? undefined : null,
+  );
+  const { data: registryTablesResp, isLoading: registryTablesLoading, mutate: refreshRegistryTables } = useFrappeGetCall(
+    "servepos.api.registry.get_tables",
+    activeProfile ? { pos_profile: activeProfile } : undefined,
+    activeProfile ? undefined : null,
+  );
+
+  const rooms: Room[] | undefined = isAdminView
+    ? adminRooms
+    : (registryRoomsResp?.message as Room[] | undefined);
+  const tables: Table[] | undefined = isAdminView
+    ? adminTables
+    : (registryTablesResp?.message as Table[] | undefined);
+  const roomsLoading = isAdminView ? adminRoomsLoading : registryRoomsLoading;
+  const tablesLoading = isAdminView ? adminTablesLoading : registryTablesLoading;
+  const refreshTables = isAdminView ? refreshAdminTables : refreshRegistryTables;
 
   // Fetch active orders to show on occupied tables
   const { data: activeOrders } = useFrappeGetDocList(

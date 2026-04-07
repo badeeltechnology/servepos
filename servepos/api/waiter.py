@@ -8,15 +8,7 @@ from frappe.utils import now_datetime, flt, cint
 import json
 
 
-@frappe.whitelist()
-def get_waiters():
-    """Get list of active waiters (names only, no PINs)"""
-    return frappe.get_all(
-        "ServePOS Waiter",
-        filters={"is_active": 1},
-        fields=["name", "waiter_name", "phone"],
-        order_by="waiter_name"
-    )
+# Legacy get_waiters removed — use servepos.api.registry.get_waiters(pos_profile).
 
 
 @frappe.whitelist()
@@ -154,61 +146,8 @@ def add_items_to_order(order_name, items):
     return doc.as_dict()
 
 
-@frappe.whitelist()
-def get_pending_orders(branch=None, pos_profile=None):
-    """Get pending waiter orders for the POS terminal to pick up"""
-    filters = {"status": "Pending"}
-    if branch:
-        filters["branch"] = branch
-    if pos_profile:
-        filters["pos_profile"] = pos_profile
-
-    orders = frappe.get_all(
-        "ServePOS Waiter Order",
-        filters=filters,
-        fields=["name", "waiter", "waiter_name", "table", "room", "order_type",
-                "guests", "status", "notes", "creation"],
-        order_by="creation asc"
-    )
-
-    for order in orders:
-        order["items"] = frappe.get_all(
-            "ServePOS Waiter Order Item",
-            filters={"parent": order["name"]},
-            fields=["item_code", "item_name", "qty", "rate", "modifiers",
-                    "modifier_total", "special_instructions"]
-        )
-
-    return orders
-
-
-@frappe.whitelist()
-def get_active_orders(branch=None, pos_profile=None):
-    """Get all active waiter orders (Accepted, In Kitchen, Ready) across all POS terminals.
-    Used by coordinator screens on machines that didn't accept the order."""
-    filters = {"status": ["in", ["Accepted", "In Kitchen", "Ready"]]}
-    if branch:
-        filters["branch"] = branch
-    if pos_profile:
-        filters["pos_profile"] = pos_profile
-
-    orders = frappe.get_all(
-        "ServePOS Waiter Order",
-        filters=filters,
-        fields=["name", "waiter", "waiter_name", "table", "room", "order_type",
-                "guests", "status", "notes", "creation", "modified", "pos_order_id"],
-        order_by="creation desc"
-    )
-
-    for order in orders:
-        order["items"] = frappe.get_all(
-            "ServePOS Waiter Order Item",
-            filters={"parent": order["name"]},
-            fields=["item_code", "item_name", "qty", "rate", "modifiers",
-                    "modifier_total", "special_instructions"]
-        )
-
-    return orders
+# Legacy get_pending_orders / get_active_orders removed —
+# use servepos.api.registry.get_active_orders(pos_profile, statuses=...).
 
 
 @frappe.whitelist()

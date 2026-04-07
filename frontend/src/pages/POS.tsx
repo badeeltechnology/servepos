@@ -236,37 +236,21 @@ export default function POSPage() {
     }
   );
 
-  // Fetch Item Groups
-  const { data: itemGroups } = useFrappeGetDocList("Item Group", {
-    fields: ["name"],
-    filters: [
-      ["parent_item_group", "=", "Menu Items"],
-      ["is_group", "=", 0],
-    ],
-  });
-
-  // Fetch Menu Items
-  const { data: menuItems, isLoading: itemsLoading } = useFrappeGetDocList<MenuItem>(
-    "Item",
-    {
-      fields: [
-        "name",
-        "item_name",
-        "item_group",
-        "standard_rate",
-        "servepos_modifiers",
-        "servepos_kitchen_station",
-        "has_variants",
-        "variant_of",
-      ],
-      filters: [
-        ["is_sales_item", "=", 1],
-        ["item_group", "in", ["Main Course", "Beverages", "Starters", "Desserts"]],
-        ["variant_of", "=", ""],
-      ],
-      limit: 100,
-    }
+  // Item Groups — via centralized registry (filtered by selected POS profile)
+  const { data: registryItemGroupsResp } = useFrappeGetCall<{ message: any[] }>(
+    "servepos.api.registry.get_item_groups",
+    selectedProfile ? { pos_profile: selectedProfile.name } : undefined,
+    selectedProfile ? undefined : null,
   );
+  const itemGroups = registryItemGroupsResp?.message || [];
+
+  // Menu Items — via centralized registry
+  const { data: registryItemsResp, isLoading: itemsLoading } = useFrappeGetCall<{ message: MenuItem[] }>(
+    "servepos.api.registry.get_items",
+    selectedProfile ? { pos_profile: selectedProfile.name } : undefined,
+    selectedProfile ? undefined : null,
+  );
+  const menuItems = (registryItemsResp?.message || []).filter((i: any) => !i.variant_of);
 
   // Fetch Variants
   const { data: itemVariants } = useFrappeGetDocList<ItemVariant>(
@@ -280,11 +264,13 @@ export default function POSPage() {
     }
   );
 
-  // Fetch Tables
-  const { data: tables, mutate: refreshTables } = useFrappeGetDocList("ServePOS Table", {
-    fields: ["name", "table_name", "room", "status", "capacity"],
-    filters: [["status", "=", "Available"]],
-  });
+  // Tables — via centralized registry (filtered by selected POS profile)
+  const { data: registryTablesResp, mutate: refreshTables } = useFrappeGetCall<{ message: any[] }>(
+    "servepos.api.registry.get_tables",
+    selectedProfile ? { pos_profile: selectedProfile.name } : undefined,
+    selectedProfile ? undefined : null,
+  );
+  const tables = (registryTablesResp?.message || []).filter((t: any) => t.status === "Available" || !t.status);
 
   // Fetch Order History (today's orders) - use invoiceType
   const { data: orderHistory, mutate: refreshHistory } = useFrappeGetDocList(

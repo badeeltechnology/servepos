@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useFrappeGetDocList, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
+import { useState } from "react";
+import { useFrappeGetDocList, useFrappeGetCall, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
 import { useProfile } from "@/App";
 import { Plus, Trash2, Edit3, X, Tag, ToggleLeft, ToggleRight } from "lucide-react";
 
@@ -18,20 +18,32 @@ export default function Promos() {
     fields: ["name"], limit: 50,
   });
 
-  // Fetch promos — filter by selected profile (show profile-specific + global ones)
-  const promoFilters = useMemo(() => {
-    if (profile && profile !== "__all__") {
-      return [["pos_profile", "in", [profile, "", null]]] as any;
-    }
-    return [] as any;
-  }, [profile]);
+  // When a specific POS Profile is selected, use the centralized registry
+  // (filters promos server-side). Admin "__all__" view falls back to listing
+  // every promo directly so it can be managed.
+  const isAdminView = !profile || profile === "__all__";
+  const activeProfile = isAdminView ? null : profile;
 
-  const { data: promos, mutate: refresh } = useFrappeGetDocList("ServePOS Promo", {
-    fields: ["name", "promo_name", "discount_type", "discount_value", "enabled", "description", "pos_profile"],
-    filters: promoFilters,
-    limit: 100,
-    orderBy: { field: "promo_name", order: "asc" },
-  });
+  const { data: adminPromos, mutate: refreshAdmin } = useFrappeGetDocList(
+    "ServePOS Promo",
+    {
+      fields: ["name", "promo_name", "discount_type", "discount_value", "enabled", "description", "pos_profile"],
+      limit: 100,
+      orderBy: { field: "promo_name", order: "asc" },
+    },
+    isAdminView ? undefined : null,
+  );
+
+  const { data: registryPromosResp, mutate: refreshRegistry } = useFrappeGetCall(
+    "servepos.api.registry.get_promos",
+    activeProfile ? { pos_profile: activeProfile } : undefined,
+    activeProfile ? undefined : null,
+  );
+
+  const promos: any[] = isAdminView
+    ? (adminPromos || [])
+    : ((registryPromosResp?.message as any[]) || []);
+  const refresh = isAdminView ? refreshAdmin : refreshRegistry;
 
   const { createDoc } = useFrappeCreateDoc();
   const { updateDoc } = useFrappeUpdateDoc();

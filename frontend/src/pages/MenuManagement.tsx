@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useFrappeGetDocList, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
+import { useFrappeGetDocList, useFrappeGetCall, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
 import { useProfile } from "@/App";
 import { Plus, Search, Edit3, Trash2, X, Eye, EyeOff, FolderPlus } from "lucide-react";
 
@@ -13,26 +13,53 @@ export default function MenuManagement() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
 
-  // Try fetching menu-marked groups first, fall back to all non-system groups
-  const { data: menuGroups } = useFrappeGetDocList("Item Group", {
+  // Admin ("__all__") view shows everything unfiltered; otherwise use the
+  // centralized registry API that enforces POS Profile filtering server-side.
+  const isAdminView = !profile || profile === "__all__";
+  const activeProfile = isAdminView ? null : profile;
+
+  // --- Admin fallback: direct doctype list (only when viewing all profiles) ---
+  const { data: adminMenuGroups } = useFrappeGetDocList("Item Group", {
     fields: ["name"],
     filters: [["is_group", "=", 0], ["name", "not in", ["All Item Groups", "Raw Material", "Sub Assemblies", "Consumable", "Services"]]],
     limit: 100,
-  });
-  const menuGroupNames = menuGroups?.map((g) => g.name) || [];
+  }, isAdminView ? undefined : null);
 
-  const filters: any[] = [["disabled", "=", 0]];
-  if (menuGroupNames.length > 0 && !activeGroup) filters.push(["item_group", "in", menuGroupNames]);
-  if (activeGroup) filters.push(["item_group", "=", activeGroup]);
-  if (search) filters.push(["item_name", "like", `%${search}%`]);
+  const adminItemFilters: any[] = [["disabled", "=", 0]];
+  const adminGroupNames = adminMenuGroups?.map((g) => g.name) || [];
+  if (adminGroupNames.length > 0 && !activeGroup) adminItemFilters.push(["item_group", "in", adminGroupNames]);
+  if (activeGroup) adminItemFilters.push(["item_group", "=", activeGroup]);
+  if (search) adminItemFilters.push(["item_name", "like", `%${search}%`]);
 
-  // POS Profiles for visibility
-  const { data: posProfiles } = useFrappeGetDocList("POS Profile", { fields: ["name", "branch"], limit: 50 });
-
-  const { data: items, mutate: refreshItems } = useFrappeGetDocList("Item", {
+  const { data: adminItems, mutate: refreshAdminItems } = useFrappeGetDocList("Item", {
     fields: ["name", "item_name", "item_code", "item_group", "standard_rate", "description", "image", "servepos_item_name_ar", "servepos_description_ar", "servepos_visible_profiles"],
-    filters, limit: 200, orderBy: { field: "item_name", order: "asc" },
-  });
+    filters: adminItemFilters, limit: 200, orderBy: { field: "item_name", order: "asc" },
+  }, isAdminView ? undefined : null);
+
+  // --- Registry-backed path: filtered by the selected POS Profile ---
+  const { data: registryGroupsResp } = useFrappeGetCall(
+    "servepos.api.registry.get_item_groups",
+    activeProfile ? { pos_profile: activeProfile } : undefined,
+    activeProfile ? undefined : null,
+  );
+  const { data: registryItemsResp, mutate: refreshRegistryItems } = useFrappeGetCall(
+    "servepos.api.registry.get_items",
+    activeProfile
+      ? { pos_profile: activeProfile, item_group: activeGroup || undefined, search: search || undefined }
+      : undefined,
+    activeProfile ? undefined : null,
+  );
+
+  const menuGroupNames: string[] = isAdminView
+    ? adminGroupNames
+    : ((registryGroupsResp?.message as any[]) || []).map((g) => g.name);
+  const items: any[] = isAdminView
+    ? (adminItems || [])
+    : ((registryItemsResp?.message as any[]) || []);
+  const refreshItems = isAdminView ? refreshAdminItems : refreshRegistryItems;
+
+  // POS Profiles for visibility (used only in the edit dialog)
+  const { data: posProfiles } = useFrappeGetDocList("POS Profile", { fields: ["name", "branch"], limit: 50 });
 
   // Modifier groups
   const { data: allModifierGroups } = useFrappeGetDocList("ServePOS Modifier Group", {
@@ -73,8 +100,6 @@ export default function MenuManagement() {
       resetForm(); refreshItems();
     } catch (err: any) { alert(err.message || "Failed to save"); }
   }
-
-  // Removed toggleAvail — custom fields may not exist on all sites
 
   async function handleCreateCategory() {
     if (!newCategoryName.trim()) return;
