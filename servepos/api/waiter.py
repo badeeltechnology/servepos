@@ -183,6 +183,35 @@ def get_pending_orders(branch=None, pos_profile=None):
 
 
 @frappe.whitelist()
+def get_active_orders(branch=None, pos_profile=None):
+    """Get all active waiter orders (Accepted, In Kitchen, Ready) across all POS terminals.
+    Used by coordinator screens on machines that didn't accept the order."""
+    filters = {"status": ["in", ["Accepted", "In Kitchen", "Ready"]]}
+    if branch:
+        filters["branch"] = branch
+    if pos_profile:
+        filters["pos_profile"] = pos_profile
+
+    orders = frappe.get_all(
+        "ServePOS Waiter Order",
+        filters=filters,
+        fields=["name", "waiter", "waiter_name", "table", "room", "order_type",
+                "guests", "status", "notes", "creation", "modified", "pos_order_id"],
+        order_by="creation desc"
+    )
+
+    for order in orders:
+        order["items"] = frappe.get_all(
+            "ServePOS Waiter Order Item",
+            filters={"parent": order["name"]},
+            fields=["item_code", "item_name", "qty", "rate", "modifiers",
+                    "modifier_total", "special_instructions"]
+        )
+
+    return orders
+
+
+@frappe.whitelist()
 def accept_order(order_name, pos_order_id=None):
     """Mark a waiter order as accepted by the POS terminal"""
     doc = frappe.get_doc("ServePOS Waiter Order", order_name)
