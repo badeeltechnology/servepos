@@ -280,7 +280,7 @@ def create_custom_fields_for_pos_invoice():
                 "fieldname": "servepos_waiter",
                 "fieldtype": "Link",
                 "label": "Waiter/Server",
-                "options": "User",
+                "options": "ServePOS Waiter",
                 "insert_after": "servepos_column_break"
             },
             {
@@ -816,7 +816,7 @@ def create_bill_print_format():
         <div><span>Table:</span><span>{{ frappe.db.get_value('ServePOS Table', doc.servepos_table, 'table_name') }}</span></div>
         {% endif %}
         {% if doc.servepos_waiter %}
-        <div><span>Server:</span><span>{{ frappe.db.get_value('User', doc.servepos_waiter, 'full_name') }}</span></div>
+        <div><span>Server:</span><span>{{ frappe.db.get_value('ServePOS Waiter', doc.servepos_waiter, 'waiter_name') or doc.servepos_waiter }}</span></div>
         {% endif %}
         {% if doc.servepos_guests %}
         <div><span>Guests:</span><span>{{ doc.servepos_guests }}</span></div>

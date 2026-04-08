@@ -137,7 +137,7 @@
   "fieldname": "servepos_waiter",
   "fieldtype": "Link",
   "label": "Waiter/Server",
-  "options": "User",
+  "options": "ServePOS Waiter",
   "insert_after": "servepos_guests",
   "name": "Sales Invoice-servepos_waiter"
  },
@@ -322,8 +322,6 @@
   "fieldname": "servepos_visible_profiles",
   "fieldtype": "Small Text",
   "label": "Visible on POS Profiles",
-  "description": "Comma-separated list of POS Profile names where this item is visible",
-  "insert_after": "servepos_is_available",
-  "hidden": 1
+  "description": "Comma-separated list of POS Profile names where this item is visible. Managed via the ServePOS visibility matrix."
  }
 ]

@@ -77,13 +77,17 @@ def _has_field(doctype, fieldname):
 
 @frappe.whitelist()
 def get_item_groups(pos_profile):
-    """Menu item groups visible on the given POS Profile."""
+    """Menu item groups visible on the given POS Profile.
+
+    A group is returned only if BOTH conditions are met:
+      1. Its own servepos_visible_profiles whitelist allows this profile.
+      2. It contains at least one item that is visible to this profile
+         (so empty categories never show up on the POS / Waiter App).
+    """
     _assert_profile(pos_profile)
 
     filters = {"is_group": 0}
     if _has_field("Item Group", "servepos_is_menu_group"):
-        # If any group is marked as a menu group, only show those; else fall
-        # back to all non-system groups.
         any_menu = frappe.db.count("Item Group", {"servepos_is_menu_group": 1})
         if any_menu:
             filters["servepos_is_menu_group"] = 1
@@ -95,7 +99,22 @@ def get_item_groups(pos_profile):
         fields.append("image")
 
     rows = frappe.get_all("Item Group", filters=filters, fields=fields, limit=0)
-    return _filter_by_visible_profiles(rows, pos_profile)
+    rows = _filter_by_visible_profiles(rows, pos_profile)
+
+    # Drop groups that have zero visible items for this profile.
+    item_filters = [["disabled", "=", 0]]
+    if _has_field("Item", "servepos_is_available"):
+        item_filters.append(["servepos_is_available", "=", 1])
+    item_fields = ["item_group"]
+    if _has_field("Item", "servepos_visible_profiles"):
+        item_fields.append("servepos_visible_profiles")
+    items = frappe.get_all("Item", filters=item_filters, fields=item_fields, limit=0)
+    groups_with_items = {
+        it["item_group"]
+        for it in items
+        if _visible_to_profile(it.get("servepos_visible_profiles"), pos_profile)
+    }
+    return [r for r in rows if r["name"] in groups_with_items]
 
 
 @frappe.whitelist()
