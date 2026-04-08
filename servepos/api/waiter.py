@@ -175,24 +175,29 @@ POS_TO_WAITER_STATUS = {
 def update_order_status_by_pos(pos_order_id, status):
     """Update waiter order status from the Desktop POS (coordinator/cashier).
     Called when coordinator marks Ready to Serve, etc.
-    Maps POS statuses to waiter order statuses."""
-
-    # Find the waiter order linked to this POS order
-    orders = frappe.get_all(
-        "ServePOS Waiter Order",
-        filters={"pos_order_id": pos_order_id},
-        fields=["name"],
-        limit=1
-    )
-
-    if not orders:
-        return {"success": False, "error": "No waiter order linked to this POS order"}
+    Maps POS statuses to waiter order statuses.
+    Accepts either pos_order_id (local UUID) or the waiter order name (WO-YYYY-#####)."""
 
     mapped_status = POS_TO_WAITER_STATUS.get(status)
     if not mapped_status:
         return {"success": False, "error": f"Unknown status: {status}"}
 
-    doc = frappe.get_doc("ServePOS Waiter Order", orders[0].name)
+    # Try by pos_order_id first
+    orders = frappe.get_all(
+        "ServePOS Waiter Order",
+        filters={"pos_order_id": pos_order_id},
+        fields=["name"],
+        limit=1,
+    )
+    # Fallback: if the passed id looks like a waiter order name, use it directly
+    if not orders and pos_order_id and frappe.db.exists("ServePOS Waiter Order", pos_order_id):
+        waiter_order_name = pos_order_id
+    elif orders:
+        waiter_order_name = orders[0].name
+    else:
+        return {"success": False, "error": "No waiter order linked to this POS order"}
+
+    doc = frappe.get_doc("ServePOS Waiter Order", waiter_order_name)
     doc.status = mapped_status
     doc.save()
 
