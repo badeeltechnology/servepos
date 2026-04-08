@@ -86,7 +86,15 @@ export default function MenuManagement() {
   const { updateDoc } = useFrappeUpdateDoc();
   const { deleteDoc } = useFrappeDeleteDoc();
 
-  function resetForm() { setFormData({ item_code: "", item_name: "", item_group: "", standard_rate: 0, description: "", servepos_item_name_ar: "", servepos_description_ar: "", servepos_visible_profiles: "" }); setEditingItem(null); setShowForm(false); setItemModifiers([]); }
+  function resetForm() {
+    // New items default to the currently selected POS Profile. If "All
+    // Profiles" is active, leave empty (= visible everywhere).
+    const defaultVisible = profile && profile !== "__all__" ? profile : "";
+    setFormData({ item_code: "", item_name: "", item_group: "", standard_rate: 0, description: "", servepos_item_name_ar: "", servepos_description_ar: "", servepos_visible_profiles: defaultVisible });
+    setEditingItem(null);
+    setShowForm(false);
+    setItemModifiers([]);
+  }
 
   async function handleSave() {
     try {
@@ -94,8 +102,19 @@ export default function MenuManagement() {
         const updateData: any = { item_name: formData.item_name, item_group: formData.item_group, standard_rate: formData.standard_rate, description: formData.description, servepos_visible_profiles: formData.servepos_visible_profiles, servepos_item_name_ar: formData.servepos_item_name_ar || "", servepos_description_ar: formData.servepos_description_ar || "", servepos_modifier_groups: itemModifiers };
         await updateDoc("Item", editingItem, updateData);
       } else {
-        // New item — default visible on all profiles
-        await createDoc("Item", { item_code: formData.item_code || formData.item_name.toUpperCase().replace(/\s+/g, "-").slice(0, 20), item_name: formData.item_name, item_group: formData.item_group, standard_rate: formData.standard_rate, description: formData.description, stock_uom: "Nos", is_stock_item: 0, servepos_item_name_ar: formData.servepos_item_name_ar || "", servepos_description_ar: formData.servepos_description_ar || "" });
+        await createDoc("Item", {
+          item_code: formData.item_code || formData.item_name.toUpperCase().replace(/\s+/g, "-").slice(0, 20),
+          item_name: formData.item_name,
+          item_group: formData.item_group,
+          standard_rate: formData.standard_rate,
+          description: formData.description,
+          stock_uom: "Nos",
+          is_stock_item: 0,
+          servepos_item_name_ar: formData.servepos_item_name_ar || "",
+          servepos_description_ar: formData.servepos_description_ar || "",
+          servepos_is_available: 1,
+          servepos_visible_profiles: formData.servepos_visible_profiles || "",
+        });
       }
       resetForm(); refreshItems();
     } catch (err: any) { alert(err.message || "Failed to save"); }
@@ -319,40 +338,56 @@ export default function MenuManagement() {
                   </div>
                 </div>
               )}
-              {/* POS Profile Visibility — shown when editing and "All Profiles" selected */}
-              {editingItem && profile === "__all__" && posProfiles && posProfiles.length > 0 && (
+              {/* POS Profile Visibility — always shown so both new and
+                  existing items can be scoped per profile. */}
+              {posProfiles && posProfiles.length > 0 && (
                 <div>
                   <label className="mb-2 block text-[12px] font-medium text-gray-600">Visible on POS Profiles</label>
                   <div className="rounded-md border border-gray-200 divide-y divide-gray-100">
                     {posProfiles.map((p) => {
                       const raw = (formData.servepos_visible_profiles || "").trim();
                       const visibleList = raw ? raw.split(",").map(s => s.trim()).filter(Boolean) : [];
-                      // Empty means visible on all profiles
+                      // Empty means visible on every profile (legacy default).
                       const isVisible = !raw || visibleList.includes(p.name);
                       return (
-                        <div key={p.name} className="flex items-center justify-between px-3 py-2.5 hover:bg-gray-50">
-                          <div>
-                            <span className="text-[13px] font-medium text-gray-800">{p.name}</span>
-                            {p.branch && <span className="ml-2 text-[11px] text-gray-400">{p.branch}</span>}
+                        <label key={p.name} className="flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 cursor-pointer">
+                          <div className="flex items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={isVisible}
+                              onChange={() => {
+                                const allNames = posProfiles.map(pp => pp.name);
+                                // If currently "visible everywhere" (empty),
+                                // expand to all profile names before we
+                                // remove a single one. Never write an empty
+                                // string afterwards — always an explicit
+                                // comma list so Frappe's REST API keeps it.
+                                let list = raw
+                                  ? raw.split(",").map(s => s.trim()).filter(Boolean)
+                                  : [...allNames];
+                                if (isVisible) list = list.filter(n => n !== p.name);
+                                else if (!list.includes(p.name)) list.push(p.name);
+                                // Preserve stable order matching posProfiles list.
+                                const ordered = allNames.filter(n => list.includes(n));
+                                setFormData({ ...formData, servepos_visible_profiles: ordered.join(",") });
+                              }}
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500"
+                            />
+                            <div>
+                              <span className="text-[13px] font-medium text-gray-800">{p.name}</span>
+                              {p.branch && <span className="ml-2 text-[11px] text-gray-400">{p.branch}</span>}
+                            </div>
                           </div>
-                          <button
-                            onClick={() => {
-                              const allNames = posProfiles.map(pp => pp.name);
-                              let list = raw ? raw.split(",").map(s => s.trim()).filter(Boolean) : [...allNames];
-                              if (isVisible) list = list.filter(n => n !== p.name);
-                              else list.push(p.name);
-                              // If all profiles are visible, store empty (= visible on all)
-                              const newVal = list.length >= allNames.length && allNames.every(n => list.includes(n)) ? "" : list.join(",");
-                              setFormData({ ...formData, servepos_visible_profiles: newVal });
-                            }}
-                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${isVisible ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-400"}`}>
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${isVisible ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-400"}`}>
                             {isVisible ? "Visible" : "Hidden"}
-                          </button>
-                        </div>
+                          </span>
+                        </label>
                       );
                     })}
                   </div>
-                  <p className="mt-1 text-[11px] text-gray-400">Click to toggle visibility per POS terminal</p>
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    Tick the profiles where this item should appear. Untick all to hide it everywhere (use the visibility page for emergency 86'ing).
+                  </p>
                 </div>
               )}
             </div>

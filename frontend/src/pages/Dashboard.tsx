@@ -509,7 +509,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {[...(data.top_items || [])].sort((a: any, b: any) => b.total_qty - a.total_qty).slice(0, 10).map((it: any, i: number) => (
+                    {[...(data.top_items || [])].sort((a: any, b: any) => b.total_qty - a.total_qty).map((it: any, i: number) => (
                       <tr key={it.item_code} className="border-b border-gray-50 hover:bg-gray-50">
                         <td className="px-4 py-2.5">
                           <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
@@ -548,7 +548,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(data.top_items || []).slice(0, 10).map((it: any, i: number) => (
+                    {(data.top_items || []).map((it: any, i: number) => (
                       <tr key={it.item_code} className="border-b border-gray-50 hover:bg-gray-50">
                         <td className="px-4 py-2.5">
                           <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${

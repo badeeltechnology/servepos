@@ -515,6 +515,30 @@ def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
     if pos_profile:
         base_filters["pos_profile"] = pos_profile
 
+    # --- All items visible to this POS profile (so zero-sales items show up too) ---
+    profile_items = []
+    if pos_profile:
+        try:
+            from servepos.api.registry import get_items as _registry_get_items
+            profile_items = _registry_get_items(pos_profile) or []
+        except Exception:
+            profile_items = []
+
+    def _seed_items_with_zero():
+        seeded = {}
+        for it in profile_items:
+            code = it.get("item_code") or it.get("name")
+            if not code:
+                continue
+            seeded[code] = {
+                "item_code": code,
+                "item_name": it.get("item_name") or code,
+                "item_group": it.get("item_group"),
+                "total_qty": 0.0,
+                "total_amount": 0.0,
+            }
+        return seeded
+
     base_inv_fields = ["name", "grand_total", "net_total", "total_taxes_and_charges",
                        "posting_date", "posting_time", "pos_profile", "customer_name"]
 
@@ -543,10 +567,11 @@ def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
     invoice_names_si = [i.name for i in sales_invoices]
 
     if not all_invoices:
+        empty_items = list(_seed_items_with_zero().values())
         return {
             "total_sales": 0, "net_total": 0, "total_tax": 0,
             "order_count": 0, "avg_order": 0, "total_guests": 0,
-            "payment_breakdown": [], "top_items": [], "category_breakdown": [],
+            "payment_breakdown": [], "top_items": empty_items, "category_breakdown": [],
             "order_type_breakdown": [], "hourly_sales": [], "daily_sales": [],
             "cashier_breakdown": [],
         }
@@ -572,8 +597,8 @@ def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
         key=lambda x: x["total"], reverse=True
     )
 
-    # --- Top Selling Items ---
-    item_map = {}
+    # --- Top Selling Items (seeded with all profile items so zeros appear) ---
+    item_map = _seed_items_with_zero()
     for item_doctype, inv_names in [("POS Invoice Item", invoice_names_pos), ("Sales Invoice Item", invoice_names_si)]:
         if not inv_names:
             continue
@@ -602,11 +627,13 @@ def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
                 }
     item_data = list(item_map.values())
 
-    top_items = sorted(item_data, key=lambda x: x["total_amount"], reverse=True)[:15]
+    top_items = sorted(item_data, key=lambda x: x["total_amount"], reverse=True)
 
     # --- Category Breakdown ---
     cat_map = {}
     for it in item_data:
+        if it["total_qty"] == 0 and it["total_amount"] == 0:
+            continue
         g = it.get("item_group") or "Uncategorized"
         if g not in cat_map:
             cat_map[g] = {"category": g, "qty": 0, "amount": 0, "items": 0}
