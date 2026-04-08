@@ -354,17 +354,21 @@ def get_active_orders(pos_profile, statuses=None):
         "ServePOS Waiter Order",
         filters=filters,
         fields=[
-            "name", "status", "waiter_name", "table", "room",
-            "pos_profile", "branch", "order_time", "total_amount",
+            "name", "status", "waiter", "waiter_name", "table", "room",
+            "order_type", "guests", "notes", "pos_profile", "branch",
+            "creation", "modified", "pos_order_id",
         ],
-        order_by="order_time desc",
+        order_by="creation desc",
         limit=0,
     )
     for o in orders:
         o["items"] = frappe.get_all(
             "ServePOS Waiter Order Item",
             filters={"parent": o["name"]},
-            fields=["item_code", "item_name", "qty", "rate", "amount", "modifiers", "comment"],
+            fields=[
+                "item_code", "item_name", "qty", "rate",
+                "modifiers", "modifier_total", "special_instructions",
+            ],
         )
     return orders
 
