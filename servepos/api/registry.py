@@ -207,7 +207,7 @@ def get_tables(pos_profile):
         filters.update(_branch_filter(profile))
 
     fields = ["name", "table_name"]
-    for f in ("room", "seats", "branch", "servepos_visible_profiles"):
+    for f in ("room", "seats", "capacity", "is_active", "branch", "servepos_visible_profiles"):
         if _has_field("ServePOS Table", f):
             fields.append(f)
 
@@ -224,7 +224,7 @@ def get_rooms(pos_profile):
         filters.update(_branch_filter(profile))
 
     fields = ["name", "room_name"]
-    for f in ("branch", "servepos_visible_profiles"):
+    for f in ("description", "is_active", "branch", "servepos_visible_profiles"):
         if _has_field("ServePOS Room", f):
             fields.append(f)
 
