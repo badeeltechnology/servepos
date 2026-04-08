@@ -334,10 +334,12 @@ def get_taxes(pos_profile):
 # --------------------------------------------------------------------------- #
 
 @frappe.whitelist()
-def get_active_orders(pos_profile, statuses=None):
+def get_active_orders(pos_profile, statuses=None, days=1):
     """
     Waiter orders for the given profile. `statuses` is an optional list
     (or comma-separated string). Defaults to all non-final states.
+    `days` limits results to orders created within the last N days (default: 1 = today).
+    Pass days=0 to disable the date filter.
     """
     profile = _assert_profile(pos_profile)
 
@@ -349,6 +351,16 @@ def get_active_orders(pos_profile, statuses=None):
     filters = {"status": ["in", statuses], "pos_profile": pos_profile}
     if getattr(profile, "branch", None) and _has_field("ServePOS Waiter Order", "branch"):
         filters["branch"] = profile.branch
+
+    # Date filter — default: only today's orders
+    try:
+        days_int = int(days)
+    except (TypeError, ValueError):
+        days_int = 1
+    if days_int > 0:
+        from frappe.utils import add_days, today
+        cutoff = add_days(today(), -(days_int - 1))
+        filters["creation"] = [">=", cutoff]
 
     orders = frappe.get_all(
         "ServePOS Waiter Order",

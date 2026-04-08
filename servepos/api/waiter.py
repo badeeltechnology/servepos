@@ -79,8 +79,10 @@ def create_order(waiter_name=None, order_type="Dine In", table=None, room=None, 
 
 
 @frappe.whitelist()
-def get_my_orders(waiter_name=None, status_filter=None):
-    """Get waiter's orders by name"""
+def get_my_orders(waiter_name=None, status_filter=None, days=1):
+    """Get waiter's orders by name.
+    `days` limits results to orders created within the last N days (default: 1 = today).
+    Pass days=0 to disable the date filter."""
     filters = {}
     if waiter_name:
         filters["waiter_name"] = waiter_name
@@ -89,6 +91,16 @@ def get_my_orders(waiter_name=None, status_filter=None):
         filters["status"] = status_filter
     else:
         filters["status"] = ["not in", ["Paid", "Cancelled"]]
+
+    # Date filter — default: only today's orders
+    try:
+        days_int = int(days)
+    except (TypeError, ValueError):
+        days_int = 1
+    if days_int > 0:
+        from frappe.utils import add_days, today
+        cutoff = add_days(today(), -(days_int - 1))
+        filters["creation"] = [">=", cutoff]
 
     orders = frappe.get_all(
         "ServePOS Waiter Order",
