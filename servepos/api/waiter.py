@@ -30,7 +30,7 @@ def verify_waiter_pin(waiter_name, pin):
 
 
 @frappe.whitelist()
-def create_order(waiter_name=None, order_type="Dine In", table=None, room=None, guests=1, notes=None, items=None):
+def create_order(waiter_name=None, order_type="Dine In", table=None, room=None, guests=1, notes=None, items=None, pos_profile=None, branch=None):
     """Create a waiter order from the mobile app"""
     if not items:
         frappe.throw(_("Items are required"))
@@ -49,19 +49,46 @@ def create_order(waiter_name=None, order_type="Dine In", table=None, room=None, 
     doc.guests = cint(guests) or 1
     doc.notes = notes
 
-    # Auto-set branch and pos_profile from table or defaults
-    if table:
-        table_branch = frappe.db.get_value("ServePOS Table", table, "branch")
-        if table_branch:
-            doc.branch = table_branch
+    # Resolve POS Profile strictly from the waiter's logged-in user.
+    # Priority:
+    #   1. explicit `pos_profile` arg (must belong to the user)
+    #   2. user's `default` POS Profile
+    #   3. the only POS Profile assigned to the user (if exactly one)
+    # Branch is always derived from the chosen POS Profile — never from the
+    # table (table numbers can collide across branches).
+    waiter_user = frappe.session.user
+    user_profiles = []
+    if waiter_user and waiter_user not in ("Guest", "Administrator"):
+        ppu = frappe.qb.DocType("POS Profile User")
+        pp = frappe.qb.DocType("POS Profile")
+        user_profiles = (
+            frappe.qb.from_(ppu)
+            .inner_join(pp).on(pp.name == ppu.parent)
+            .select(pp.name, pp.branch, ppu.default)
+            .where(ppu.user == waiter_user)
+            .where(pp.disabled == 0)
+            .run(as_dict=True)
+        ) or []
 
-    # Get first active POS Profile as default
-    if not doc.pos_profile:
-        pos_profiles = frappe.get_all("POS Profile", filters={"disabled": 0}, limit=1)
-        if pos_profiles:
-            doc.pos_profile = pos_profiles[0].name
-            if not doc.branch:
-                doc.branch = frappe.db.get_value("POS Profile", doc.pos_profile, "branch")
+    if pos_profile:
+        if not any(p.name == pos_profile for p in user_profiles):
+            frappe.throw(_("POS Profile {0} is not assigned to user {1}").format(pos_profile, waiter_user))
+        doc.pos_profile = pos_profile
+    elif user_profiles:
+        pick = next((p for p in user_profiles if p.get("default")), None)
+        if not pick and len(user_profiles) == 1:
+            pick = user_profiles[0]
+        if not pick:
+            frappe.throw(_("User {0} is assigned to multiple POS Profiles; set one as default or pass pos_profile explicitly").format(waiter_user))
+        doc.pos_profile = pick.name
+    else:
+        frappe.throw(_("No POS Profile is assigned to user {0}").format(waiter_user))
+
+    # Branch always comes from the chosen POS Profile (explicit arg only honored if it matches)
+    profile_branch = frappe.db.get_value("POS Profile", doc.pos_profile, "branch")
+    if branch and branch != profile_branch:
+        frappe.throw(_("Branch {0} does not match POS Profile {1}").format(branch, doc.pos_profile))
+    doc.branch = profile_branch
 
     for item in items:
         doc.append("items", {
