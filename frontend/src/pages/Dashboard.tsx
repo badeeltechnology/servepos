@@ -1,8 +1,9 @@
 import { useState, useMemo, useCallback } from "react";
-import { useFrappeGetDocList, useFrappeGetDocCount, useFrappeGetCall } from "frappe-react-sdk";
+import { useFrappeGetDocList, useFrappeGetDocCount, useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
 import { useProfile } from "@/App";
 import { Link } from "react-router-dom";
-import { Download, Calendar, ChevronDown, TrendingUp, ShoppingBag, CreditCard, Users, Clock, Utensils } from "lucide-react";
+import { Download, Calendar, ChevronDown, TrendingUp, ShoppingBag, CreditCard, Users, Clock, Utensils, ClipboardList, X, RefreshCw, Receipt } from "lucide-react";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 type DatePreset = "today" | "yesterday" | "this_week" | "this_month" | "last_month" | "custom";
 
@@ -37,6 +38,29 @@ export default function Dashboard() {
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const [fromDate, toDate] = useMemo(() => getDateRange(datePreset, customFrom, customTo), [datePreset, customFrom, customTo]);
+
+  // Invoice summary state
+  const [showInvoiceSummary, setShowInvoiceSummary] = useState(false);
+  const [invoiceSummaryData, setInvoiceSummaryData] = useState<any[]>([]);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const { call: getInvoiceSummary } = useFrappePostCall("servepos.api.pos_session.get_invoice_summary");
+
+  const openInvoiceSummary = useCallback(async () => {
+    setShowInvoiceSummary(true);
+    setLoadingSummary(true);
+    try {
+      const res = await getInvoiceSummary({
+        pos_profile: profile && profile !== "__all__" ? profile : undefined,
+        from_date: fromDate,
+        to_date: toDate,
+      });
+      setInvoiceSummaryData(res?.message || []);
+    } catch {
+      setInvoiceSummaryData([]);
+    } finally {
+      setLoadingSummary(false);
+    }
+  }, [profile, fromDate, toDate, getInvoiceSummary]);
 
   // Fetch analytics from API
   const { data: analytics } = useFrappeGetCall<{ message: any }>(
@@ -201,6 +225,10 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+          <button onClick={openInvoiceSummary}
+            className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-2 text-[12px] font-medium text-gray-700 hover:bg-gray-50">
+            <ClipboardList className="h-3.5 w-3.5 text-gray-400" /> Invoices
+          </button>
           <button onClick={handleDownloadPDF}
             className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-2 text-[12px] font-medium text-gray-700 hover:bg-gray-50">
             <Download className="h-3.5 w-3.5 text-gray-400" /> PDF
@@ -698,6 +726,114 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {/* Invoice Summary Dialog */}
+      {showInvoiceSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-5xl max-h-[85vh] rounded-xl flex flex-col bg-white shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-900 text-white">
+                  <ClipboardList className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="text-[14px] font-semibold text-gray-900">Invoice Summary</h2>
+                  <p className="text-[11px] text-gray-500">
+                    {invoiceSummaryData.length} invoices · {fromDate}{fromDate !== toDate ? ` to ${toDate}` : ""}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={openInvoiceSummary}
+                  className="flex items-center justify-center rounded-md border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={() => setShowInvoiceSummary(false)}
+                  className="flex items-center justify-center rounded-md border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto p-5">
+              {loadingSummary ? (
+                <div className="flex items-center justify-center py-16">
+                  <LoadingSpinner />
+                </div>
+              ) : !invoiceSummaryData.length ? (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                  <Receipt className="mb-3 h-10 w-10" />
+                  <p className="text-[13px] font-medium">No invoices found</p>
+                  <p className="text-[11px]">Invoices for the selected period will appear here</p>
+                </div>
+              ) : (
+                <>
+                  {/* Summary Totals */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-center">
+                      <p className="text-[10px] font-medium text-gray-500 uppercase">Total Invoices</p>
+                      <p className="text-xl font-bold text-gray-900">{invoiceSummaryData.length}</p>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-center">
+                      <p className="text-[10px] font-medium text-gray-500 uppercase">Grand Total</p>
+                      <p className="text-xl font-bold text-gray-900">
+                        {fmtCurrency(invoiceSummaryData.reduce((s, i) => s + i.grand_total, 0))}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-center">
+                      <p className="text-[10px] font-medium text-gray-500 uppercase">Total Paid</p>
+                      <p className="text-xl font-bold text-green-600">
+                        {fmtCurrency(invoiceSummaryData.reduce((s, i) => s + i.paid_amount, 0))}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Invoice Table */}
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="w-full text-[12px]">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">#</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Invoice No</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Order No</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Time</th>
+                          <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase">Grand Total</th>
+                          <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase">Paid Amount</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Mode of Payment</th>
+                          <th className="px-4 py-2.5 text-center text-[10px] font-semibold text-gray-500 uppercase">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {invoiceSummaryData.map((inv, idx) => (
+                          <tr key={inv.name} className={`border-t border-gray-100 ${idx % 2 === 1 ? "bg-gray-50/50" : ""}`}>
+                            <td className="px-4 py-2.5 text-gray-400">{idx + 1}</td>
+                            <td className="px-4 py-2.5 font-mono text-[11px] font-medium text-gray-900">{inv.name}</td>
+                            <td className="px-4 py-2.5 font-mono text-[11px] text-gray-600">{inv.servepos_order_number || "-"}</td>
+                            <td className="px-4 py-2.5 text-gray-500">{inv.posting_time?.slice(0, 5)}</td>
+                            <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{fmtCurrency(inv.grand_total)}</td>
+                            <td className="px-4 py-2.5 text-right font-semibold text-green-600">{fmtCurrency(inv.paid_amount)}</td>
+                            <td className="px-4 py-2.5 text-gray-600">{inv.mode_of_payment || "-"}</td>
+                            <td className="px-4 py-2.5 text-center">
+                              <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                inv.status === "Paid" ? "bg-green-50 text-green-700" :
+                                inv.status === "Consolidated" ? "bg-blue-50 text-blue-700" :
+                                inv.status === "Cancelled" ? "bg-red-50 text-red-700" :
+                                "bg-gray-100 text-gray-600"
+                              }`}>
+                                {inv.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
