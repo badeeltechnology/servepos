@@ -32,6 +32,7 @@ import {
   RotateCcw,
   Ban,
   Store,
+  ClipboardList,
 } from "lucide-react";
 
 interface Modifier {
@@ -194,6 +195,11 @@ export default function POSPage() {
   // History state
   const [showHistoryPanel, setShowHistoryPanel] = useState(false);
 
+  // Invoice summary state
+  const [showInvoiceSummary, setShowInvoiceSummary] = useState(false);
+  const [invoiceSummaryData, setInvoiceSummaryData] = useState<any[]>([]);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+
   // Invoice type from POS Settings (POS Invoice or Sales Invoice)
   const [invoiceType, setInvoiceType] = useState<"POS Invoice" | "Sales Invoice">("POS Invoice");
 
@@ -225,6 +231,22 @@ export default function POSPage() {
   const { call: voidInvoice } = useFrappePostCall("servepos.api.pos_session.void_invoice");
   const { call: createReturn } = useFrappePostCall("servepos.api.pos_session.create_return_invoice");
   const { call: getPaymentMethods } = useFrappePostCall("servepos.api.pos_session.get_payment_methods");
+  const { call: getInvoiceSummary } = useFrappePostCall("servepos.api.pos_session.get_invoice_summary");
+
+  const openInvoiceSummary = async () => {
+    setShowInvoiceSummary(true);
+    setLoadingSummary(true);
+    try {
+      const res = await getInvoiceSummary({
+        pos_profile: selectedProfile?.name || "",
+      });
+      setInvoiceSummaryData(res?.message || []);
+    } catch {
+      setInvoiceSummaryData([]);
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
 
   // Fetch POS Profile payments
   const { data: posProfilePayments } = useFrappeGetDocList(
@@ -1011,6 +1033,13 @@ export default function POSPage() {
               <History className="h-4 w-4" />
               Orders
             </button>
+            <button
+              onClick={openInvoiceSummary}
+              className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm", bgButton, bgButtonHover)}
+            >
+              <ClipboardList className="h-4 w-4" />
+              Summary
+            </button>
             <a href="/pos/tables" className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm", bgButton, bgButtonHover)}>
               <LayoutGrid className="h-4 w-4" />
               Tables
@@ -1476,6 +1505,132 @@ export default function POSPage() {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Summary Dialog */}
+      {showInvoiceSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className={cn("w-full max-w-5xl max-h-[85vh] rounded-2xl flex flex-col", bgCard)}>
+            <div className={cn("flex items-center justify-between p-4 border-b", borderColor)}>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/20 text-orange-500">
+                  <ClipboardList className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">Invoice Summary</h2>
+                  <p className={cn("text-xs", textMuted)}>
+                    {invoiceSummaryData.length} invoices today
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={openInvoiceSummary}
+                  className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm", bgButton, bgButtonHover)}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setShowInvoiceSummary(false)}
+                  className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm", bgButton, bgButtonHover)}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4">
+              {loadingSummary ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner />
+                </div>
+              ) : !invoiceSummaryData.length ? (
+                <div className={cn("flex flex-col items-center justify-center py-12", textMuted)}>
+                  <Receipt className="mb-4 h-12 w-12" />
+                  <p className="text-lg">No invoices found</p>
+                  <p className="text-sm">Invoices for today will appear here</p>
+                </div>
+              ) : (
+                <>
+                  {/* Summary Totals */}
+                  <div className={cn("grid grid-cols-3 gap-3 mb-4")}>
+                    <div className={cn("rounded-xl p-3 text-center", bgButton)}>
+                      <p className={cn("text-xs", textMuted)}>Total Invoices</p>
+                      <p className="text-xl font-bold">{invoiceSummaryData.length}</p>
+                    </div>
+                    <div className={cn("rounded-xl p-3 text-center", bgButton)}>
+                      <p className={cn("text-xs", textMuted)}>Grand Total</p>
+                      <p className="text-xl font-bold text-orange-500">
+                        {formatCurrency(invoiceSummaryData.reduce((s, i) => s + i.grand_total, 0))}
+                      </p>
+                    </div>
+                    <div className={cn("rounded-xl p-3 text-center", bgButton)}>
+                      <p className={cn("text-xs", textMuted)}>Total Paid</p>
+                      <p className="text-xl font-bold text-green-500">
+                        {formatCurrency(invoiceSummaryData.reduce((s, i) => s + i.paid_amount, 0))}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Invoice Table */}
+                  <div className="overflow-x-auto rounded-xl border border-opacity-20" style={{ borderColor: 'rgba(128,128,128,0.2)' }}>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className={cn(bgButton)}>
+                          <th className="px-4 py-3 text-left font-semibold">#</th>
+                          <th className="px-4 py-3 text-left font-semibold">Invoice No</th>
+                          <th className="px-4 py-3 text-left font-semibold">Order No</th>
+                          <th className="px-4 py-3 text-left font-semibold">Time</th>
+                          <th className="px-4 py-3 text-right font-semibold">Grand Total</th>
+                          <th className="px-4 py-3 text-right font-semibold">Paid Amount</th>
+                          <th className="px-4 py-3 text-left font-semibold">Mode of Payment</th>
+                          <th className="px-4 py-3 text-center font-semibold">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {invoiceSummaryData.map((inv, idx) => (
+                          <tr
+                            key={inv.name}
+                            className={cn(
+                              "border-t border-opacity-10",
+                              idx % 2 === 0 ? "" : bgButton
+                            )}
+                            style={{ borderColor: 'rgba(128,128,128,0.1)' }}
+                          >
+                            <td className={cn("px-4 py-3", textMuted)}>{idx + 1}</td>
+                            <td className="px-4 py-3 font-mono text-xs">{inv.name}</td>
+                            <td className="px-4 py-3 font-mono text-xs">{inv.servepos_order_number || "-"}</td>
+                            <td className={cn("px-4 py-3 text-xs", textMuted)}>
+                              {inv.posting_time?.slice(0, 5)}
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium text-orange-500">
+                              {formatCurrency(inv.grand_total)}
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium text-green-500">
+                              {formatCurrency(inv.paid_amount)}
+                            </td>
+                            <td className="px-4 py-3 text-xs">{inv.mode_of_payment || "-"}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={cn(
+                                "rounded-full px-2 py-0.5 text-xs",
+                                inv.status === "Paid" ? "bg-green-500/20 text-green-500" :
+                                inv.status === "Consolidated" ? "bg-blue-500/20 text-blue-500" :
+                                inv.status === "Cancelled" ? "bg-red-500/20 text-red-500" :
+                                "bg-gray-500/20 text-gray-500"
+                              )}>
+                                {inv.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
