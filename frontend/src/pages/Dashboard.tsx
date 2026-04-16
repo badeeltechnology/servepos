@@ -796,6 +796,7 @@ export default function Dashboard() {
                           <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">#</th>
                           <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Invoice No</th>
                           <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Order No</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Date</th>
                           <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Time</th>
                           <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase">Grand Total</th>
                           <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase">Paid Amount</th>
@@ -809,6 +810,7 @@ export default function Dashboard() {
                             <td className="px-4 py-2.5 text-gray-400">{idx + 1}</td>
                             <td className="px-4 py-2.5 font-mono text-[11px] font-medium text-gray-900">{inv.name}</td>
                             <td className="px-4 py-2.5 font-mono text-[11px] text-gray-600">{inv.servepos_order_number || "-"}</td>
+                            <td className="px-4 py-2.5 text-gray-500">{inv.posting_date}</td>
                             <td className="px-4 py-2.5 text-gray-500">{inv.posting_time?.slice(0, 5)}</td>
                             <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{fmtCurrency(inv.grand_total)}</td>
                             <td className="px-4 py-2.5 text-right font-semibold text-green-600">{fmtCurrency(inv.paid_amount)}</td>

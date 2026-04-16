@@ -517,18 +517,19 @@ def get_invoice_summary(pos_profile=None, from_date=None, to_date=None):
     if pos_profile:
         base_filters["pos_profile"] = pos_profile
 
-    fields = ["name", "grand_total", "paid_amount", "posting_date", "posting_time",
-              "status", "servepos_order_number", "customer_name"]
+    base_fields = ["name", "grand_total", "paid_amount", "posting_date", "posting_time",
+                   "status", "customer_name"]
 
-    # Fetch POS Invoices
+    # Fetch POS Invoices (no servepos_order_number custom field on POS Invoice)
     pos_invoices = frappe.get_all(
-        "POS Invoice", filters=base_filters, fields=fields, limit_page_length=0
+        "POS Invoice", filters=base_filters, fields=base_fields, limit_page_length=0
     )
 
-    # Fetch Sales Invoices (POS)
+    # Fetch Sales Invoices (POS) — has servepos_order_number custom field
     si_filters = {**base_filters, "is_pos": 1}
     sales_invoices = frappe.get_all(
-        "Sales Invoice", filters=si_filters, fields=fields, limit_page_length=0
+        "Sales Invoice", filters=si_filters,
+        fields=base_fields + ["servepos_order_number"], limit_page_length=0
     )
 
     all_invoices = pos_invoices + sales_invoices
@@ -572,7 +573,7 @@ def get_invoice_summary(pos_profile=None, from_date=None, to_date=None):
             "status": inv.status,
         })
 
-    result.sort(key=lambda x: x["posting_time"], reverse=True)
+    result.sort(key=lambda x: (x["posting_date"], x["posting_time"]), reverse=True)
     return result
 
 
