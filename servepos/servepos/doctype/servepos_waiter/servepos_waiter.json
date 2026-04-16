@@ -6,10 +6,12 @@
   "engine": "InnoDB",
   "field_order": [
     "waiter_name",
+    "branch",
     "pin",
     "column_break_1",
     "phone",
-    "is_active"
+    "is_active",
+    "servepos_visible_profiles"
   ],
   "fields": [
     {
@@ -19,6 +21,14 @@
       "label": "Waiter Name",
       "reqd": 1,
       "unique": 1
+    },
+    {
+      "fieldname": "branch",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Branch",
+      "options": "Branch"
     },
     {
       "fieldname": "pin",
@@ -41,6 +51,12 @@
       "fieldtype": "Check",
       "in_list_view": 1,
       "label": "Active"
+    },
+    {
+      "description": "Comma-separated POS Profile names. Leave empty to show on every profile (subject to branch match). Managed via the Waiters admin matrix.",
+      "fieldname": "servepos_visible_profiles",
+      "fieldtype": "Small Text",
+      "label": "Visible on POS Profiles"
     }
   ],
   "links": [],
