@@ -8,6 +8,55 @@ from frappe.utils import nowdate, now_datetime, nowtime, flt, cint
 import json
 
 
+# --------------------------------------------------------------------------- #
+# Shared helpers for invoice + payment fetching
+# --------------------------------------------------------------------------- #
+
+def _build_date_filters(from_date=None, to_date=None, pos_profile=None):
+    """Build standard base filters for POS invoice queries."""
+    if not from_date:
+        from_date = nowdate()
+    if not to_date:
+        to_date = nowdate()
+    filters = {"docstatus": 1, "posting_date": ["between", [from_date, to_date]]}
+    if pos_profile:
+        filters["pos_profile"] = pos_profile
+    return filters, from_date, to_date
+
+
+def _fetch_pos_invoices(fields, from_date=None, to_date=None, pos_profile=None):
+    """
+    Fetch submitted POS Invoice + Sales Invoice (is_pos=1) with given fields.
+    Returns (pos_invoices, si_invoices, all_invoices).
+    """
+    base, from_date, to_date = _build_date_filters(from_date, to_date, pos_profile)
+    pos_invoices = frappe.get_all("POS Invoice", filters=base, fields=fields, limit_page_length=0)
+    si_invoices = frappe.get_all("Sales Invoice", filters={**base, "is_pos": 1}, fields=fields, limit_page_length=0)
+    return pos_invoices, si_invoices, pos_invoices + si_invoices
+
+
+def _fetch_invoice_payments(pos_inv_names, si_inv_names):
+    """
+    Fetch payment child-table entries for the given POS/Sales invoice names.
+    Returns {inv_name: [{"mode": str, "amount": float}, ...]}.
+    """
+    payment_map = {}
+    for pay_dt, inv_names in [("POS Invoice Payment", pos_inv_names), ("Sales Invoice Payment", si_inv_names)]:
+        if not inv_names:
+            continue
+        payments = frappe.get_all(
+            pay_dt,
+            filters={"parent": ["in", inv_names], "docstatus": 1},
+            fields=["parent", "mode_of_payment", "amount"],
+        )
+        for p in payments:
+            payment_map.setdefault(p.parent, []).append({
+                "mode": p.mode_of_payment,
+                "amount": flt(p.amount),
+            })
+    return payment_map
+
+
 @frappe.whitelist()
 def check_opening_entry(user=None, pos_profile=None):
     """
@@ -508,54 +557,25 @@ def get_invoice_summary(pos_profile=None, from_date=None, to_date=None):
     Get invoice summary with payment details for reconciliation view.
     Returns: list of invoices with name, servepos_order_number, grand_total, paid_amount, mode_of_payment
     """
-    if not from_date:
-        from_date = nowdate()
-    if not to_date:
-        to_date = nowdate()
-
-    base_filters = {"docstatus": 1, "posting_date": ["between", [from_date, to_date]]}
-    if pos_profile:
-        base_filters["pos_profile"] = pos_profile
-
     base_fields = ["name", "grand_total", "paid_amount", "posting_date", "posting_time",
                    "status", "customer_name"]
 
-    # Fetch POS Invoices (no servepos_order_number custom field on POS Invoice)
-    pos_invoices = frappe.get_all(
-        "POS Invoice", filters=base_filters, fields=base_fields, limit_page_length=0
-    )
-
-    # Fetch Sales Invoices (POS) — has servepos_order_number custom field
-    si_filters = {**base_filters, "is_pos": 1}
-    sales_invoices = frappe.get_all(
-        "Sales Invoice", filters=si_filters,
+    # POS Invoice has no servepos_order_number — fetch separately with different field lists
+    base, from_date, to_date = _build_date_filters(from_date, to_date, pos_profile)
+    pos_invoices = frappe.get_all("POS Invoice", filters=base, fields=base_fields, limit_page_length=0)
+    si_invoices = frappe.get_all(
+        "Sales Invoice", filters={**base, "is_pos": 1},
         fields=base_fields + ["servepos_order_number"], limit_page_length=0
     )
 
-    all_invoices = pos_invoices + sales_invoices
+    all_invoices = pos_invoices + si_invoices
     if not all_invoices:
         return []
 
-    # Build payment mode lookup from child tables
-    inv_names_pos = [i.name for i in pos_invoices]
-    inv_names_si = [i.name for i in sales_invoices]
+    payment_map = _fetch_invoice_payments(
+        [i.name for i in pos_invoices], [i.name for i in si_invoices]
+    )
 
-    payment_map = {}  # invoice_name -> list of "mode: amount"
-    for pay_doctype, inv_names in [("POS Invoice Payment", inv_names_pos), ("Sales Invoice Payment", inv_names_si)]:
-        if not inv_names:
-            continue
-        payments = frappe.get_all(
-            pay_doctype,
-            filters={"parent": ["in", inv_names], "docstatus": 1},
-            fields=["parent", "mode_of_payment", "amount"],
-        )
-        for p in payments:
-            payment_map.setdefault(p.parent, []).append({
-                "mode": p.mode_of_payment,
-                "amount": flt(p.amount),
-            })
-
-    # Build result
     result = []
     for inv in all_invoices:
         modes = payment_map.get(inv.name, [])
@@ -578,17 +598,59 @@ def get_invoice_summary(pos_profile=None, from_date=None, to_date=None):
 
 
 @frappe.whitelist()
+def get_profile_summary(from_date=None, to_date=None):
+    """
+    Per-POS-Profile revenue + payment breakdown for the dashboard overview.
+    Returns one row per profile: total_sales, order_count, and amount per payment mode.
+    """
+    pos_invoices, si_invoices, all_invoices = _fetch_pos_invoices(
+        ["name", "pos_profile", "grand_total"], from_date, to_date
+    )
+    if not all_invoices:
+        return {"rows": [], "payment_modes": []}
+
+    # Aggregate per profile
+    profile_map = {}
+    inv_to_profile = {}
+    for inv in all_invoices:
+        p = inv.pos_profile or "Unknown"
+        if p not in profile_map:
+            profile_map[p] = {"profile": p, "total_sales": 0, "order_count": 0, "payments": {}}
+        profile_map[p]["total_sales"] += flt(inv.grand_total)
+        profile_map[p]["order_count"] += 1
+        inv_to_profile[inv.name] = p
+
+    # Payment breakdown per profile
+    payment_map = _fetch_invoice_payments(
+        [i.name for i in pos_invoices], [i.name for i in si_invoices]
+    )
+    for inv_name, modes in payment_map.items():
+        p = inv_to_profile.get(inv_name)
+        if not p:
+            continue
+        for m in modes:
+            mode = m["mode"] or "Other"
+            profile_map[p]["payments"][mode] = profile_map[p]["payments"].get(mode, 0) + m["amount"]
+
+    all_modes = set()
+    for m in profile_map.values():
+        all_modes.update(m["payments"].keys())
+
+    result = []
+    for m in profile_map.values():
+        row = {"profile": m["profile"], "total_sales": m["total_sales"], "order_count": m["order_count"]}
+        for mode in all_modes:
+            row[mode] = m["payments"].get(mode, 0)
+        result.append(row)
+
+    result.sort(key=lambda x: x["total_sales"], reverse=True)
+    return {"rows": result, "payment_modes": sorted(all_modes)}
+
+
+@frappe.whitelist()
 def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
     """Get comprehensive sales analytics for the dashboard"""
-    if not from_date:
-        from_date = nowdate()
-    if not to_date:
-        to_date = nowdate()
-
-    # Build base filters for both invoice types
-    base_filters = {"docstatus": 1, "posting_date": ["between", [from_date, to_date]]}
-    if pos_profile:
-        base_filters["pos_profile"] = pos_profile
+    base_filters, from_date, to_date = _build_date_filters(from_date, to_date, pos_profile)
 
     # --- All items visible to this POS profile (so zero-sales items show up too) ---
     profile_items = []

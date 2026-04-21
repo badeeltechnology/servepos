@@ -89,6 +89,13 @@ export default function Dashboard() {
   );
   const allData = allProfileAnalytics?.message;
 
+  // Per-profile summary (always fetch for overview table)
+  const { data: profileSummaryData } = useFrappeGetCall<{ message: any }>(
+    "servepos.api.pos_session.get_profile_summary",
+    { from_date: fromDate, to_date: toDate }
+  );
+  const profileSummary = profileSummaryData?.message || { rows: [], payment_modes: [] };
+
   // Menu stats
   const { data: menuGroups } = useFrappeGetDocList("Item Group", {
     fields: ["name"], filters: [["servepos_is_menu_group", "=", 1]], limit: 100,
@@ -287,6 +294,57 @@ export default function Dashboard() {
           </p>
         </div>
       </div>
+
+      {/* Profile Summary Table */}
+      {profileSummary.rows.length > 0 && (
+        <div className="mb-5 rounded-lg border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 px-5 py-3">
+            <h2 className="text-[13px] font-semibold text-gray-700">Sales by Shop</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Shop</th>
+                  <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase">Orders</th>
+                  <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase">Total Sales</th>
+                  {profileSummary.payment_modes.map((mode: string) => (
+                    <th key={mode} className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase">{mode}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {profileSummary.rows.map((row: any, idx: number) => (
+                  <tr key={row.profile} className={`border-b border-gray-100 ${idx % 2 === 1 ? "bg-gray-50/50" : ""}`}>
+                    <td className="px-4 py-2.5 font-medium text-gray-900">{row.profile}</td>
+                    <td className="px-4 py-2.5 text-right text-gray-600">{row.order_count}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{fmtCurrency(row.total_sales)}</td>
+                    {profileSummary.payment_modes.map((mode: string) => (
+                      <td key={mode} className="px-4 py-2.5 text-right text-gray-600">{fmtCurrency(row[mode] || 0)}</td>
+                    ))}
+                  </tr>
+                ))}
+                {profileSummary.rows.length > 1 && (
+                  <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
+                    <td className="px-4 py-2.5 text-gray-700">Total</td>
+                    <td className="px-4 py-2.5 text-right text-gray-700">
+                      {profileSummary.rows.reduce((s: number, r: any) => s + r.order_count, 0)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-gray-900">
+                      {fmtCurrency(profileSummary.rows.reduce((s: number, r: any) => s + r.total_sales, 0))}
+                    </td>
+                    {profileSummary.payment_modes.map((mode: string) => (
+                      <td key={mode} className="px-4 py-2.5 text-right text-gray-700">
+                        {fmtCurrency(profileSummary.rows.reduce((s: number, r: any) => s + (r[mode] || 0), 0))}
+                      </td>
+                    ))}
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {data.order_count === 0 && (
         <div className="mb-5 rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center">
