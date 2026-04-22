@@ -9,6 +9,7 @@ import {
   Building2,
   Eye,
   Tag,
+  Ticket,
   LogOut,
   ChevronDown,
   ExternalLink,
@@ -23,6 +24,7 @@ const navItems = [
   { to: "/visibility", icon: Eye, label: "Visibility", end: false },
   { to: "/waiters", icon: Users, label: "Waiters", end: false },
   { to: "/promos", icon: Tag, label: "Promos", end: false },
+  { to: "/vouchers", icon: Ticket, label: "Vouchers", end: false },
 ];
 
 export default function Layout() {
