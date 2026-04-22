@@ -1,0 +1,125 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:VOUCH-{####}",
+ "creation": "2026-04-22 10:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "code",
+  "is_active",
+  "pos_profile",
+  "column_break_1",
+  "discount_percent",
+  "max_uses",
+  "times_used",
+  "section_break_expiry",
+  "expires_on",
+  "column_break_2",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Code",
+   "read_only_depends_on": "eval:!doc.__islocal",
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Active"
+  },
+  {
+   "description": "Leave empty to apply to all POS Profiles",
+   "fieldname": "pos_profile",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "POS Profile",
+   "options": "POS Profile"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "discount_percent",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Discount Percent",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "max_uses",
+   "fieldtype": "Int",
+   "label": "Max Uses",
+   "description": "Set to 0 for unlimited uses"
+  },
+  {
+   "default": "0",
+   "fieldname": "times_used",
+   "fieldtype": "Int",
+   "label": "Times Used",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_expiry",
+   "fieldtype": "Section Break",
+   "label": "Validity & Details"
+  },
+  {
+   "fieldname": "expires_on",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Expires On",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "links": [],
+ "modified": "2026-04-22 10:00:00",
+ "modified_by": "Administrator",
+ "module": "Servepos",
+ "name": "ServePOS Voucher",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "ServePOS Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

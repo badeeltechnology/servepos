@@ -323,5 +323,23 @@
   "fieldtype": "Small Text",
   "label": "Visible on POS Profiles",
   "description": "Comma-separated list of POS Profile names where this item is visible. Managed via the ServePOS visibility matrix."
+ },
+ {
+  "name": "Sales Invoice-servepos_voucher",
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "servepos_voucher",
+  "fieldtype": "Data",
+  "label": "ServePOS Voucher",
+  "insert_after": "servepos_promo"
+ },
+ {
+  "name": "Sales Invoice-servepos_discount_reason",
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "servepos_discount_reason",
+  "fieldtype": "Small Text",
+  "label": "Discount Reason",
+  "insert_after": "servepos_voucher"
  }
 ]
