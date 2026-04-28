@@ -341,5 +341,14 @@
   "fieldtype": "Small Text",
   "label": "Discount Reason",
   "insert_after": "servepos_voucher"
+ },
+ {
+  "name": "Sales Invoice-servepos_tip",
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "servepos_tip",
+  "fieldtype": "Currency",
+  "label": "Tip Amount",
+  "insert_after": "servepos_discount_reason"
  }
 ]
