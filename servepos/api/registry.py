@@ -313,6 +313,23 @@ def get_promos(pos_profile):
 
 
 # --------------------------------------------------------------------------- #
+# Void Reasons
+# --------------------------------------------------------------------------- #
+
+@frappe.whitelist()
+def get_void_reasons(pos_profile=None):
+    """Return enabled void reasons sorted by display_order."""
+    filters = {"enabled": 1} if _has_field("ServePOS Void Reason", "enabled") else {}
+    return frappe.get_all(
+        "ServePOS Void Reason",
+        filters=filters,
+        fields=["name", "reason_name", "display_order"],
+        order_by="display_order asc",
+        limit=0,
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Payment Methods & Taxes (derived from POS Profile itself)
 # --------------------------------------------------------------------------- #
 
