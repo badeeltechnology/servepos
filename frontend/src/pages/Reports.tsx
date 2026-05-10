@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useFrappeGetCall, useFrappePostCall, useFrappeGetDocList } from "frappe-react-sdk";
 import {
   Download, Calendar, TrendingUp, ShoppingBag, CreditCard, Users, Clock,
-  Utensils, Search, ArrowUpDown, BarChart3, Receipt, Filter,
+  Utensils, Search, ArrowUpDown, BarChart3, Receipt, Filter, FileSpreadsheet,
 } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
@@ -114,6 +114,125 @@ export default function Reports() {
     window.print();
   }, []);
 
+  // Excel/CSV Export
+  const handleExportExcel = useCallback(() => {
+    const escape = (v: any) => {
+      const s = String(v ?? "");
+      return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const sheets: string[] = [];
+
+    // Summary
+    sheets.push("--- SUMMARY ---");
+    sheets.push(`Period,${fromDate}${fromDate !== toDate ? ` to ${toDate}` : ""}`);
+    sheets.push(`Profile,${selectedProfile || "All Profiles"}`);
+    sheets.push(`Total Sales,${data.total_sales}`);
+    sheets.push(`Net Sales,${data.net_total}`);
+    sheets.push(`Tax,${data.total_tax}`);
+    sheets.push(`Orders,${data.order_count}`);
+    sheets.push(`Avg Order,${data.avg_order}`);
+    sheets.push(`Guests,${data.total_guests}`);
+    sheets.push("");
+
+    // Payment Methods
+    if ((data.payment_breakdown || []).length > 0) {
+      sheets.push("--- PAYMENT METHODS ---");
+      sheets.push("Method,Amount,%");
+      for (const p of data.payment_breakdown) {
+        const pct = paymentTotal ? ((p.total / paymentTotal) * 100).toFixed(1) : "0";
+        sheets.push(`${escape(p.mode_of_payment)},${p.total},${pct}%`);
+      }
+      sheets.push("");
+    }
+
+    // Order Types
+    if ((data.order_type_breakdown || []).length > 0) {
+      sheets.push("--- ORDER TYPES ---");
+      sheets.push("Type,Orders,Revenue,%");
+      for (const o of data.order_type_breakdown) {
+        const pct = data.order_count ? ((o.count / data.order_count) * 100).toFixed(1) : "0";
+        sheets.push(`${escape(o.type)},${o.count},${o.total},${pct}%`);
+      }
+      sheets.push("");
+    }
+
+    // Hourly Sales
+    if ((data.hourly_sales || []).length > 0) {
+      sheets.push("--- HOURLY SALES ---");
+      sheets.push("Hour,Orders,Revenue");
+      for (const h of data.hourly_sales) {
+        sheets.push(`${fmtHour(h.hour)},${h.count},${h.total}`);
+      }
+      sheets.push("");
+    }
+
+    // Daily Sales
+    if ((data.daily_sales || []).length > 1) {
+      sheets.push("--- DAILY SALES ---");
+      sheets.push("Date,Orders,Revenue,Avg Order");
+      for (const d of data.daily_sales) {
+        sheets.push(`${d.date},${d.count},${d.total},${d.count ? (d.total / d.count).toFixed(2) : 0}`);
+      }
+      sheets.push("");
+    }
+
+    // Waiter Performance
+    if ((data.waiter_breakdown || []).length > 0) {
+      sheets.push("--- WAITER PERFORMANCE ---");
+      sheets.push("Waiter,Orders,Revenue,Avg Order");
+      for (const w of data.waiter_breakdown) {
+        sheets.push(`${escape(w.waiter)},${w.count},${w.total},${w.count ? (w.total / w.count).toFixed(2) : 0}`);
+      }
+      sheets.push("");
+    }
+
+    // Cashier Performance
+    if ((data.cashier_breakdown || []).length > 0) {
+      sheets.push("--- CASHIER PERFORMANCE ---");
+      sheets.push("Cashier,Orders,Revenue,Avg Order");
+      for (const c of data.cashier_breakdown) {
+        sheets.push(`${escape(c.cashier)},${c.count},${c.total},${c.count ? (c.total / c.count).toFixed(2) : 0}`);
+      }
+      sheets.push("");
+    }
+
+    // Category Breakdown
+    if ((data.category_breakdown || []).length > 0) {
+      sheets.push("--- CATEGORY BREAKDOWN ---");
+      sheets.push("Category,Items,Qty Sold,Revenue");
+      for (const c of data.category_breakdown) {
+        sheets.push(`${escape(c.category)},${c.items},${c.qty},${c.amount}`);
+      }
+      sheets.push("");
+    }
+
+    // Item-wise Sales
+    sheets.push("--- ITEM-WISE SALES ---");
+    sheets.push("Item Code,Item Name,Category,Qty Sold,Revenue");
+    for (const it of filteredItems) {
+      sheets.push(`${escape(it.item_code)},${escape(it.item_name)},${escape(it.item_group || "")},${it.total_qty},${it.total_amount}`);
+    }
+    sheets.push("");
+
+    // Invoices (if loaded)
+    if (invoicesLoaded && invoices.length > 0) {
+      sheets.push("--- INVOICES ---");
+      sheets.push("Invoice,Order #,Customer,Date,Time,Grand Total,Paid Amount,Payment Mode,Status");
+      for (const inv of invoices) {
+        sheets.push(`${escape(inv.name)},${escape(inv.servepos_order_number || "")},${escape(inv.customer_name || "")},${inv.posting_date},${(inv.posting_time || "").slice(0, 5)},${inv.grand_total},${inv.paid_amount},${escape(inv.mode_of_payment || "")},${inv.status}`);
+      }
+    }
+
+    const csv = sheets.join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sales-report-${fromDate}${fromDate !== toDate ? `-to-${toDate}` : ""}${selectedProfile ? `-${selectedProfile}` : ""}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [data, fromDate, toDate, selectedProfile, paymentTotal, filteredItems, invoices, invoicesLoaded]);
+
   return (
     <div className="p-6 print:p-0">
       {/* Header & Filters */}
@@ -131,10 +250,16 @@ export default function Reports() {
               </p>
             </div>
           </div>
-          <button onClick={handlePrint}
-            className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-2 text-[12px] font-medium text-gray-700 hover:bg-gray-50 print:hidden">
-            <Download className="h-3.5 w-3.5 text-gray-400" /> Print / PDF
-          </button>
+          <div className="flex items-center gap-2 print:hidden">
+            <button onClick={handleExportExcel}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-2 text-[12px] font-medium text-gray-700 hover:bg-gray-50">
+              <FileSpreadsheet className="h-3.5 w-3.5 text-gray-400" /> Export Excel
+            </button>
+            <button onClick={handlePrint}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-2 text-[12px] font-medium text-gray-700 hover:bg-gray-50">
+              <Download className="h-3.5 w-3.5 text-gray-400" /> Print / PDF
+            </button>
+          </div>
         </div>
 
         {/* Filter Bar */}
