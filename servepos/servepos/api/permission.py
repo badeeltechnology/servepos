@@ -14,6 +14,7 @@ def has_app_permission():
         "ServePOS Cashier",
         "ServePOS Waiter",
         "ServePOS Kitchen",
+        "ServePOS Reporter",
         "POS User",
         "Sales User",
     ]

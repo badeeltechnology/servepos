@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ExternalLink,
   Users,
+  BarChart3,
 } from "lucide-react";
 
 const navItems = [
@@ -25,6 +26,7 @@ const navItems = [
   { to: "/waiters", icon: Users, label: "Waiters", end: false },
   { to: "/promos", icon: Tag, label: "Promos", end: false },
   { to: "/vouchers", icon: Ticket, label: "Vouchers", end: false },
+  { to: "/reports", icon: BarChart3, label: "Reports", end: false },
 ];
 
 export default function Layout() {

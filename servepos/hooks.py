@@ -73,6 +73,7 @@ role_home_page = {
 	"ServePOS Cashier": "pos",
 	"ServePOS Waiter": "pos",
 	"ServePOS Kitchen": "pos",
+	"ServePOS Reporter": "pos",
 }
 
 # Website Routes

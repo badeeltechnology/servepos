@@ -11,6 +11,7 @@ import ItemVisibility from "@/pages/ItemVisibility";
 import Waiters from "@/pages/Waiters";
 import Promos from "@/pages/Promos";
 import Vouchers from "@/pages/Vouchers";
+import Reports from "@/pages/Reports";
 import Layout from "@/components/Layout";
 
 // Components
@@ -69,6 +70,7 @@ function App() {
             <Route path="/waiters" element={<Waiters />} />
             <Route path="/promos" element={<Promos />} />
             <Route path="/vouchers" element={<Vouchers />} />
+            <Route path="/reports" element={<Reports />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
