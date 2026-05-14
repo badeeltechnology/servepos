@@ -31,7 +31,7 @@ const navItems = [
 
 export default function Layout() {
   const { currentUser, logout } = useFrappeAuth();
-  const { profile, setProfile, setProfileData } = useProfile();
+  const { profile, setProfile, setProfileData, isReporterOnly } = useProfile();
 
   const { data: profiles } = useFrappeGetDocList("POS Profile", {
     fields: ["name", "company", "branch", "warehouse"],
@@ -87,7 +87,7 @@ export default function Layout() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-2 px-2">
-          {navItems.map((item) => (
+          {navItems.filter((item) => !isReporterOnly || item.to === "/reports").map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
