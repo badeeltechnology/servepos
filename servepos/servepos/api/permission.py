@@ -20,3 +20,9 @@ def has_app_permission():
     ]
 
     return any(role in user_roles for role in allowed_roles)
+
+
+@frappe.whitelist()
+def get_user_roles():
+    """Return the current user's roles."""
+    return frappe.get_roles(frappe.session.user)

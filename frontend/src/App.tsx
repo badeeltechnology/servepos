@@ -43,15 +43,9 @@ function App() {
   const [profileData, setProfileData] = useState<any>(null);
 
   const { data: rolesData } = useFrappeGetCall<{ message: string[] }>(
-    "frappe.client.get_list",
-    {
-      doctype: "Has Role",
-      filters: { parent: currentUser || "", parenttype: "User" },
-      fields: ["role"],
-      limit_page_length: 0,
-    },
+    "servepos.servepos.api.permission.get_user_roles",
   );
-  const userRoles = (rolesData?.message || []).map((r: any) => r.role);
+  const userRoles = rolesData?.message || [];
   const managerRoles = [
     "System Manager",
     "ServePOS Manager",
