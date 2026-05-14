@@ -18,8 +18,7 @@
     <meta name="description" content="Restaurant Point of Sale System" />
 
     <!-- Assets -->
-    <script type="module" crossorigin src="/assets/servepos/frontend/assets/index-GyGocVKE.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/servepos/frontend/assets/index-Cer_CYwO.css">
+    <link rel="stylesheet" crossorigin href="{{ asset_css }}">
   </head>
   <body class="dark">
     <div id="root"></div>
@@ -27,5 +26,6 @@
       window.csrf_token = "{{ csrf_token }}";
       window.frappe_boot = {{ boot | tojson }};
     </script>
+    <script type="module" crossorigin src="{{ asset_js }}"></script>
   </body>
 </html>
