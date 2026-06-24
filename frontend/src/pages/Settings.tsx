@@ -1,4 +1,5 @@
-import { useFrappeGetDoc, useFrappeAuth, useFrappeGetDocList } from "frappe-react-sdk";
+import { useState, useCallback } from "react";
+import { useFrappeGetDoc, useFrappeAuth, useFrappeGetDocList, useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -17,6 +18,12 @@ import {
   ExternalLink,
   Building,
   CreditCard,
+  Bell,
+  CheckCircle,
+  XCircle,
+  Upload,
+  Trash2,
+  Zap,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -282,6 +289,9 @@ export default function SettingsPage() {
             </div>
           </section>
 
+          {/* FCM / Push Notifications */}
+          <FCMSettings theme={theme} bgCard={bgCard} bgButton={bgButton} bgButtonHover={bgButtonHover} borderColor={borderColor} textMuted={textMuted} />
+
           {/* App Info */}
           <section className={cn("rounded-xl border p-6", borderColor, bgCard)}>
             <div className="flex items-center justify-between">
@@ -298,5 +308,253 @@ export default function SettingsPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+function FCMSettings({
+  theme,
+  bgCard,
+  bgButton,
+  bgButtonHover,
+  borderColor,
+  textMuted,
+}: {
+  theme: string;
+  bgCard: string;
+  bgButton: string;
+  bgButtonHover: string;
+  borderColor: string;
+  textMuted: string;
+}) {
+  const [showUpload, setShowUpload] = useState(false);
+  const [jsonInput, setJsonInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
+
+  const { data: fcmStatus, mutate: refreshStatus } = useFrappeGetCall<{
+    message: {
+      configured: boolean;
+      project_id: string;
+      source: string;
+      google_auth_installed: boolean;
+    };
+  }>("servepos.api.settings.get_fcm_status");
+
+  const { call: saveCreds } = useFrappePostCall("servepos.api.settings.save_fcm_credentials");
+  const { call: removeCreds } = useFrappePostCall("servepos.api.settings.remove_fcm_credentials");
+  const { call: testConnection } = useFrappePostCall("servepos.api.settings.test_fcm_connection");
+
+  const status = fcmStatus?.message;
+
+  const handleSave = useCallback(async () => {
+    if (!jsonInput.trim()) return;
+    setSaving(true);
+    setTestResult(null);
+    try {
+      await saveCreds({ credentials_json: jsonInput.trim() });
+      setJsonInput("");
+      setShowUpload(false);
+      refreshStatus();
+    } catch (e: any) {
+      alert(e?.message || "Failed to save credentials");
+    } finally {
+      setSaving(false);
+    }
+  }, [jsonInput, saveCreds, refreshStatus]);
+
+  const handleRemove = useCallback(async () => {
+    if (!confirm("Remove FCM credentials? Push notifications will stop working.")) return;
+    try {
+      await removeCreds({});
+      refreshStatus();
+      setTestResult(null);
+    } catch (e: any) {
+      alert(e?.message || "Failed to remove");
+    }
+  }, [removeCreds, refreshStatus]);
+
+  const handleTest = useCallback(async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await testConnection({});
+      setTestResult(res as any);
+    } catch (e: any) {
+      setTestResult({ success: false, error: e?.message || "Test failed" });
+    } finally {
+      setTesting(false);
+    }
+  }, [testConnection]);
+
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setJsonInput(ev.target?.result as string || "");
+    };
+    reader.readAsText(file);
+  }, []);
+
+  return (
+    <section className={cn("rounded-xl border p-6", borderColor, bgCard)}>
+      <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+        <Bell className="h-5 w-5 text-orange-500" />
+        Push Notifications (FCM)
+      </h2>
+
+      {/* Status */}
+      <div className={cn("rounded-lg p-4 mb-4", bgButton)}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {status?.configured ? (
+              <CheckCircle className="h-5 w-5 text-green-500" />
+            ) : (
+              <XCircle className="h-5 w-5 text-red-400" />
+            )}
+            <div>
+              <p className="font-medium">
+                {status?.configured ? "FCM Configured" : "FCM Not Configured"}
+              </p>
+              {status?.configured && status.project_id && (
+                <p className={cn("text-sm", textMuted)}>
+                  Project: {status.project_id}
+                </p>
+              )}
+              {!status?.google_auth_installed && (
+                <p className="text-sm text-red-400">
+                  google-auth package not installed (pip install google-auth)
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {status?.configured && (
+              <>
+                <button
+                  onClick={handleTest}
+                  disabled={testing}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium",
+                    bgButtonHover,
+                    "border",
+                    borderColor
+                  )}
+                >
+                  {testing ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <Zap className="h-3.5 w-3.5" />
+                  )}
+                  Test
+                </button>
+                <button
+                  onClick={handleRemove}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-red-500 hover:bg-red-500/10"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {testResult && (
+          <div
+            className={cn(
+              "mt-3 rounded-lg px-3 py-2 text-sm",
+              testResult.success
+                ? "bg-green-500/10 text-green-500"
+                : "bg-red-500/10 text-red-400"
+            )}
+          >
+            {testResult.success
+              ? `Connection successful! Project: ${(testResult as any).project_id}`
+              : `Failed: ${testResult.error}`}
+          </div>
+        )}
+      </div>
+
+      {/* Upload / Configure */}
+      {!showUpload ? (
+        <button
+          onClick={() => setShowUpload(true)}
+          className={cn(
+            "flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed py-4 text-sm font-medium transition-colors",
+            borderColor,
+            bgButtonHover,
+            textMuted
+          )}
+        >
+          <Upload className="h-4 w-4" />
+          {status?.configured ? "Update Firebase Credentials" : "Add Firebase Service Account JSON"}
+        </button>
+      ) : (
+        <div className={cn("rounded-lg border p-4", borderColor)}>
+          <p className={cn("text-sm mb-3", textMuted)}>
+            Paste your Firebase service account JSON or upload the file.
+            Get it from: Firebase Console → Project Settings → Service Accounts → Generate new private key.
+          </p>
+
+          {/* File upload */}
+          <label
+            className={cn(
+              "flex items-center justify-center gap-2 rounded-lg border-2 border-dashed py-3 mb-3 cursor-pointer text-sm font-medium",
+              borderColor,
+              bgButtonHover,
+              textMuted
+            )}
+          >
+            <Upload className="h-4 w-4" />
+            Upload JSON file
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+          </label>
+
+          {/* Or paste */}
+          <textarea
+            value={jsonInput}
+            onChange={(e) => setJsonInput(e.target.value)}
+            placeholder='{"type": "service_account", "project_id": "...", ...}'
+            rows={6}
+            className={cn(
+              "w-full rounded-lg border px-3 py-2 text-sm font-mono",
+              borderColor,
+              "focus:outline-none focus:border-orange-500",
+              theme === "dark" ? "bg-zinc-800 text-white" : "bg-white"
+            )}
+          />
+
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => {
+                setShowUpload(false);
+                setJsonInput("");
+              }}
+              className={cn(
+                "rounded-lg px-4 py-2 text-sm font-medium",
+                bgButton,
+                bgButtonHover
+              )}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || !jsonInput.trim()}
+              className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save Credentials"}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
