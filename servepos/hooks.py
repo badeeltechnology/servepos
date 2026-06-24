@@ -107,8 +107,8 @@ website_route_rules = [
 # Installation
 # ------------
 
-# before_install = "servepos.install.before_install"
-# after_install = "servepos.install.after_install"
+after_install = "servepos.setup.setup_all"
+after_migrate = "servepos.setup.setup_all"
 
 # Uninstallation
 # ------------
