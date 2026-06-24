@@ -42,9 +42,10 @@ def get_context(context):
     context.csrf_token = csrf_token
 
     # Pass minimal context — actual data is fetched via API
-    context.guest_context = {
-        "site_name": frappe.local.site,
-    }
+    # Use json.dumps to ensure it's a plain JSON string (avoids Jinja tojson serialization issues)
+    context.guest_context = json.dumps({
+        "site_name": str(frappe.local.site or ""),
+    })
 
     assets = _read_manifest()
     context.asset_js = f"/assets/servepos/frontend/{assets['js']}"

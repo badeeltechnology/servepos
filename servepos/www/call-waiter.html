@@ -22,7 +22,7 @@
     <div id="root"></div>
     <script>
       window.csrf_token = "{{ csrf_token }}";
-      window.guest_context = {{ guest_context | tojson }};
+      window.guest_context = {{ guest_context }};
     </script>
     <script type="module" crossorigin src="{{ asset_js }}"></script>
   </body>
