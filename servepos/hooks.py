@@ -82,8 +82,8 @@ role_home_page = {
 website_route_rules = [
 	{"from_route": "/pos/<path:app_path>", "to_route": "pos"},
 	{"from_route": "/pos", "to_route": "pos"},
-	{"from_route": "/call-waiter/<path:app_path>", "to_route": "call-waiter"},
-	{"from_route": "/call-waiter", "to_route": "call-waiter"},
+	{"from_route": "/call-waiter/<path:app_path>", "to_route": "call_waiter"},
+	{"from_route": "/call-waiter", "to_route": "call_waiter"},
 ]
 
 # Generators
