@@ -1,0 +1,165 @@
+{
+  "actions": [],
+  "autoname": "naming_series:",
+  "creation": "2026-06-24 00:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "naming_series",
+    "table",
+    "pos_profile",
+    "status",
+    "column_break_main",
+    "call_time",
+    "guest_name",
+    "guest_token",
+    "notes",
+    "section_break_waiter",
+    "accepted_by",
+    "accepted_at",
+    "column_break_waiter",
+    "attended_at"
+  ],
+  "fields": [
+    {
+      "default": "CALL-.YYYY.-.#####",
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "hidden": 1,
+      "label": "Series",
+      "options": "CALL-.YYYY.-.#####",
+      "reqd": 1
+    },
+    {
+      "fieldname": "table",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Seat / Table",
+      "options": "ServePOS Table",
+      "reqd": 1
+    },
+    {
+      "fieldname": "pos_profile",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Restaurant (POS Profile)",
+      "options": "POS Profile",
+      "reqd": 1
+    },
+    {
+      "default": "Pending",
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Status",
+      "options": "Pending\nAccepted\nAttended\nExpired\nCancelled",
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_main",
+      "fieldtype": "Column Break"
+    },
+    {
+      "default": "now",
+      "fieldname": "call_time",
+      "fieldtype": "Datetime",
+      "in_list_view": 1,
+      "label": "Call Time",
+      "read_only": 1
+    },
+    {
+      "fieldname": "guest_name",
+      "fieldtype": "Data",
+      "label": "Guest Name"
+    },
+    {
+      "fieldname": "guest_token",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "label": "Guest Token"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "Notes"
+    },
+    {
+      "fieldname": "section_break_waiter",
+      "fieldtype": "Section Break",
+      "label": "Waiter Response"
+    },
+    {
+      "fieldname": "accepted_by",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Accepted By",
+      "options": "ServePOS Waiter",
+      "read_only": 1
+    },
+    {
+      "fieldname": "accepted_at",
+      "fieldtype": "Datetime",
+      "label": "Accepted At",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_waiter",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "attended_at",
+      "fieldtype": "Datetime",
+      "label": "Attended At",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-06-24 00:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Servepos",
+  "name": "ServePOS Waiter Call",
+  "naming_rule": "By \"Naming Series\" field",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 1,
+      "read": 1,
+      "report": 1,
+      "role": "ServePOS Manager",
+      "write": 1
+    },
+    {
+      "read": 1,
+      "role": "ServePOS Cashier",
+      "write": 1
+    },
+    {
+      "read": 1,
+      "role": "ServePOS Waiter",
+      "write": 1
+    }
+  ],
+  "search_fields": "table,pos_profile,status,accepted_by",
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "states": [],
+  "title_field": "table",
+  "track_changes": 1
+}

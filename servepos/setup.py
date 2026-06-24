@@ -8,7 +8,7 @@ from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
 def cleanup_servepos_custom_fields():
     """Delete all existing ServePOS custom fields to allow recreation with correct types"""
-    doctypes = ["Item", "POS Profile", "POS Invoice", "POS Invoice Item"]
+    doctypes = ["Item", "POS Profile", "POS Invoice", "POS Invoice Item", "Item Group"]
     for dt in doctypes:
         fields = frappe.get_all(
             "Custom Field",
@@ -230,6 +230,84 @@ def create_custom_fields_for_pos_profile():
     }
     create_custom_fields(custom_fields)
     print("Created custom fields for POS Profile")
+
+
+def create_custom_fields_for_pos_profile_guest():
+    """Add guest calling & branding custom fields to POS Profile"""
+    custom_fields = {
+        "POS Profile": [
+            {
+                "fieldname": "servepos_guest_section",
+                "fieldtype": "Section Break",
+                "label": "Guest Calling & Branding",
+                "insert_after": "kot_urgent_minutes",
+                "collapsible": 1
+            },
+            {
+                "fieldname": "servepos_enable_guest_calling",
+                "fieldtype": "Check",
+                "label": "Enable Guest Calling",
+                "description": "Allow guests to call waiters by scanning a QR code on their seat/table",
+                "default": "0",
+                "insert_after": "servepos_guest_section"
+            },
+            {
+                "fieldname": "servepos_restaurant_display_name",
+                "fieldtype": "Data",
+                "label": "Restaurant Display Name",
+                "description": "Friendly name shown to guests (e.g. 'Beach Grill')",
+                "insert_after": "servepos_enable_guest_calling"
+            },
+            {
+                "fieldname": "servepos_restaurant_description",
+                "fieldtype": "Small Text",
+                "label": "Restaurant Description",
+                "description": "Short description shown to guests",
+                "insert_after": "servepos_restaurant_display_name"
+            },
+            {
+                "fieldname": "servepos_guest_col_break",
+                "fieldtype": "Column Break",
+                "insert_after": "servepos_restaurant_description"
+            },
+            {
+                "fieldname": "servepos_restaurant_logo",
+                "fieldtype": "Attach Image",
+                "label": "Restaurant Logo",
+                "insert_after": "servepos_guest_col_break"
+            },
+            {
+                "fieldname": "servepos_venue_name",
+                "fieldtype": "Data",
+                "label": "Venue Name",
+                "description": "Hotel/resort name shown at the top of the guest page",
+                "insert_after": "servepos_restaurant_logo"
+            },
+            {
+                "fieldname": "servepos_venue_logo",
+                "fieldtype": "Attach Image",
+                "label": "Venue Logo",
+                "insert_after": "servepos_venue_name"
+            },
+            {
+                "fieldname": "servepos_menu_section",
+                "fieldtype": "Section Break",
+                "label": "Menu Gallery",
+                "description": "Upload menu images that guests can swipe through",
+                "insert_after": "servepos_venue_logo",
+                "collapsible": 1
+            },
+            {
+                "fieldname": "servepos_menu_images",
+                "fieldtype": "Table",
+                "label": "Menu Images",
+                "options": "ServePOS Menu Image",
+                "insert_after": "servepos_menu_section"
+            }
+        ]
+    }
+    create_custom_fields(custom_fields)
+    print("Created guest calling & branding custom fields for POS Profile")
 
 
 def create_custom_fields_for_pos_invoice():
@@ -938,6 +1016,7 @@ def setup_all():
     create_custom_fields_for_item_group()
     create_custom_fields_for_item()
     create_custom_fields_for_pos_profile()
+    create_custom_fields_for_pos_profile_guest()
     create_custom_fields_for_pos_invoice()
     create_custom_fields_for_sales_invoice()
     create_custom_fields_for_restaurant()

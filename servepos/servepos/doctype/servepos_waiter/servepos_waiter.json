@@ -11,7 +11,8 @@
     "column_break_1",
     "phone",
     "is_active",
-    "servepos_visible_profiles"
+    "servepos_visible_profiles",
+    "fcm_token"
   ],
   "fields": [
     {
@@ -57,6 +58,14 @@
       "fieldname": "servepos_visible_profiles",
       "fieldtype": "Small Text",
       "label": "Visible on POS Profiles"
+    },
+    {
+      "fieldname": "fcm_token",
+      "fieldtype": "Small Text",
+      "hidden": 1,
+      "label": "FCM Token",
+      "read_only": 1,
+      "description": "Firebase Cloud Messaging device token for push notifications. Set automatically by the waiter app."
     }
   ],
   "links": [],

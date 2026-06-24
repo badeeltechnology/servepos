@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useFrappeGetDocList, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
 import { useProfile } from "@/App";
-import { Plus, Trash2, Edit3, X, Users } from "lucide-react";
+import { Plus, Trash2, Edit3, X, Users, QrCode } from "lucide-react";
+import { QRGenerator, BulkQRGenerator } from "@/components/QRGenerator";
 
 export default function RestaurantSetup() {
   const { profile, profileData } = useProfile();
@@ -43,6 +44,8 @@ function TablesSection({ branch }: { branch: string }) {
   const [room, setRoom] = useState("");
   const [capacity, setCapacity] = useState(4);
   const [filterRoom, setFilterRoom] = useState<string | null>(null);
+  const [qrTable, setQrTable] = useState<string | null>(null);
+  const [showBulkQR, setShowBulkQR] = useState(false);
 
   const filters: any[] = [];
   if (branch) filters.push(["branch", "=", branch]);
@@ -91,10 +94,18 @@ function TablesSection({ branch }: { branch: string }) {
             </div>
           )}
         </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-1.5 rounded-md bg-gray-900 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-gray-800">
-          <Plus className="h-3 w-3" /> Add table
-        </button>
+        <div className="flex items-center gap-2">
+          {tables && tables.length > 0 && (
+            <button onClick={() => setShowBulkQR(true)}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-600 hover:bg-gray-50">
+              <QrCode className="h-3 w-3" /> QR Codes
+            </button>
+          )}
+          <button onClick={() => { resetForm(); setShowForm(true); }}
+            className="flex items-center gap-1.5 rounded-md bg-gray-900 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-gray-800">
+            <Plus className="h-3 w-3" /> Add table
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -150,6 +161,8 @@ function TablesSection({ branch }: { branch: string }) {
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
+                    <button onClick={() => setQrTable(t.table_name)} title="Generate QR"
+                      className="rounded p-1.5 text-gray-400 hover:bg-gray-100"><QrCode className="h-3.5 w-3.5" /></button>
                     <button onClick={() => { setEditingTable(t.name); setTableName(t.table_name); setRoom(t.room || ""); setCapacity(t.capacity || 4); setShowForm(true); }}
                       className="rounded p-1.5 text-gray-400 hover:bg-gray-100"><Edit3 className="h-3.5 w-3.5" /></button>
                     <button onClick={async () => { if (confirm("Delete?")) { try { await deleteDoc("ServePOS Table", t.name); refresh(); } catch {} } }}
@@ -164,6 +177,17 @@ function TablesSection({ branch }: { branch: string }) {
           <div className="py-12 text-center text-sm text-gray-400">No tables yet. Add your first table.</div>
         )}
       </div>
+
+      {/* QR Code Modals */}
+      {qrTable && (
+        <QRGenerator tableName={qrTable} onClose={() => setQrTable(null)} />
+      )}
+      {showBulkQR && tables && (
+        <BulkQRGenerator
+          tables={tables.map((t: any) => ({ name: t.name, table_name: t.table_name, room: rooms?.find((r: any) => r.name === t.room)?.room_name }))}
+          onClose={() => setShowBulkQR(false)}
+        />
+      )}
     </div>
   );
 }

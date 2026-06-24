@@ -15,6 +15,7 @@ fixtures = [
 	{"dt": "Custom Field", "filters": [["fieldname", "like", "servepos%"]]},
 	{"dt": "Custom Field", "filters": [["fieldname", "like", "custom_pos_invoice%"]]},
 	{"dt": "Custom Field", "filters": [["fieldname", "=", "custom_sales_invoice"]]},
+	{"dt": "Custom Field", "filters": [["fieldname", "in", ["enable_kds", "auto_generate_kot", "auto_deduct_stock", "kot_warning_minutes", "kot_urgent_minutes", "branch"]]]},
 	{"dt": "Role", "filters": [["name", "like", "ServePOS%"]]},
 ]
 
@@ -81,6 +82,8 @@ role_home_page = {
 website_route_rules = [
 	{"from_route": "/pos/<path:app_path>", "to_route": "pos"},
 	{"from_route": "/pos", "to_route": "pos"},
+	{"from_route": "/call-waiter/<path:app_path>", "to_route": "call-waiter"},
+	{"from_route": "/call-waiter", "to_route": "call-waiter"},
 ]
 
 # Generators
@@ -167,23 +170,13 @@ doc_events = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"servepos.tasks.all"
-# 	],
-# 	"daily": [
-# 		"servepos.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"servepos.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"servepos.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"servepos.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"cron": {
+		"*/5 * * * *": [
+			"servepos.api.guest.expire_stale_calls"
+		]
+	}
+}
 
 # Testing
 # -------
