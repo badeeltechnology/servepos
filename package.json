@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "name": "servepos",
+  "description": "An intuitive POS solution built for restaurants to handle orders, payments, and kitchen coordination seamlessly.",
+  "license": "GPL-3.0",
+  "scripts": {
+    "postinstall": "cd frontend && yarn install --check-files",
+    "dev": "cd frontend && yarn dev",
+    "build": "cd frontend && yarn build"
+  }
+}
