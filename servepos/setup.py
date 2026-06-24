@@ -998,7 +998,9 @@ def create_demo_kitchen_stations():
 
 
 def setup_all():
-    """Run all setup functions"""
+    """Run all setup functions.
+    Called on after_install and after_migrate via hooks.py.
+    All create_custom_fields calls are idempotent (safe to run repeatedly)."""
     print("=" * 50)
     print("Setting up ServePOS...")
     print("=" * 50)
@@ -1007,9 +1009,9 @@ def setup_all():
     create_kitchen_station_doctype()
     create_kot_doctype()
 
-    # Clean up existing custom fields with wrong types
-    print("\nCleaning up existing custom fields...")
-    cleanup_servepos_custom_fields()
+    # NOTE: cleanup is intentionally NOT called on every migrate.
+    # create_custom_fields is idempotent — it creates missing fields
+    # and updates existing ones. Cleanup is only needed for type changes.
 
     # Create custom fields
     print("\nCreating custom fields...")
