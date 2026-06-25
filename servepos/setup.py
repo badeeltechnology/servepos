@@ -448,14 +448,16 @@ def create_custom_fields_for_sales_invoice():
             },
             {
                 "fieldname": "servepos_table",
-                "fieldtype": "Data",
+                "fieldtype": "Link",
                 "label": "Table",
+                "options": "ServePOS Table",
                 "insert_after": "servepos_cashier"
             },
             {
                 "fieldname": "servepos_room",
-                "fieldtype": "Data",
+                "fieldtype": "Link",
                 "label": "Room",
+                "options": "ServePOS Room",
                 "insert_after": "servepos_table"
             },
             {
