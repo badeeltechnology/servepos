@@ -600,6 +600,13 @@ def create_visible_profiles_fields():
     for dt, insert_after in doctypes:
         if not frappe.db.exists("DocType", dt):
             continue
+        # Skip if the field already exists natively in the doctype JSON
+        meta = frappe.get_meta(dt)
+        if meta.has_field("servepos_visible_profiles"):
+            continue
+        # Skip if already exists as a custom field
+        if frappe.db.exists("Custom Field", {"dt": dt, "fieldname": "servepos_visible_profiles"}):
+            continue
         custom_fields[dt] = [
             {
                 "fieldname": "servepos_visible_profiles",
@@ -612,6 +619,8 @@ def create_visible_profiles_fields():
     if custom_fields:
         create_custom_fields(custom_fields)
         print("Created servepos_visible_profiles fields on:", ", ".join(custom_fields.keys()))
+    else:
+        print("servepos_visible_profiles fields already exist on all doctypes")
 
 
 def create_custom_fields_for_stock_entry():
