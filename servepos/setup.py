@@ -1041,10 +1041,6 @@ def setup_all():
     create_kot_print_format()
     create_bill_print_format()
 
-    # Create demo data
-    print("\nCreating demo data...")
-    create_demo_kitchen_stations()
-
     frappe.db.commit()
     print("=" * 50)
     print("ServePOS setup complete!")
