@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useFrappeGetDocList, useFrappeGetDocCount, useFrappeGetCall, useFrappePostCall } from "frappe-react-sdk";
 import { useProfile } from "@/App";
 import { Link } from "react-router-dom";
-import { Download, Calendar, ChevronDown, TrendingUp, ShoppingBag, CreditCard, Users, Clock, Utensils, ClipboardList, X, RefreshCw, Receipt } from "lucide-react";
+import { Download, Calendar, ChevronDown, TrendingUp, ShoppingBag, CreditCard, Users, Clock, Utensils, ClipboardList, X, RefreshCw, Receipt, Ban, Coins, PackageX, RotateCcw, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 type DatePreset = "today" | "yesterday" | "this_week" | "this_month" | "last_month" | "custom";
@@ -73,9 +73,12 @@ export default function Dashboard() {
   );
   const data = analytics?.message || {
     total_sales: 0, net_total: 0, total_tax: 0, order_count: 0, avg_order: 0, total_guests: 0,
+    total_tips: 0, total_items_sold: 0,
     payment_breakdown: [], top_items: [], category_breakdown: [], order_type_breakdown: [],
     hourly_sales: [], daily_sales: [],
+    void_summary: { count: 0, amount: 0, void_rate: 0, by_type: [], by_reason: [], by_disposition: [], by_staff: [], top_items: [] },
   };
+  const voidData = data.void_summary || { count: 0, amount: 0, void_rate: 0, by_type: [], by_reason: [], by_disposition: [], by_staff: [], top_items: [] };
 
   // Per-profile breakdown (fetch separately for "All Profiles" view)
   const { data: posProfiles } = useFrappeGetDocList("POS Profile", {
@@ -244,7 +247,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="mb-5 grid grid-cols-5 gap-3">
+      <div className="mb-5 grid grid-cols-4 gap-3">
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex items-center gap-2 mb-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-green-50">
@@ -263,15 +266,7 @@ export default function Dashboard() {
             <span className="text-[11px] font-medium text-gray-500">Orders</span>
           </div>
           <p className="text-xl font-bold text-gray-900">{data.order_count}</p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-purple-50">
-              <CreditCard className="h-3.5 w-3.5 text-purple-600" />
-            </div>
-            <span className="text-[11px] font-medium text-gray-500">Avg Order</span>
-          </div>
-          <p className="text-xl font-bold text-gray-900">{fmtCurrency(data.avg_order)}</p>
+          <p className="mt-0.5 text-[11px] text-gray-400">Avg: {fmtCurrency(data.avg_order)}</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -281,6 +276,7 @@ export default function Dashboard() {
             <span className="text-[11px] font-medium text-gray-500">Guests</span>
           </div>
           <p className="text-xl font-bold text-gray-900">{data.total_guests}</p>
+          <p className="mt-0.5 text-[11px] text-gray-400">{data.total_guests > 0 ? fmtCurrency(data.total_sales / data.total_guests) : '0.00'} / guest</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -289,9 +285,54 @@ export default function Dashboard() {
             </div>
             <span className="text-[11px] font-medium text-gray-500">Items Sold</span>
           </div>
-          <p className="text-xl font-bold text-gray-900">
-            {(data.top_items || []).reduce((s: number, i: any) => s + (i.total_qty || 0), 0)}
+          <p className="text-xl font-bold text-gray-900">{data.total_items_sold || (data.top_items || []).reduce((s: number, i: any) => s + (i.total_qty || 0), 0)}</p>
+        </div>
+      </div>
+
+      {/* Tips & Void Summary Row */}
+      <div className="mb-5 grid grid-cols-4 gap-3">
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-50">
+              <Coins className="h-3.5 w-3.5 text-emerald-600" />
+            </div>
+            <span className="text-[11px] font-medium text-gray-500">Tips</span>
+          </div>
+          <p className="text-xl font-bold text-emerald-700">{fmtCurrency(data.total_tips || 0)}</p>
+        </div>
+        <div className="rounded-lg border border-red-100 bg-red-50/30 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-red-100">
+              <Ban className="h-3.5 w-3.5 text-red-600" />
+            </div>
+            <span className="text-[11px] font-medium text-gray-500">Voids</span>
+          </div>
+          <p className="text-xl font-bold text-red-700">{voidData.count}</p>
+          <p className="mt-0.5 text-[11px] text-red-400">{fmtCurrency(voidData.amount)} ({voidData.void_rate}%)</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50">
+              <RotateCcw className="h-3.5 w-3.5 text-blue-600" />
+            </div>
+            <span className="text-[11px] font-medium text-gray-500">Return to Inventory</span>
+          </div>
+          <p className="text-xl font-bold text-blue-700">
+            {(voidData.by_disposition || []).find((d: any) => d.disposition === 'Return to Inventory')?.count || 0}
           </p>
+          <p className="mt-0.5 text-[11px] text-gray-400">{fmtCurrency((voidData.by_disposition || []).find((d: any) => d.disposition === 'Return to Inventory')?.amount || 0)}</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-orange-50">
+              <Trash2 className="h-3.5 w-3.5 text-orange-600" />
+            </div>
+            <span className="text-[11px] font-medium text-gray-500">Waste</span>
+          </div>
+          <p className="text-xl font-bold text-orange-700">
+            {(voidData.by_disposition || []).find((d: any) => d.disposition === 'Waste')?.count || 0}
+          </p>
+          <p className="mt-0.5 text-[11px] text-gray-400">{fmtCurrency((voidData.by_disposition || []).find((d: any) => d.disposition === 'Waste')?.amount || 0)}</p>
         </div>
       </div>
 
@@ -759,6 +800,99 @@ export default function Dashboard() {
           </Link>
         ))}
       </div>
+
+      {/* Void Analytics */}
+      {voidData.count > 0 && (
+        <div className="mb-5 grid grid-cols-2 gap-3">
+          {/* Void by Reason */}
+          <div className="rounded-lg border border-gray-200 bg-white">
+            <div className="border-b border-gray-200 px-5 py-3 flex items-center gap-2">
+              <Ban className="h-3.5 w-3.5 text-red-500" />
+              <h2 className="text-[13px] font-semibold text-gray-700">Void Reasons</h2>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {(voidData.by_reason || []).map((r: any, i: number) => (
+                <div key={i} className="flex items-center justify-between px-5 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] text-gray-700">{r.reason}</span>
+                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-600">{r.count}</span>
+                  </div>
+                  <span className="text-[13px] font-semibold text-red-600">{fmtCurrency(r.amount)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Void by Type + Staff */}
+          <div className="space-y-3">
+            {/* By Type */}
+            <div className="rounded-lg border border-gray-200 bg-white">
+              <div className="border-b border-gray-200 px-5 py-3">
+                <h2 className="text-[13px] font-semibold text-gray-700">Void by Type</h2>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {(voidData.by_type || []).map((t: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between px-5 py-2.5">
+                    <span className="text-[13px] text-gray-700">{t.type}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-gray-400">{t.count} orders</span>
+                      <span className="text-[13px] font-semibold text-gray-900">{fmtCurrency(t.amount)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* By Staff */}
+            {(voidData.by_staff || []).length > 0 && (
+              <div className="rounded-lg border border-gray-200 bg-white">
+                <div className="border-b border-gray-200 px-5 py-3">
+                  <h2 className="text-[13px] font-semibold text-gray-700">Voided By</h2>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {(voidData.by_staff || []).map((s: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between px-5 py-2.5">
+                      <span className="text-[13px] text-gray-700">{s.staff}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[11px] text-gray-400">{s.count} voids</span>
+                        <span className="text-[13px] font-semibold text-gray-900">{fmtCurrency(s.amount)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Top Voided Items */}
+      {(voidData.top_items || []).length > 0 && (
+        <div className="mb-5 rounded-lg border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 px-5 py-3 flex items-center gap-2">
+            <PackageX className="h-3.5 w-3.5 text-red-500" />
+            <h2 className="text-[13px] font-semibold text-gray-700">Top Voided Items</h2>
+          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100 text-[10px] font-semibold text-gray-400 uppercase">
+                <th className="px-5 py-2 text-left">Item</th>
+                <th className="px-5 py-2 text-right">Qty</th>
+                <th className="px-5 py-2 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {(voidData.top_items || []).map((item: any, i: number) => (
+                <tr key={i}>
+                  <td className="px-5 py-2.5 text-[13px] text-gray-700">{item.item_name || item.item_code}</td>
+                  <td className="px-5 py-2.5 text-right text-[13px] text-gray-600">{item.total_qty}</td>
+                  <td className="px-5 py-2.5 text-right text-[13px] font-semibold text-red-600">{fmtCurrency(item.total_amount || 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Quick links */}
       <div className="rounded-lg border border-gray-200 bg-white">

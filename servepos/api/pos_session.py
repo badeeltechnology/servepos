@@ -766,7 +766,8 @@ def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
     # --- Fetch Sales Invoices (POS) — has all custom fields ---
     si_filters = {**base_filters, "is_pos": 1}
     si_inv_fields = base_inv_fields + ["servepos_order_type", "servepos_guests",
-                                        "servepos_cashier", "servepos_waiter"]
+                                        "servepos_cashier", "servepos_waiter",
+                                        "servepos_tip"]
     sales_invoices = frappe.get_all(
         "Sales Invoice",
         filters=si_filters,
@@ -783,9 +784,13 @@ def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
         return {
             "total_sales": 0, "net_total": 0, "total_tax": 0,
             "order_count": 0, "avg_order": 0, "total_guests": 0,
+            "total_tips": 0, "total_items_sold": 0,
             "payment_breakdown": [], "top_items": empty_items, "category_breakdown": [],
             "order_type_breakdown": [], "hourly_sales": [], "daily_sales": [],
             "cashier_breakdown": [],
+            "void_summary": {"count": 0, "amount": 0, "void_rate": 0,
+                             "by_type": [], "by_reason": [], "by_disposition": [],
+                             "by_staff": [], "top_items": []},
         }
 
     # --- Payment Breakdown ---
@@ -913,7 +918,84 @@ def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
     net_total = sum(inv.net_total or 0 for inv in all_invoices)
     total_tax = sum(inv.total_taxes_and_charges or 0 for inv in all_invoices)
     total_guests = sum(inv.servepos_guests or 0 for inv in all_invoices)
+    total_tips = sum(flt(inv.get("servepos_tip") or 0) for inv in all_invoices)
+    total_items_sold = sum(it["total_qty"] for it in item_data if it["total_qty"] > 0)
     order_count = len(all_invoices)
+
+    # --- Void Analytics (from ServePOS Void Log) ---
+    void_filters = {"void_date": ["between", [f"{from_date} 00:00:00", f"{to_date} 23:59:59"]]}
+    if pos_profile:
+        void_filters["pos_profile"] = pos_profile
+
+    void_logs = frappe.get_all(
+        "ServePOS Void Log",
+        filters=void_filters,
+        fields=["name", "void_type", "void_reason", "void_disposition",
+                "grand_total", "voided_by", "order_number"],
+        limit_page_length=0
+    )
+
+    void_count = len(void_logs)
+    void_amount = sum(flt(v.grand_total) for v in void_logs)
+
+    # Void by type
+    void_type_map = {}
+    for v in void_logs:
+        vt = v.void_type or "Other"
+        if vt not in void_type_map:
+            void_type_map[vt] = {"type": vt, "count": 0, "amount": 0}
+        void_type_map[vt]["count"] += 1
+        void_type_map[vt]["amount"] += flt(v.grand_total)
+    void_by_type = sorted(void_type_map.values(), key=lambda x: x["amount"], reverse=True)
+
+    # Void by reason
+    void_reason_map = {}
+    for v in void_logs:
+        vr = v.void_reason or "No reason"
+        if vr not in void_reason_map:
+            void_reason_map[vr] = {"reason": vr, "count": 0, "amount": 0}
+        void_reason_map[vr]["count"] += 1
+        void_reason_map[vr]["amount"] += flt(v.grand_total)
+    void_by_reason = sorted(void_reason_map.values(), key=lambda x: x["count"], reverse=True)
+
+    # Void by disposition
+    void_disp_map = {}
+    for v in void_logs:
+        vd = v.void_disposition or "Not specified"
+        if vd not in void_disp_map:
+            void_disp_map[vd] = {"disposition": vd, "count": 0, "amount": 0}
+        void_disp_map[vd]["count"] += 1
+        void_disp_map[vd]["amount"] += flt(v.grand_total)
+    void_by_disposition = sorted(void_disp_map.values(), key=lambda x: x["amount"], reverse=True)
+
+    # Void by staff
+    void_staff_map = {}
+    for v in void_logs:
+        vs = v.voided_by or "Unknown"
+        if vs not in void_staff_map:
+            void_staff_map[vs] = {"staff": vs, "count": 0, "amount": 0}
+        void_staff_map[vs]["count"] += 1
+        void_staff_map[vs]["amount"] += flt(v.grand_total)
+    void_by_staff = sorted(void_staff_map.values(), key=lambda x: x["amount"], reverse=True)
+
+    # Top voided items
+    void_item_logs = []
+    if void_logs:
+        void_log_names = [v.name for v in void_logs]
+        vli = frappe.qb.DocType("ServePOS Void Log Item")
+        void_item_logs = (
+            frappe.qb.from_(vli)
+            .select(
+                vli.item_code, vli.item_name,
+                frappe.query_builder.functions.Sum(vli.qty).as_("total_qty"),
+                frappe.query_builder.functions.Sum(vli.amount).as_("total_amount"),
+            )
+            .where(vli.parent.isin(void_log_names))
+            .groupby(vli.item_code)
+            .orderby(frappe.query_builder.functions.Sum(vli.amount), order=frappe.qb.desc)
+            .limit(20)
+            .run(as_dict=True)
+        )
 
     return {
         "total_sales": total_sales,
@@ -922,6 +1004,8 @@ def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
         "order_count": order_count,
         "avg_order": total_sales / order_count if order_count else 0,
         "total_guests": total_guests,
+        "total_tips": total_tips,
+        "total_items_sold": total_items_sold,
         "payment_breakdown": payment_breakdown,
         "top_items": top_items,
         "category_breakdown": category_breakdown,
@@ -930,4 +1014,14 @@ def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
         "daily_sales": daily_sales,
         "waiter_breakdown": waiter_breakdown,
         "cashier_breakdown": cashier_breakdown,
+        "void_summary": {
+            "count": void_count,
+            "amount": void_amount,
+            "void_rate": round(void_count / (order_count + void_count) * 100, 1) if (order_count + void_count) > 0 else 0,
+            "by_type": void_by_type,
+            "by_reason": void_by_reason,
+            "by_disposition": void_by_disposition,
+            "by_staff": void_by_staff,
+            "top_items": void_item_logs,
+        },
     }
