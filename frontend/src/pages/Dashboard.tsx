@@ -45,6 +45,13 @@ export default function Dashboard() {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const { call: getInvoiceSummary } = useFrappePostCall("servepos.api.pos_session.get_invoice_summary");
 
+  // Void log state
+  const [showVoidLog, setShowVoidLog] = useState(false);
+  const [voidLogData, setVoidLogData] = useState<any[]>([]);
+  const [loadingVoidLog, setLoadingVoidLog] = useState(false);
+  const [selectedVoidLog, setSelectedVoidLog] = useState<any>(null);
+  const { call: getVoidLogSummary } = useFrappePostCall("servepos.api.pos_session.get_void_log_summary");
+
   const openInvoiceSummary = useCallback(async () => {
     setShowInvoiceSummary(true);
     setLoadingSummary(true);
@@ -61,6 +68,24 @@ export default function Dashboard() {
       setLoadingSummary(false);
     }
   }, [profile, fromDate, toDate, getInvoiceSummary]);
+
+  const openVoidLog = useCallback(async () => {
+    setShowVoidLog(true);
+    setLoadingVoidLog(true);
+    setSelectedVoidLog(null);
+    try {
+      const res = await getVoidLogSummary({
+        pos_profile: profile && profile !== "__all__" ? profile : undefined,
+        from_date: fromDate,
+        to_date: toDate,
+      });
+      setVoidLogData(res?.message || []);
+    } catch {
+      setVoidLogData([]);
+    } finally {
+      setLoadingVoidLog(false);
+    }
+  }, [profile, fromDate, toDate, getVoidLogSummary]);
 
   // Fetch analytics from API
   const { data: analytics } = useFrappeGetCall<{ message: any }>(
@@ -238,6 +263,10 @@ export default function Dashboard() {
           <button onClick={openInvoiceSummary}
             className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-2 text-[12px] font-medium text-gray-700 hover:bg-gray-50">
             <ClipboardList className="h-3.5 w-3.5 text-gray-400" /> Invoices
+          </button>
+          <button onClick={openVoidLog}
+            className="flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-2 text-[12px] font-medium text-red-700 hover:bg-red-50">
+            <Ban className="h-3.5 w-3.5 text-red-400" /> Void Log
           </button>
           <button onClick={handleDownloadPDF}
             className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-2 text-[12px] font-medium text-gray-700 hover:bg-gray-50">
@@ -1025,6 +1054,203 @@ export default function Dashboard() {
                 </>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Void Log Dialog */}
+      {showVoidLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-5xl max-h-[85vh] rounded-xl flex flex-col bg-white shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-600 text-white">
+                  <Ban className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="text-[14px] font-semibold text-gray-900">Void Log</h2>
+                  <p className="text-[11px] text-gray-500">
+                    {voidLogData.length} void records · {fromDate}{fromDate !== toDate ? ` to ${toDate}` : ""}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={openVoidLog}
+                  className="flex items-center justify-center rounded-md border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={() => { setShowVoidLog(false); setSelectedVoidLog(null) }}
+                  className="flex items-center justify-center rounded-md border border-gray-200 bg-white p-2 text-gray-500 hover:bg-gray-50">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto">
+              {loadingVoidLog ? (
+                <div className="flex items-center justify-center py-16"><LoadingSpinner /></div>
+              ) : !voidLogData.length ? (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                  <Ban className="mb-3 h-10 w-10" />
+                  <p className="text-[13px] font-medium">No void records found</p>
+                  <p className="text-[11px]">Void records for the selected period will appear here</p>
+                </div>
+              ) : (
+                <div className="flex h-full">
+                  {/* Void Log List */}
+                  <div className={`${selectedVoidLog ? 'w-1/2' : 'w-full'} border-r border-gray-200 overflow-auto`}>
+                    <table className="w-full text-[12px]">
+                      <thead className="sticky top-0 bg-white">
+                        <tr className="bg-gray-50">
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Order</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Type</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Reason</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Disposition</th>
+                          <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase">Amount</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">By</th>
+                          <th className="px-4 py-2.5 text-left text-[10px] font-semibold text-gray-500 uppercase">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {voidLogData.map((log: any, idx: number) => (
+                          <tr key={log.name}
+                            onClick={() => setSelectedVoidLog(log)}
+                            className={`border-t border-gray-100 cursor-pointer transition-colors ${
+                              selectedVoidLog?.name === log.name ? 'bg-red-50' : idx % 2 === 1 ? 'bg-gray-50/50' : 'hover:bg-gray-50'
+                            }`}>
+                            <td className="px-4 py-2.5 font-medium text-gray-900">{log.order_number || log.name}</td>
+                            <td className="px-4 py-2.5">
+                              <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                log.void_type === 'Item Void' ? 'bg-amber-50 text-amber-700' :
+                                log.void_type === 'Shift Close Void' ? 'bg-purple-50 text-purple-700' :
+                                'bg-red-50 text-red-700'
+                              }`}>{log.void_type}</span>
+                            </td>
+                            <td className="px-4 py-2.5 text-gray-600 max-w-[150px] truncate">{log.void_reason}</td>
+                            <td className="px-4 py-2.5">
+                              {log.void_disposition && (
+                                <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                  log.void_disposition === 'Waste' ? 'bg-orange-50 text-orange-700' : 'bg-blue-50 text-blue-700'
+                                }`}>{log.void_disposition}</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-semibold text-red-600">{fmtCurrency(log.grand_total)}</td>
+                            <td className="px-4 py-2.5 text-gray-600">{log.voided_by}</td>
+                            <td className="px-4 py-2.5 text-gray-400 text-[11px]">
+                              {log.void_date ? new Date(log.void_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Void Detail Panel */}
+                  {selectedVoidLog && (
+                    <div className="w-1/2 overflow-auto p-5">
+                      <div className="mb-4 flex items-center justify-between">
+                        <h3 className="text-[14px] font-bold text-gray-900">{selectedVoidLog.order_number || selectedVoidLog.name}</h3>
+                        <button onClick={() => setSelectedVoidLog(null)}
+                          className="rounded-md p-1 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+                      </div>
+
+                      <div className="space-y-3 mb-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-lg bg-gray-50 p-3">
+                            <p className="text-[10px] font-medium text-gray-500 uppercase">Type</p>
+                            <p className="text-[13px] font-semibold text-gray-900">{selectedVoidLog.void_type}</p>
+                          </div>
+                          <div className="rounded-lg bg-gray-50 p-3">
+                            <p className="text-[10px] font-medium text-gray-500 uppercase">Amount</p>
+                            <p className="text-[13px] font-bold text-red-600">{fmtCurrency(selectedVoidLog.grand_total)}</p>
+                          </div>
+                          <div className="rounded-lg bg-gray-50 p-3">
+                            <p className="text-[10px] font-medium text-gray-500 uppercase">Reason</p>
+                            <p className="text-[13px] font-semibold text-gray-900">{selectedVoidLog.void_reason}</p>
+                          </div>
+                          <div className="rounded-lg bg-gray-50 p-3">
+                            <p className="text-[10px] font-medium text-gray-500 uppercase">Disposition</p>
+                            <p className={`text-[13px] font-semibold ${selectedVoidLog.void_disposition === 'Waste' ? 'text-orange-600' : 'text-blue-600'}`}>
+                              {selectedVoidLog.void_disposition || '—'}
+                            </p>
+                          </div>
+                          <div className="rounded-lg bg-gray-50 p-3">
+                            <p className="text-[10px] font-medium text-gray-500 uppercase">Voided By</p>
+                            <p className="text-[13px] font-semibold text-gray-900">{selectedVoidLog.voided_by}</p>
+                          </div>
+                          <div className="rounded-lg bg-gray-50 p-3">
+                            <p className="text-[10px] font-medium text-gray-500 uppercase">Date & Time</p>
+                            <p className="text-[13px] font-semibold text-gray-900">
+                              {selectedVoidLog.void_date ? new Date(selectedVoidLog.void_date).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {selectedVoidLog.void_remarks && (
+                          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                            <p className="text-[10px] font-medium text-amber-600 uppercase mb-1">Remarks</p>
+                            <p className="text-[13px] text-amber-800">{selectedVoidLog.void_remarks}</p>
+                          </div>
+                        )}
+
+                        {selectedVoidLog.invoice_name && (
+                          <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+                            <p className="text-[10px] font-medium text-blue-600 uppercase mb-1">Linked Invoice</p>
+                            <a href={`/app/sales-invoice/${selectedVoidLog.invoice_name}`} target="_blank" rel="noopener noreferrer"
+                              className="text-[13px] font-semibold text-blue-700 hover:underline">{selectedVoidLog.invoice_name}</a>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 text-[11px] text-gray-400">
+                          {selectedVoidLog.order_type && <span>Type: {selectedVoidLog.order_type}</span>}
+                          {selectedVoidLog.table_name && <span>· Table: {selectedVoidLog.table_name}</span>}
+                          {selectedVoidLog.pos_profile && <span>· Profile: {selectedVoidLog.pos_profile}</span>}
+                        </div>
+                      </div>
+
+                      {/* Voided Items */}
+                      {(selectedVoidLog.items || []).length > 0 && (
+                        <div className="rounded-lg border border-gray-200 overflow-hidden">
+                          <div className="bg-gray-50 px-4 py-2">
+                            <h4 className="text-[11px] font-semibold text-gray-500 uppercase">Items</h4>
+                          </div>
+                          <table className="w-full text-[12px]">
+                            <thead>
+                              <tr className="border-b border-gray-100">
+                                <th className="px-4 py-2 text-left text-[10px] font-semibold text-gray-400">Item</th>
+                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-gray-400">Qty</th>
+                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-gray-400">Rate</th>
+                                <th className="px-4 py-2 text-right text-[10px] font-semibold text-gray-400">Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(selectedVoidLog.items || []).map((item: any, i: number) => (
+                                <tr key={i} className="border-t border-gray-50">
+                                  <td className="px-4 py-2 text-gray-700">{item.item_name || item.item_code}</td>
+                                  <td className="px-4 py-2 text-right text-gray-600">{item.qty}</td>
+                                  <td className="px-4 py-2 text-right text-gray-600">{fmtCurrency(item.rate || 0)}</td>
+                                  <td className="px-4 py-2 text-right font-semibold text-red-600">{fmtCurrency(item.amount || 0)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer totals */}
+            {voidLogData.length > 0 && (
+              <div className="border-t border-gray-200 px-5 py-3 flex items-center justify-between bg-gray-50">
+                <span className="text-[12px] text-gray-500">{voidLogData.length} void records</span>
+                <span className="text-[14px] font-bold text-red-600">
+                  Total: {fmtCurrency(voidLogData.reduce((s: number, v: any) => s + (v.grand_total || 0), 0))}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}

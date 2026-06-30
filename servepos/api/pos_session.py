@@ -627,6 +627,44 @@ def get_item_modifiers(item_code):
 
 
 @frappe.whitelist()
+def get_void_log_summary(pos_profile=None, from_date=None, to_date=None):
+    """Get void log records with item details for the dashboard void log view."""
+    if not from_date:
+        from_date = nowdate()
+    if not to_date:
+        to_date = nowdate()
+
+    filters = {
+        "void_date": ["between", [f"{from_date} 00:00:00", f"{to_date} 23:59:59"]]
+    }
+    if pos_profile:
+        filters["pos_profile"] = pos_profile
+
+    logs = frappe.get_all(
+        "ServePOS Void Log",
+        filters=filters,
+        fields=["name", "order_number", "void_type", "void_reason", "void_disposition",
+                "void_remarks", "voided_by", "cashier_name", "void_date",
+                "grand_total", "table_name", "order_type", "invoice_name",
+                "pos_profile", "branch"],
+        order_by="void_date desc",
+        limit_page_length=0
+    )
+
+    # Fetch items for each void log
+    for log in logs:
+        log["items"] = frappe.get_all(
+            "ServePOS Void Log Item",
+            filters={"parent": log.name},
+            fields=["item_code", "item_name", "qty", "rate", "amount", "void_reason", "void_remarks"],
+            order_by="idx"
+        )
+        log["void_date_str"] = str(log.void_date) if log.void_date else ""
+
+    return logs
+
+
+@frappe.whitelist()
 def get_invoice_summary(pos_profile=None, from_date=None, to_date=None):
     """
     Get invoice summary with payment details for reconciliation view.
