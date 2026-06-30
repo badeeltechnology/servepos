@@ -374,8 +374,8 @@ def void_invoice(invoice_name, reason):
 @frappe.whitelist()
 def record_void(pos_order_id, order_number, void_type, void_reason, voided_by,
                 void_date=None, pos_profile=None, branch=None, items=None,
-                void_remarks=None, table_name=None, order_type=None,
-                grand_total=0, invoice_name=None, cashier_name=None):
+                void_remarks=None, void_disposition=None, table_name=None,
+                order_type=None, grand_total=0, invoice_name=None, cashier_name=None):
     """
     Record a void action from the Desktop POS app.
     Creates a ServePOS Void Log entry for reporting.
@@ -406,6 +406,7 @@ def record_void(pos_order_id, order_number, void_type, void_reason, voided_by,
         "void_type": void_type,
         "void_reason": void_reason,
         "void_remarks": void_remarks,
+        "void_disposition": void_disposition,
         "voided_by": voided_by,
         "cashier_name": cashier_name,
         "void_date": void_date or frappe.utils.now_datetime(),

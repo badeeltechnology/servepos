@@ -23,6 +23,7 @@
     "cashier_name",
     "section_break_reason",
     "void_reason",
+    "void_disposition",
     "column_break_3",
     "void_remarks",
     "section_break_items",
@@ -145,6 +146,14 @@
       "in_list_view": 1,
       "label": "Void Reason",
       "reqd": 1
+    },
+    {
+      "fieldname": "void_disposition",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Disposition",
+      "options": "\nReturn to Inventory\nWaste",
+      "read_only": 1
     },
     {
       "fieldname": "column_break_3",
