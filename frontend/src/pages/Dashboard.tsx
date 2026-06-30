@@ -381,6 +381,7 @@ export default function Dashboard() {
                   {profileSummary.payment_modes.map((mode: string) => (
                     <th key={mode} className="px-4 py-2.5 text-right text-[10px] font-semibold text-gray-500 uppercase">{mode}</th>
                   ))}
+                  <th className="px-4 py-2.5 text-right text-[10px] font-semibold text-emerald-600 uppercase">Tips</th>
                 </tr>
               </thead>
               <tbody>
@@ -392,6 +393,7 @@ export default function Dashboard() {
                     {profileSummary.payment_modes.map((mode: string) => (
                       <td key={mode} className="px-4 py-2.5 text-right text-gray-600">{fmtCurrency(row[mode] || 0)}</td>
                     ))}
+                    <td className="px-4 py-2.5 text-right font-semibold text-emerald-600">{fmtCurrency(row.tips || 0)}</td>
                   </tr>
                 ))}
                 {profileSummary.rows.length > 1 && (
@@ -408,6 +410,9 @@ export default function Dashboard() {
                         {fmtCurrency(profileSummary.rows.reduce((s: number, r: any) => s + (r[mode] || 0), 0))}
                       </td>
                     ))}
+                    <td className="px-4 py-2.5 text-right text-emerald-600">
+                      {fmtCurrency(profileSummary.rows.reduce((s: number, r: any) => s + (r.tips || 0), 0))}
+                    </td>
                   </tr>
                 )}
               </tbody>

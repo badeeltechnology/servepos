@@ -722,15 +722,30 @@ def get_profile_summary(from_date=None, to_date=None):
     if not all_invoices:
         return {"rows": [], "payment_modes": []}
 
+    # Fetch tips from Sales Invoices (servepos_tip is only on SI)
+    si_tips = {}
+    if si_invoices:
+        si_names = [i.name for i in si_invoices]
+        si_table = frappe.qb.DocType("Sales Invoice")
+        tip_rows = (
+            frappe.qb.from_(si_table)
+            .select(si_table.name, si_table.servepos_tip)
+            .where(si_table.name.isin(si_names))
+            .run(as_dict=True)
+        )
+        for r in tip_rows:
+            si_tips[r.name] = flt(r.servepos_tip)
+
     # Aggregate per profile
     profile_map = {}
     inv_to_profile = {}
     for inv in all_invoices:
         p = inv.pos_profile or "Unknown"
         if p not in profile_map:
-            profile_map[p] = {"profile": p, "total_sales": 0, "order_count": 0, "payments": {}}
+            profile_map[p] = {"profile": p, "total_sales": 0, "order_count": 0, "tips": 0, "payments": {}}
         profile_map[p]["total_sales"] += flt(inv.grand_total)
         profile_map[p]["order_count"] += 1
+        profile_map[p]["tips"] += si_tips.get(inv.name, 0)
         inv_to_profile[inv.name] = p
 
     # Payment breakdown per profile
@@ -751,7 +766,7 @@ def get_profile_summary(from_date=None, to_date=None):
 
     result = []
     for m in profile_map.values():
-        row = {"profile": m["profile"], "total_sales": m["total_sales"], "order_count": m["order_count"]}
+        row = {"profile": m["profile"], "total_sales": m["total_sales"], "order_count": m["order_count"], "tips": m["tips"]}
         for mode in all_modes:
             row[mode] = m["payments"].get(mode, 0)
         result.append(row)
