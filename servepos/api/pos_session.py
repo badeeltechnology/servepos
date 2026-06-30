@@ -372,6 +372,80 @@ def void_invoice(invoice_name, reason):
 
 
 @frappe.whitelist()
+def record_void(pos_order_id, order_number, void_type, void_reason, voided_by,
+                void_date=None, pos_profile=None, branch=None, items=None,
+                void_remarks=None, table_name=None, order_type=None,
+                grand_total=0, invoice_name=None, cashier_name=None):
+    """
+    Record a void action from the Desktop POS app.
+    Creates a ServePOS Void Log entry for reporting.
+    Optionally cancels the linked Sales Invoice.
+    """
+    import json as _json
+
+    if not void_reason:
+        frappe.throw(_("Void reason is required"))
+
+    # Parse items if string
+    if isinstance(items, str):
+        items = _json.loads(items) if items else []
+
+    # Check for duplicate (idempotent — same pos_order_id + void_type)
+    existing = frappe.db.exists("ServePOS Void Log", {
+        "pos_order_id": pos_order_id,
+        "void_type": void_type
+    })
+    if existing:
+        return {"message": "Already recorded", "name": existing}
+
+    doc = frappe.get_doc({
+        "doctype": "ServePOS Void Log",
+        "pos_order_id": pos_order_id,
+        "order_number": order_number,
+        "invoice_name": invoice_name,
+        "void_type": void_type,
+        "void_reason": void_reason,
+        "void_remarks": void_remarks,
+        "voided_by": voided_by,
+        "cashier_name": cashier_name,
+        "void_date": void_date or frappe.utils.now_datetime(),
+        "pos_profile": pos_profile,
+        "branch": branch,
+        "table_name": table_name,
+        "order_type": order_type,
+        "grand_total": grand_total or 0,
+        "items": []
+    })
+
+    if items:
+        for item in items:
+            doc.append("items", {
+                "item_code": item.get("item_code"),
+                "item_name": item.get("item_name"),
+                "qty": item.get("qty", 0),
+                "rate": item.get("rate", 0),
+                "amount": item.get("amount", 0),
+                "void_reason": item.get("void_reason", ""),
+                "void_remarks": item.get("void_remarks", "")
+            })
+
+    doc.insert(ignore_permissions=True)
+
+    # If invoice exists and is submitted, cancel it
+    if invoice_name and void_type == "Order Void":
+        try:
+            inv = frappe.get_doc("Sales Invoice", invoice_name)
+            if inv.docstatus == 1:
+                inv.add_comment("Comment", _("Voided from POS. Reason: {0}").format(void_reason))
+                inv.cancel()
+        except Exception:
+            frappe.log_error(f"Failed to cancel invoice {invoice_name} for void {doc.name}")
+
+    frappe.db.commit()
+    return {"message": "Void recorded", "name": doc.name}
+
+
+@frappe.whitelist()
 def create_return_invoice(original_invoice, items_to_return=None):
     """
     Create a return/refund invoice

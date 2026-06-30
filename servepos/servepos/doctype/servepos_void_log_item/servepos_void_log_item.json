@@ -1,0 +1,91 @@
+{
+  "actions": [],
+  "creation": "2026-06-30 20:00:00.000000",
+  "doctype": "DocType",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "item_code",
+    "item_name",
+    "qty",
+    "column_break_1",
+    "rate",
+    "amount",
+    "section_break_void",
+    "void_reason",
+    "column_break_2",
+    "void_remarks"
+  ],
+  "fields": [
+    {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Item Code",
+      "options": "Item",
+      "reqd": 1
+    },
+    {
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Item Name"
+    },
+    {
+      "default": "1",
+      "fieldname": "qty",
+      "fieldtype": "Float",
+      "in_list_view": 1,
+      "label": "Qty",
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "rate",
+      "fieldtype": "Currency",
+      "in_list_view": 1,
+      "label": "Rate"
+    },
+    {
+      "fieldname": "amount",
+      "fieldtype": "Currency",
+      "in_list_view": 1,
+      "label": "Amount"
+    },
+    {
+      "fieldname": "section_break_void",
+      "fieldtype": "Section Break",
+      "label": "Void Details"
+    },
+    {
+      "fieldname": "void_reason",
+      "fieldtype": "Data",
+      "label": "Void Reason"
+    },
+    {
+      "fieldname": "column_break_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "void_remarks",
+      "fieldtype": "Small Text",
+      "label": "Remarks"
+    }
+  ],
+  "istable": 1,
+  "links": [],
+  "modified": "2026-06-30 20:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Servepos",
+  "name": "ServePOS Void Log Item",
+  "naming_rule": "Random",
+  "owner": "Administrator",
+  "permissions": [],
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}

@@ -350,5 +350,46 @@
   "fieldtype": "Currency",
   "label": "Tip Amount",
   "insert_after": "servepos_discount_reason"
+ },
+ {
+  "name": "Sales Invoice-servepos_void_section",
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "servepos_void_section",
+  "fieldtype": "Section Break",
+  "label": "Void Details",
+  "insert_after": "servepos_tip",
+  "collapsible": 1,
+  "depends_on": "eval:doc.docstatus==2"
+ },
+ {
+  "name": "Sales Invoice-servepos_void_reason",
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "servepos_void_reason",
+  "fieldtype": "Data",
+  "label": "Void Reason",
+  "insert_after": "servepos_void_section",
+  "read_only": 1
+ },
+ {
+  "name": "Sales Invoice-servepos_voided_by",
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "servepos_voided_by",
+  "fieldtype": "Data",
+  "label": "Voided By",
+  "insert_after": "servepos_void_reason",
+  "read_only": 1
+ },
+ {
+  "name": "Sales Invoice-servepos_void_remarks",
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "servepos_void_remarks",
+  "fieldtype": "Small Text",
+  "label": "Void Remarks",
+  "insert_after": "servepos_voided_by",
+  "read_only": 1
  }
 ]

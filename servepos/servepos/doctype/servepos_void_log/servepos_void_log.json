@@ -1,0 +1,209 @@
+{
+  "actions": [],
+  "autoname": "naming_series:",
+  "creation": "2026-06-30 20:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "naming_series",
+    "pos_order_id",
+    "order_number",
+    "invoice_name",
+    "column_break_1",
+    "void_type",
+    "pos_profile",
+    "branch",
+    "section_break_details",
+    "order_type",
+    "table_name",
+    "grand_total",
+    "column_break_2",
+    "void_date",
+    "voided_by",
+    "cashier_name",
+    "section_break_reason",
+    "void_reason",
+    "column_break_3",
+    "void_remarks",
+    "section_break_items",
+    "items"
+  ],
+  "fields": [
+    {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "hidden": 1,
+      "label": "Series",
+      "options": "VOID-.YYYY.-.#####",
+      "reqd": 1
+    },
+    {
+      "fieldname": "pos_order_id",
+      "fieldtype": "Data",
+      "label": "POS Order ID",
+      "read_only": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "order_number",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Order Number",
+      "read_only": 1
+    },
+    {
+      "fieldname": "invoice_name",
+      "fieldtype": "Link",
+      "label": "Sales Invoice",
+      "options": "Sales Invoice",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "void_type",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Void Type",
+      "options": "Order Void\nItem Void\nShift Close Void\nAuto Close Void",
+      "reqd": 1
+    },
+    {
+      "fieldname": "pos_profile",
+      "fieldtype": "Link",
+      "label": "POS Profile",
+      "options": "POS Profile",
+      "read_only": 1
+    },
+    {
+      "fieldname": "branch",
+      "fieldtype": "Link",
+      "label": "Branch",
+      "options": "Branch",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_break_details",
+      "fieldtype": "Section Break",
+      "label": "Order Details"
+    },
+    {
+      "fieldname": "order_type",
+      "fieldtype": "Select",
+      "label": "Order Type",
+      "options": "\nDine In\nTakeaway\nDelivery",
+      "read_only": 1
+    },
+    {
+      "fieldname": "table_name",
+      "fieldtype": "Data",
+      "label": "Table",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "grand_total",
+      "fieldtype": "Currency",
+      "in_list_view": 1,
+      "label": "Grand Total",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "void_date",
+      "fieldtype": "Datetime",
+      "in_list_view": 1,
+      "label": "Void Date",
+      "read_only": 1
+    },
+    {
+      "fieldname": "voided_by",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Voided By",
+      "read_only": 1
+    },
+    {
+      "fieldname": "cashier_name",
+      "fieldtype": "Data",
+      "label": "Cashier",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_break_reason",
+      "fieldtype": "Section Break",
+      "label": "Reason"
+    },
+    {
+      "fieldname": "void_reason",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Void Reason",
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_3",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "void_remarks",
+      "fieldtype": "Small Text",
+      "label": "Remarks"
+    },
+    {
+      "fieldname": "section_break_items",
+      "fieldtype": "Section Break",
+      "label": "Items"
+    },
+    {
+      "fieldname": "items",
+      "fieldtype": "Table",
+      "label": "Items",
+      "options": "ServePOS Void Log Item"
+    }
+  ],
+  "links": [],
+  "modified": "2026-06-30 20:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Servepos",
+  "name": "ServePOS Void Log",
+  "naming_rule": "By \"Naming Series\" field",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 1,
+      "read": 1,
+      "report": 1,
+      "role": "ServePOS Manager",
+      "write": 1
+    },
+    {
+      "read": 1,
+      "report": 1,
+      "role": "ServePOS Cashier"
+    }
+  ],
+  "row_format": "Dynamic",
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
+}
