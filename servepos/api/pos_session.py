@@ -666,6 +666,81 @@ def get_void_log_summary(pos_profile=None, from_date=None, to_date=None):
 
 
 @frappe.whitelist()
+def get_invoice_detail(invoice_name):
+    """
+    Get full invoice detail: header fields, items, and payments.
+    Works for both POS Invoice and Sales Invoice (is_pos=1).
+    """
+    if not invoice_name:
+        frappe.throw(_("Invoice name is required"))
+
+    # Try Sales Invoice first (most common for ServePOS), then POS Invoice
+    doctype = None
+    if frappe.db.exists("Sales Invoice", invoice_name):
+        doctype = "Sales Invoice"
+    elif frappe.db.exists("POS Invoice", invoice_name):
+        doctype = "POS Invoice"
+    else:
+        frappe.throw(_("Invoice {0} not found").format(invoice_name))
+
+    doc = frappe.get_doc(doctype, invoice_name)
+
+    items = []
+    for item in doc.items:
+        row = {
+            "item_code": item.item_code,
+            "item_name": item.item_name,
+            "qty": flt(item.qty),
+            "rate": flt(item.rate),
+            "amount": flt(item.amount),
+            "uom": item.uom or "Nos",
+        }
+        if hasattr(item, "servepos_modifiers") and item.servepos_modifiers:
+            row["servepos_modifiers"] = item.servepos_modifiers
+        if hasattr(item, "servepos_comment") and item.servepos_comment:
+            row["servepos_comment"] = item.servepos_comment
+        items.append(row)
+
+    payments = []
+    for p in doc.payments:
+        payments.append({
+            "mode_of_payment": p.mode_of_payment,
+            "amount": flt(p.amount),
+        })
+
+    result = {
+        "name": doc.name,
+        "doctype": doctype,
+        "posting_date": str(doc.posting_date),
+        "posting_time": str(doc.posting_time or ""),
+        "grand_total": flt(doc.grand_total),
+        "net_total": flt(doc.net_total),
+        "total_taxes_and_charges": flt(doc.total_taxes_and_charges),
+        "paid_amount": flt(doc.paid_amount),
+        "change_amount": flt(doc.change_amount),
+        "outstanding_amount": flt(doc.outstanding_amount),
+        "status": doc.status,
+        "customer": doc.customer,
+        "customer_name": doc.customer_name,
+        "pos_profile": doc.pos_profile,
+        "items": items,
+        "payments": payments,
+    }
+
+    # Add ServePOS custom fields if available (Sales Invoice only)
+    for field in ["servepos_order_number", "servepos_cashier", "servepos_waiter",
+                  "servepos_order_type", "servepos_table", "servepos_guests",
+                  "servepos_tip", "servepos_discount_reason"]:
+        if hasattr(doc, field):
+            result[field] = doc.get(field) or ""
+
+    if doc.get("remarks"):
+        result["remarks"] = doc.remarks
+
+    return result
+
+
+@frappe.whitelist()
 def get_invoice_summary(pos_profile=None, from_date=None, to_date=None):
     """
     Get invoice summary with payment details for reconciliation view.
