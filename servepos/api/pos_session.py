@@ -427,7 +427,8 @@ def record_void(pos_order_id, order_number, void_type, void_reason, voided_by,
                 "rate": item.get("rate", 0),
                 "amount": item.get("amount", 0),
                 "void_reason": item.get("void_reason", ""),
-                "void_remarks": item.get("void_remarks", "")
+                "void_remarks": item.get("void_remarks", ""),
+                "void_disposition": item.get("void_disposition", "")
             })
 
     doc.insert(ignore_permissions=True)
@@ -656,7 +657,7 @@ def get_void_log_summary(pos_profile=None, from_date=None, to_date=None):
         log["items"] = frappe.get_all(
             "ServePOS Void Log Item",
             filters={"parent": log.name},
-            fields=["item_code", "item_name", "qty", "rate", "amount", "void_reason", "void_remarks"],
+            fields=["item_code", "item_name", "qty", "rate", "amount", "void_reason", "void_remarks", "void_disposition"],
             order_by="idx"
         )
         log["void_date_str"] = str(log.void_date) if log.void_date else ""

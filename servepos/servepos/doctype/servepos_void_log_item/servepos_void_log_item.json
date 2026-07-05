@@ -13,6 +13,7 @@
     "amount",
     "section_break_void",
     "void_reason",
+    "void_disposition",
     "column_break_2",
     "void_remarks"
   ],
@@ -64,6 +65,12 @@
       "fieldname": "void_reason",
       "fieldtype": "Data",
       "label": "Void Reason"
+    },
+    {
+      "fieldname": "void_disposition",
+      "fieldtype": "Select",
+      "label": "Disposition",
+      "options": "\nWaste\nReturn to Inventory"
     },
     {
       "fieldname": "column_break_2",
