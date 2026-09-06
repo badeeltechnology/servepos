@@ -1,7 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useFrappeGetDocList, useFrappeGetCall, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
 import { useProfile } from "@/App";
-import { Plus, Search, Edit3, Trash2, X, Eye, EyeOff, FolderPlus } from "lucide-react";
+import { Plus, Search, Edit3, Trash2, X, Eye, EyeOff, FolderPlus, ImagePlus } from "lucide-react";
 
 export default function MenuManagement() {
   const { profile } = useProfile();
@@ -10,6 +10,10 @@ export default function MenuManagement() {
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [formData, setFormData] = useState({ item_code: "", item_name: "", item_group: "", standard_rate: 0, description: "", servepos_item_name_ar: "", servepos_description_ar: "", servepos_visible_profiles: "" });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
 
@@ -86,6 +90,29 @@ export default function MenuManagement() {
   const { updateDoc } = useFrappeUpdateDoc();
   const { deleteDoc } = useFrappeDeleteDoc();
 
+  function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  async function uploadImage(docname: string): Promise<string | null> {
+    if (!imageFile) return null;
+    const fd = new FormData();
+    fd.append("file", imageFile);
+    fd.append("doctype", "Item");
+    fd.append("docname", docname);
+    fd.append("fieldname", "image");
+    fd.append("is_private", "0");
+    const res = await fetch("/api/method/upload_file", { method: "POST", body: fd, headers: { "X-Frappe-CSRF-Token": (window as any).csrf_token || "" } });
+    if (!res.ok) throw new Error("Image upload failed");
+    const data = await res.json();
+    return data.message?.file_url || null;
+  }
+
   function resetForm() {
     // New items default to the currently selected POS Profile. If "All
     // Profiles" is active, leave empty (= visible everywhere).
@@ -94,16 +121,24 @@ export default function MenuManagement() {
     setEditingItem(null);
     setShowForm(false);
     setItemModifiers([]);
+    setImageFile(null);
+    setImagePreview(null);
   }
 
   async function handleSave() {
     try {
+      setUploadingImage(!!imageFile);
       if (editingItem) {
         const updateData: any = { item_name: formData.item_name, item_group: formData.item_group, standard_rate: formData.standard_rate, description: formData.description, servepos_visible_profiles: formData.servepos_visible_profiles, servepos_item_name_ar: formData.servepos_item_name_ar || "", servepos_description_ar: formData.servepos_description_ar || "", servepos_modifier_groups: itemModifiers };
         await updateDoc("Item", editingItem, updateData);
+        if (imageFile) {
+          const imageUrl = await uploadImage(editingItem);
+          if (imageUrl) await updateDoc("Item", editingItem, { image: imageUrl });
+        }
       } else {
-        await createDoc("Item", {
-          item_code: formData.item_code || formData.item_name.toUpperCase().replace(/\s+/g, "-").slice(0, 20),
+        const itemCode = formData.item_code || formData.item_name.toUpperCase().replace(/\s+/g, "-").slice(0, 20);
+        const doc = await createDoc("Item", {
+          item_code: itemCode,
           item_name: formData.item_name,
           item_group: formData.item_group,
           standard_rate: formData.standard_rate,
@@ -115,9 +150,13 @@ export default function MenuManagement() {
           servepos_is_available: 1,
           servepos_visible_profiles: formData.servepos_visible_profiles || "",
         });
+        if (imageFile && doc?.name) {
+          const imageUrl = await uploadImage(doc.name);
+          if (imageUrl) await updateDoc("Item", doc.name, { image: imageUrl });
+        }
       }
       resetForm(); refreshItems();
-    } catch (err: any) { alert(err.message || "Failed to save"); }
+    } catch (err: any) { alert(err.message || "Failed to save"); } finally { setUploadingImage(false); }
   }
 
   async function handleCreateCategory() {
@@ -254,6 +293,26 @@ export default function MenuManagement() {
               <button onClick={resetForm} className="rounded p-1 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
             </div>
             <div className="space-y-3 px-5 py-4 overflow-y-auto flex-1">
+              {/* Image Upload */}
+              <div>
+                <label className="mb-1 block text-[12px] font-medium text-gray-600">Image</label>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+                {imagePreview || (editingItem && items?.find(i => i.name === editingItem)?.image) ? (
+                  <div className="relative group w-24 h-24">
+                    <img src={imagePreview || items?.find(i => i.name === editingItem)?.image} className="h-24 w-24 rounded-lg object-cover border border-gray-200" />
+                    <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button type="button" onClick={() => fileInputRef.current?.click()} className="rounded-md bg-white/90 p-1.5 text-gray-700 hover:bg-white"><Edit3 className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => { setImageFile(null); setImagePreview(null); if (editingItem) { updateDoc("Item", editingItem, { image: "" }).then(() => refreshItems()); } }} className="rounded-md bg-white/90 p-1.5 text-red-500 hover:bg-white"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => fileInputRef.current?.click()}
+                    className="flex h-24 w-24 flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-500 transition-colors">
+                    <ImagePlus className="h-5 w-5" />
+                    <span className="text-[10px] font-medium">Add image</span>
+                  </button>
+                )}
+              </div>
               {!editingItem && (
                 <div>
                   <label className="mb-1 block text-[12px] font-medium text-gray-600">Item Code</label>
@@ -393,8 +452,8 @@ export default function MenuManagement() {
             </div>
             <div className="flex gap-2 border-t border-gray-200 px-5 py-3 flex-shrink-0">
               <button onClick={resetForm} className="flex-1 rounded-md border border-gray-200 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSave} disabled={!formData.item_name || !formData.item_group}
-                className="flex-1 rounded-md bg-gray-900 py-2 text-[13px] font-medium text-white hover:bg-gray-800 disabled:opacity-40">{editingItem ? "Update" : "Create"}</button>
+              <button onClick={handleSave} disabled={!formData.item_name || !formData.item_group || uploadingImage}
+                className="flex-1 rounded-md bg-gray-900 py-2 text-[13px] font-medium text-white hover:bg-gray-800 disabled:opacity-40">{uploadingImage ? "Uploading..." : editingItem ? "Update" : "Create"}</button>
             </div>
           </div>
         </div>
