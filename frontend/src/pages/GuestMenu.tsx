@@ -451,7 +451,7 @@ export default function GuestMenu({
         <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setSelectedItem(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div
-            className="relative bg-white rounded-t-[28px] w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up"
+            className="relative bg-white rounded-t-[28px] w-full max-w-lg max-h-[90vh] flex flex-col animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close handle */}
@@ -459,123 +459,128 @@ export default function GuestMenu({
               <div className="w-10 h-1 rounded-full bg-gray-300" />
             </div>
 
-            {/* Item Image */}
-            {selectedItem.image && (
-              <div className="w-full h-56 bg-gray-100 -mt-1">
-                <img
-                  src={selectedItem.image}
-                  alt={selectedItem.item_name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-
-            <div className="p-5 pb-6">
-              {/* Name + Price */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
-                  <h3 className="text-xl font-bold text-gray-900 leading-tight">
-                    {selectedItem.item_name}
-                  </h3>
-                  {selectedItem.servepos_item_name_ar && (
-                    <p className="text-sm text-gray-400 mt-1" dir="rtl">
-                      {selectedItem.servepos_item_name_ar}
-                    </p>
-                  )}
-                </div>
-                <span className="text-lg font-bold text-amber-600 whitespace-nowrap pt-0.5">
-                  {currency} {selectedItem.standard_rate.toFixed(2)}
-                </span>
-              </div>
-
-              {/* Description */}
-              {(selectedItem.description || selectedItem.servepos_description_ar) && (
-                <div className="mt-3 pb-4 border-b border-gray-100">
-                  {selectedItem.description && (
-                    <p className="text-sm text-gray-500 leading-relaxed">{selectedItem.description}</p>
-                  )}
-                  {selectedItem.servepos_description_ar && (
-                    <p className="text-sm text-gray-400 mt-1 leading-relaxed" dir="rtl">
-                      {selectedItem.servepos_description_ar}
-                    </p>
-                  )}
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto">
+              {/* Item Image */}
+              {selectedItem.image && (
+                <div className="w-full h-56 bg-gray-100 -mt-1">
+                  <img
+                    src={selectedItem.image}
+                    alt={selectedItem.item_name}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
               )}
 
-              {/* Modifiers */}
-              {itemModsForSelected.map((mg) => (
-                <div key={mg.name} className="mt-4">
-                  <div className="flex items-center gap-2 mb-2.5">
-                    <h4 className="text-sm font-bold text-gray-900">{mg.group_name}</h4>
-                    {mg.is_required ? (
-                      <span className="text-[10px] font-semibold uppercase tracking-wider bg-red-500 text-white px-2 py-0.5 rounded-full">
-                        Required
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-semibold uppercase tracking-wider bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
-                        Optional
-                      </span>
-                    )}
-                    {mg.selection_type === "Multiple" && mg.max_selections > 0 && (
-                      <span className="text-xs text-gray-400">up to {mg.max_selections}</span>
+              <div className="p-5 pb-3">
+                {/* Name + Price */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-gray-900 leading-tight">
+                      {selectedItem.item_name}
+                    </h3>
+                    {selectedItem.servepos_item_name_ar && (
+                      <p className="text-sm text-gray-400 mt-1" dir="rtl">
+                        {selectedItem.servepos_item_name_ar}
+                      </p>
                     )}
                   </div>
-                  <div className="space-y-1.5">
-                    {mg.modifiers.map((mod) => {
-                      const isSelected = (selectedModifiers[mg.name] || []).includes(mod.modifier_name);
-                      return (
-                        <button
-                          key={mod.modifier_name}
-                          onClick={() => toggleModifier(mg.name, mod.modifier_name, mg.selection_type, mg.max_selections)}
-                          className={cn(
-                            "w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm transition-all",
-                            isSelected
-                              ? "bg-amber-50 border-2 border-amber-400"
-                              : "bg-gray-50 border-2 border-transparent hover:bg-gray-100"
-                          )}
-                        >
-                          <span className="flex items-center gap-3">
-                            <span className={cn(
-                              "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors",
-                              isSelected ? "border-amber-500 bg-amber-500" : "border-gray-300 bg-white"
-                            )}>
-                              {isSelected && (
-                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                </svg>
-                              )}
-                            </span>
-                            <span className={cn("font-medium", isSelected ? "text-amber-900" : "text-gray-700")}>
-                              {mod.modifier_name}
-                            </span>
-                          </span>
-                          {mod.price > 0 && (
-                            <span className={cn("text-xs font-medium", isSelected ? "text-amber-700" : "text-gray-400")}>
-                              +{currency} {mod.price.toFixed(2)}
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <span className="text-lg font-bold text-amber-600 whitespace-nowrap pt-0.5">
+                    {currency} {selectedItem.standard_rate.toFixed(2)}
+                  </span>
                 </div>
-              ))}
 
-              {/* Special Instructions */}
-              <div className="mt-5">
-                <h4 className="text-sm font-bold text-gray-900 mb-2">Special Instructions</h4>
-                <textarea
-                  value={itemInstructions}
-                  onChange={(e) => setItemInstructions(e.target.value)}
-                  placeholder="e.g. No onions, extra sauce..."
-                  maxLength={200}
-                  rows={2}
-                  className="w-full px-4 py-3 rounded-2xl bg-gray-50 border-0 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 resize-none"
-                />
+                {/* Description */}
+                {(selectedItem.description || selectedItem.servepos_description_ar) && (
+                  <div className="mt-3 pb-4 border-b border-gray-100">
+                    {selectedItem.description && (
+                      <p className="text-sm text-gray-500 leading-relaxed">{selectedItem.description}</p>
+                    )}
+                    {selectedItem.servepos_description_ar && (
+                      <p className="text-sm text-gray-400 mt-1 leading-relaxed" dir="rtl">
+                        {selectedItem.servepos_description_ar}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Modifiers */}
+                {itemModsForSelected.map((mg) => (
+                  <div key={mg.name} className="mt-4">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <h4 className="text-sm font-bold text-gray-900">{mg.group_name}</h4>
+                      {mg.is_required ? (
+                        <span className="text-[10px] font-semibold uppercase tracking-wider bg-red-500 text-white px-2 py-0.5 rounded-full">
+                          Required
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-semibold uppercase tracking-wider bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">
+                          Optional
+                        </span>
+                      )}
+                      {mg.selection_type === "Multiple" && mg.max_selections > 0 && (
+                        <span className="text-xs text-gray-400">up to {mg.max_selections}</span>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      {mg.modifiers.map((mod) => {
+                        const isSelected = (selectedModifiers[mg.name] || []).includes(mod.modifier_name);
+                        return (
+                          <button
+                            key={mod.modifier_name}
+                            onClick={() => toggleModifier(mg.name, mod.modifier_name, mg.selection_type, mg.max_selections)}
+                            className={cn(
+                              "w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm transition-all",
+                              isSelected
+                                ? "bg-amber-50 border-2 border-amber-400"
+                                : "bg-gray-50 border-2 border-transparent hover:bg-gray-100"
+                            )}
+                          >
+                            <span className="flex items-center gap-3">
+                              <span className={cn(
+                                "w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors",
+                                isSelected ? "border-amber-500 bg-amber-500" : "border-gray-300 bg-white"
+                              )}>
+                                {isSelected && (
+                                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </span>
+                              <span className={cn("font-medium", isSelected ? "text-amber-900" : "text-gray-700")}>
+                                {mod.modifier_name}
+                              </span>
+                            </span>
+                            {mod.price > 0 && (
+                              <span className={cn("text-xs font-medium", isSelected ? "text-amber-700" : "text-gray-400")}>
+                                +{currency} {mod.price.toFixed(2)}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Special Instructions */}
+                <div className="mt-5">
+                  <h4 className="text-sm font-bold text-gray-900 mb-2">Special Instructions</h4>
+                  <textarea
+                    value={itemInstructions}
+                    onChange={(e) => setItemInstructions(e.target.value)}
+                    placeholder="e.g. No onions, extra sauce..."
+                    maxLength={200}
+                    rows={2}
+                    className="w-full px-4 py-3 rounded-2xl bg-gray-50 border-0 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 resize-none"
+                  />
+                </div>
               </div>
+            </div>
 
-              {/* Quantity + Add to Cart */}
-              <div className="mt-6 flex items-center gap-3">
+            {/* Sticky bottom: Quantity + Add to Cart */}
+            <div className="flex-shrink-0 px-5 py-4 border-t border-gray-100 bg-white rounded-b-[28px]">
+              <div className="flex items-center gap-3">
                 <div className="flex items-center bg-gray-100 rounded-2xl overflow-hidden">
                   <button
                     onClick={() => setItemQty((q) => Math.max(1, q - 1))}
