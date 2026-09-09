@@ -108,6 +108,15 @@ export default function GuestCart({
         ),
         notes,
       });
+
+      // If payment is required, redirect to QIB checkout
+      if (result.requires_payment && result.checkout_url) {
+        setCart([]);
+        window.location.href = result.checkout_url;
+        return;
+      }
+
+      // No payment required — show order status directly
       setOrderResult(result);
       setOrderStatus(result.status);
       setCart([]);
@@ -290,7 +299,7 @@ export default function GuestCart({
             <span>{currency} {cartTotal.toFixed(2)}</span>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Payment will be collected at the table
+            You may be redirected to complete payment online
           </p>
         </div>
       </div>

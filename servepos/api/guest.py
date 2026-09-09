@@ -390,11 +390,21 @@ def get_guest_menu(seat_code, pos_profile):
     except Exception:
         pass
 
+    # Check if payment gateway is configured
+    has_payment_gateway = False
+    try:
+        qib_account = frappe.db.get_value("POS Profile", pos_profile, "qib_payment_account")
+        if qib_account:
+            has_payment_gateway = bool(frappe.db.get_value("QIB Settings", qib_account, "enabled"))
+    except Exception:
+        pass
+
     return {
         "item_groups": groups,
         "items": items,
         "modifier_groups": modifier_groups,
         "item_modifier_map": item_modifier_map,
+        "has_payment_gateway": has_payment_gateway,
     }
 
 
@@ -514,7 +524,45 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
 
-    # Notify waiters via realtime
+    # Check if POS Profile has QIB payment gateway configured
+    qib_account = None
+    try:
+        qib_account = frappe.db.get_value("POS Profile", pos_profile, "qib_payment_account")
+    except Exception:
+        pass
+
+    if qib_account:
+        # Initiate payment via QIB gateway
+        try:
+            from frappe_qib.api import initiate_payment
+            order_total = sum((vi["rate"] + vi.get("modifier_total", 0)) * vi["qty"] for vi in validated_items)
+            site_url = frappe.utils.get_url()
+
+            payment_result = initiate_payment(
+                amount=order_total,
+                qib_account=qib_account,
+                description=f"Order from {table.table_name or seat_code}",
+                reference_doctype="ServePOS Waiter Order",
+                reference_docname=doc.name,
+                redirect_after=f"{site_url}/call-waiter/{seat_code}/orders?payment_for={doc.name}",
+            )
+
+            return {
+                "success": True,
+                "order_name": doc.name,
+                "status": "Pending Payment",
+                "requires_payment": True,
+                "payment_url": payment_result.get("payment_url"),
+                "payment_form_data": payment_result.get("form_data"),
+                "payment_reference_id": payment_result.get("reference_id"),
+                "checkout_url": f"{site_url}/qib_checkout?reference_id={payment_result.get('reference_id')}",
+                "message": _("Redirecting to payment..."),
+            }
+        except Exception as e:
+            frappe.log_error(title="QIB Payment Initiation Failed", message=str(e))
+            # Fall through to normal flow if payment fails to initiate
+
+    # No payment gateway — notify waiters directly
     table_name = table.table_name or seat_code
     frappe.publish_realtime(
         "servepos_new_order",
@@ -543,6 +591,7 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
         "success": True,
         "order_name": doc.name,
         "status": "Pending",
+        "requires_payment": False,
         "message": _("Order placed successfully! A waiter will attend to you shortly."),
     }
 
@@ -598,6 +647,70 @@ def get_guest_orders(seat_code, token):
         )
 
     return orders
+
+
+@frappe.whitelist(allow_guest=True)
+def confirm_paid_order(reference_id):
+    """Called after QIB payment success to notify waiters about a paid guest order.
+    Verifies payment was successful before confirming."""
+    if not reference_id:
+        frappe.throw(_("Reference ID is required"), frappe.ValidationError)
+
+    # Look up the QIB transaction
+    try:
+        txn = frappe.db.get_value(
+            "QIB Payment Transaction",
+            {"reference_id": reference_id},
+            ["name", "status", "reference_doctype", "reference_docname"],
+            as_dict=True,
+        )
+    except Exception:
+        frappe.throw(_("Payment system not available"), frappe.ValidationError)
+
+    if not txn:
+        frappe.throw(_("Payment transaction not found"), frappe.DoesNotExistError)
+
+    if txn.status != "Success":
+        return {"confirmed": False, "status": txn.status}
+
+    if txn.reference_doctype != "ServePOS Waiter Order" or not txn.reference_docname:
+        return {"confirmed": False, "error": "No linked order"}
+
+    order_name = txn.reference_docname
+    order = frappe.db.get_value("ServePOS Waiter Order", order_name,
+        ["name", "status", "table", "pos_profile", "is_guest_order"], as_dict=True)
+
+    if not order or not order.is_guest_order:
+        return {"confirmed": False, "error": "Order not found"}
+
+    # Only notify if not already notified
+    if order.status == "Pending":
+        table_name = frappe.db.get_value("ServePOS Table", order.table, "table_name") or order.table
+
+        # Notify waiters
+        frappe.publish_realtime(
+            "servepos_new_order",
+            {
+                "order_name": order.name,
+                "table": table_name,
+                "pos_profile": order.pos_profile,
+                "is_guest_order": 1,
+                "is_paid": 1,
+            },
+            doctype="ServePOS Waiter Order",
+        )
+
+        try:
+            from servepos.api.fcm import send_push_to_waiters
+            send_push_to_waiters(order.pos_profile, {
+                "name": order.name,
+                "table": table_name,
+                "type": "guest_order_paid",
+            })
+        except Exception:
+            pass
+
+    return {"confirmed": True, "order_name": order_name, "status": order.status}
 
 
 def expire_stale_calls():

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { cn } from "@/lib/utils";
 
@@ -54,8 +54,36 @@ async function guestApi(method: string, args: Record<string, string>) {
 
 export default function GuestOrders({ seatCode, token, currency = "" }: GuestOrdersProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<GuestOrder[]>([]);
+  const [paymentBanner, setPaymentBanner] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  // Handle payment callback params
+  useEffect(() => {
+    const paymentStatus = searchParams.get("payment_status");
+    const referenceId = searchParams.get("reference_id");
+
+    if (paymentStatus === "success" && referenceId) {
+      setPaymentBanner({
+        type: "success",
+        message: "Payment successful! Your order has been confirmed.",
+      });
+      // Confirm the paid order (notify waiters)
+      guestApi("confirm_paid_order", { reference_id: referenceId }).catch(() => {});
+      // Auto-hide banner after 8 seconds
+      setTimeout(() => setPaymentBanner(null), 8000);
+    } else if (paymentStatus === "error") {
+      setPaymentBanner({
+        type: "error",
+        message: "Payment failed. Please try again or call a waiter for assistance.",
+      });
+      setTimeout(() => setPaymentBanner(null), 10000);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     async function load() {
@@ -111,6 +139,25 @@ export default function GuestOrders({ seatCode, token, currency = "" }: GuestOrd
           <h2 className="text-xl font-bold text-gray-900">Your Orders</h2>
         </div>
       </div>
+
+      {/* Payment Status Banner */}
+      {paymentBanner && (
+        <div className="px-4 pb-3">
+          <div
+            className={cn(
+              "rounded-2xl p-4 text-center font-medium text-sm",
+              paymentBanner.type === "success"
+                ? "bg-emerald-50 border-2 border-emerald-300 text-emerald-800"
+                : "bg-red-50 border-2 border-red-300 text-red-800"
+            )}
+          >
+            <div className="text-2xl mb-1">
+              {paymentBanner.type === "success" ? "✅" : "❌"}
+            </div>
+            {paymentBanner.message}
+          </div>
+        </div>
+      )}
 
       {orders.length === 0 ? (
         <div className="text-center py-12 px-6">
