@@ -57,7 +57,7 @@ export function QRGenerator({ tableName, siteUrl, onClose }: QRGeneratorProps) {
 
     ctx.fillStyle = "#6b7280";
     ctx.font = "14px Arial, sans-serif";
-    ctx.fillText("Scan to call waiter", totalWidth / 2, qrCanvas.height + padding + 55);
+    ctx.fillText("Scan to Order Online or Call Waiter", totalWidth / 2, qrCanvas.height + padding + 55);
 
     // Download
     const link = document.createElement("a");
@@ -77,7 +77,7 @@ export function QRGenerator({ tableName, siteUrl, onClose }: QRGeneratorProps) {
         <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;font-family:Arial,sans-serif;">
           <img src="${canvasRef.current.toDataURL("image/png")}" style="width:250px;height:250px;" />
           <h2 style="margin:16px 0 4px;font-size:24px;">${tableName}</h2>
-          <p style="color:#666;font-size:14px;margin:0;">Scan to call waiter</p>
+          <p style="color:#666;font-size:14px;margin:0;">Scan to Order Online or Call Waiter</p>
         </body>
       </html>
     `);
@@ -157,7 +157,7 @@ export function BulkQRGenerator({
           <div style="display:inline-flex;flex-direction:column;align-items:center;width:200px;padding:20px;margin:10px;border:1px dashed #ccc;break-inside:avoid;">
             <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(callUrl)}" style="width:160px;height:160px;" />
             <h3 style="margin:8px 0 2px;font-size:18px;font-weight:bold;">${t.table_name}</h3>
-            <p style="color:#666;font-size:11px;margin:0;">Scan to call waiter</p>
+            <p style="color:#666;font-size:11px;margin:0;">Scan to Order Online or Call Waiter</p>
           </div>
         `;
       })
@@ -192,7 +192,7 @@ export function BulkQRGenerator({
 
         <p className="text-sm text-gray-500 mb-4">
           Generate a printable page with QR codes for {tables.length} tables.
-          Each QR code will include the table name and a "Scan to call waiter" label.
+          Each QR code will include the table name and scan instructions.
         </p>
 
         <div className="max-h-48 overflow-y-auto mb-4 rounded-lg border border-gray-200 p-3">
