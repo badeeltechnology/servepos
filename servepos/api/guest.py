@@ -436,10 +436,15 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
         frappe.throw(_("This seat is currently not available"), frappe.ValidationError)
 
     # Validate restaurant
-    profile_data = frappe.db.get_value("POS Profile", pos_profile,
-        ["servepos_enable_guest_calling", "servepos_guest_order_start_time", "servepos_guest_order_end_time",
-         "servepos_online_waiter"],
-        as_dict=True)
+    profile_fields = ["servepos_enable_guest_calling", "servepos_guest_order_start_time", "servepos_guest_order_end_time"]
+    # These fields may not exist if migrate hasn't been run yet
+    for optional_field in ["servepos_online_waiter"]:
+        try:
+            if frappe.get_meta("POS Profile").get_field(optional_field):
+                profile_fields.append(optional_field)
+        except Exception:
+            pass
+    profile_data = frappe.db.get_value("POS Profile", pos_profile, profile_fields, as_dict=True)
 
     if not profile_data or not profile_data.servepos_enable_guest_calling:
         frappe.throw(_("Ordering is not available for this restaurant"), frappe.ValidationError)
