@@ -511,7 +511,6 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
     doc.table = seat_code
     doc.room = table.room or ""
     doc.guests = 1
-    doc.notes = (notes or "")[:500]
     doc.pos_profile = pos_profile
     doc.branch = profile_branch
     doc.status = "Pending"
@@ -525,11 +524,14 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
     except Exception:
         pass
 
-    # Set payment_status based on whether gateway is configured
+    # Set payment_status and notes based on whether gateway is configured
+    guest_notes = (notes or "")[:500]
     if qib_account:
         doc.payment_status = "Pending Payment"
+        doc.notes = f"{guest_notes}\n[PENDING ONLINE PAYMENT]".strip() if guest_notes else "[PENDING ONLINE PAYMENT]"
     else:
         doc.payment_status = "Pay at Table"
+        doc.notes = f"{guest_notes}\n[GUEST ORDER - PAY AT TABLE]".strip() if guest_notes else "[GUEST ORDER - PAY AT TABLE]"
 
     for vi in validated_items:
         doc.append("items", vi)
@@ -694,8 +696,32 @@ def confirm_paid_order(reference_id):
 
     # Only notify if not already notified
     if order.status == "Pending":
-        # Mark payment as complete
-        frappe.db.set_value("ServePOS Waiter Order", order_name, "payment_status", "Paid Online")
+        # Build payment details for notes
+        payment_note = f"[PAID ONLINE] Txn ID: {txn.name}"
+        if hasattr(txn, "transaction_id") and txn.get("transaction_id"):
+            payment_note = f"[PAID ONLINE] QIB Txn: {txn.transaction_id}"
+
+        # Try to get more details from the full transaction doc
+        try:
+            txn_doc = frappe.get_doc("QIB Payment Transaction", txn.name)
+            amount_str = f"{txn_doc.currency or 'QAR'} {txn_doc.amount:.2f}"
+            parts = [f"[PAID ONLINE]", f"Amount: {amount_str}"]
+            if txn_doc.transaction_id:
+                parts.append(f"QIB Txn: {txn_doc.transaction_id}")
+            if txn_doc.transaction_datetime:
+                parts.append(f"Date: {txn_doc.transaction_datetime}")
+            payment_note = " | ".join(parts)
+        except Exception:
+            pass
+
+        # Append payment info to existing notes
+        existing_notes = frappe.db.get_value("ServePOS Waiter Order", order_name, "notes") or ""
+        updated_notes = f"{existing_notes}\n{payment_note}".strip() if existing_notes else payment_note
+
+        frappe.db.set_value("ServePOS Waiter Order", order_name, {
+            "payment_status": "Paid Online",
+            "notes": updated_notes,
+        })
         frappe.db.commit()
 
         table_name = frappe.db.get_value("ServePOS Table", order.table, "table_name") or order.table
