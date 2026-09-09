@@ -252,11 +252,19 @@ def create_custom_fields_for_pos_profile_guest():
                 "insert_after": "servepos_guest_section"
             },
             {
+                "fieldname": "servepos_online_waiter",
+                "fieldtype": "Link",
+                "label": "Online Order Waiter",
+                "options": "ServePOS Waiter",
+                "description": "Waiter assigned to online/guest orders (e.g. 'Online')",
+                "insert_after": "servepos_enable_guest_calling"
+            },
+            {
                 "fieldname": "servepos_guest_order_start_time",
                 "fieldtype": "Time",
                 "label": "Online Order Start Time",
                 "description": "Guests can place orders from this time (leave blank for 24/7)",
-                "insert_after": "servepos_enable_guest_calling"
+                "insert_after": "servepos_online_waiter"
             },
             {
                 "fieldname": "servepos_guest_order_end_time",

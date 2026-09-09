@@ -437,7 +437,8 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
 
     # Validate restaurant
     profile_data = frappe.db.get_value("POS Profile", pos_profile,
-        ["servepos_enable_guest_calling", "servepos_guest_order_start_time", "servepos_guest_order_end_time"],
+        ["servepos_enable_guest_calling", "servepos_guest_order_start_time", "servepos_guest_order_end_time",
+         "servepos_online_waiter"],
         as_dict=True)
 
     if not profile_data or not profile_data.servepos_enable_guest_calling:
@@ -502,11 +503,70 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
     if not validated_items:
         frappe.throw(_("No valid items in order"), frappe.ValidationError)
 
-    # Create the order
+    # Check if POS Profile has QIB payment gateway configured
+    qib_account = None
+    try:
+        qib_account = frappe.db.get_value("POS Profile", pos_profile, "qib_payment_account")
+    except Exception:
+        pass
+
+    if qib_account:
+        # --- PAYMENT REQUIRED ---
+        # Don't create Waiter Order yet. Store cart in cache, initiate payment.
+        # Order will be created only after payment succeeds (in confirm_paid_order).
+        import json as _json2
+        order_total = sum((vi["rate"] + vi.get("modifier_total", 0)) * vi["qty"] for vi in validated_items)
+        site_url = frappe.utils.get_url()
+
+        # Store order data in cache (expires in 1 hour)
+        cache_key = None
+        try:
+            from frappe_qib.api import initiate_payment
+            payment_result = initiate_payment(
+                amount=order_total,
+                qib_account=qib_account,
+                description=f"Order from {table.table_name or seat_code}",
+                redirect_after=f"{site_url}/call-waiter/{seat_code}/orders",
+            )
+            ref_id = payment_result.get("reference_id")
+
+            # Store order data keyed by payment reference_id
+            frappe.cache.set_value(f"servepos_pending_order:{ref_id}", {
+                "seat_code": seat_code,
+                "pos_profile": pos_profile,
+                "token": token,
+                "items": validated_items,
+                "notes": (notes or "")[:500],
+                "table_name": table.table_name,
+                "room": table.room,
+            }, expires_in_sec=3600)
+
+            return {
+                "success": True,
+                "order_name": None,
+                "status": "Pending Payment",
+                "requires_payment": True,
+                "checkout_url": f"{site_url}/qib_checkout?reference_id={ref_id}",
+                "message": _("Redirecting to payment..."),
+            }
+        except Exception as e:
+            frappe.log_error(title="QIB Payment Initiation Failed", message=str(e))
+            # Fall through — create order without payment
+
+    # --- NO PAYMENT or PAYMENT FAILED ---
+    # Create Waiter Order directly with status Pending
     profile_branch = frappe.db.get_value("POS Profile", pos_profile, "branch")
 
+    online_waiter = profile_data.get("servepos_online_waiter") or ""
+    online_waiter_name = "Guest Order"
+    if online_waiter:
+        online_waiter_name = frappe.db.get_value("ServePOS Waiter", online_waiter, "waiter_name") or "Online"
+
+    guest_notes = (notes or "")[:500]
+
     doc = frappe.new_doc("ServePOS Waiter Order")
-    doc.waiter_name = "Guest Order"
+    doc.waiter = ""
+    doc.waiter_name = online_waiter_name
     doc.order_type = "Dine In"
     doc.table = seat_code
     doc.room = table.room or ""
@@ -516,22 +576,8 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
     doc.status = "Pending"
     doc.is_guest_order = 1
     doc.guest_token = token
-
-    # Check if POS Profile has QIB payment gateway configured
-    qib_account = None
-    try:
-        qib_account = frappe.db.get_value("POS Profile", pos_profile, "qib_payment_account")
-    except Exception:
-        pass
-
-    # Set payment_status and notes based on whether gateway is configured
-    guest_notes = (notes or "")[:500]
-    if qib_account:
-        doc.payment_status = "Pending Payment"
-        doc.notes = f"{guest_notes}\n[PENDING ONLINE PAYMENT]".strip() if guest_notes else "[PENDING ONLINE PAYMENT]"
-    else:
-        doc.payment_status = "Pay at Table"
-        doc.notes = f"{guest_notes}\n[GUEST ORDER - PAY AT TABLE]".strip() if guest_notes else "[GUEST ORDER - PAY AT TABLE]"
+    doc.payment_status = "Pay at Table"
+    doc.notes = f"{guest_notes}\n[GUEST ORDER - PAY AT TABLE]".strip() if guest_notes else "[GUEST ORDER - PAY AT TABLE]"
 
     for vi in validated_items:
         doc.append("items", vi)
@@ -539,40 +585,7 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
 
-    if qib_account:
-        # Initiate payment via QIB gateway
-        try:
-            from frappe_qib.api import initiate_payment
-            order_total = sum((vi["rate"] + vi.get("modifier_total", 0)) * vi["qty"] for vi in validated_items)
-            site_url = frappe.utils.get_url()
-
-            payment_result = initiate_payment(
-                amount=order_total,
-                qib_account=qib_account,
-                description=f"Order from {table.table_name or seat_code}",
-                reference_doctype="ServePOS Waiter Order",
-                reference_docname=doc.name,
-                redirect_after=f"{site_url}/call-waiter/{seat_code}/orders?payment_for={doc.name}",
-            )
-
-            return {
-                "success": True,
-                "order_name": doc.name,
-                "status": "Pending Payment",
-                "requires_payment": True,
-                "payment_url": payment_result.get("payment_url"),
-                "payment_form_data": payment_result.get("form_data"),
-                "payment_reference_id": payment_result.get("reference_id"),
-                "checkout_url": f"{site_url}/qib_checkout?reference_id={payment_result.get('reference_id')}",
-                "message": _("Redirecting to payment..."),
-            }
-        except Exception as e:
-            frappe.log_error(title="QIB Payment Initiation Failed", message=str(e))
-            # Fall through to normal flow — update status to Pay at Table
-            frappe.db.set_value("ServePOS Waiter Order", doc.name, "payment_status", "Pay at Table")
-            frappe.db.commit()
-
-    # No payment gateway or payment initiation failed — notify waiters directly
+    # Notify waiters directly
     table_name = table.table_name or seat_code
     frappe.publish_realtime(
         "servepos_new_order",
@@ -662,95 +675,127 @@ def get_guest_orders(seat_code, token):
 
 @frappe.whitelist(allow_guest=True)
 def confirm_paid_order(reference_id):
-    """Called after QIB payment success to notify waiters about a paid guest order.
-    Verifies payment was successful before confirming."""
+    """Called after QIB payment success. Creates the Waiter Order from cached
+    cart data only after verifying payment was successful.
+    No order exists in the system until this point."""
     if not reference_id:
         frappe.throw(_("Reference ID is required"), frappe.ValidationError)
 
+    from frappe.utils import flt
+
     # Look up the QIB transaction
     try:
-        txn = frappe.db.get_value(
+        txn_data = frappe.db.get_value(
             "QIB Payment Transaction",
             {"reference_id": reference_id},
-            ["name", "status", "reference_doctype", "reference_docname"],
+            ["name", "status", "amount", "currency", "transaction_id", "transaction_datetime"],
             as_dict=True,
         )
     except Exception:
         frappe.throw(_("Payment system not available"), frappe.ValidationError)
 
-    if not txn:
+    if not txn_data:
         frappe.throw(_("Payment transaction not found"), frappe.DoesNotExistError)
 
-    if txn.status != "Success":
-        return {"confirmed": False, "status": txn.status}
+    if txn_data.status != "Success":
+        return {"confirmed": False, "status": txn_data.status}
 
-    if txn.reference_doctype != "ServePOS Waiter Order" or not txn.reference_docname:
-        return {"confirmed": False, "error": "No linked order"}
+    # Get cached order data
+    cache_key = f"servepos_pending_order:{reference_id}"
+    order_data = frappe.cache.get_value(cache_key)
 
-    order_name = txn.reference_docname
-    order = frappe.db.get_value("ServePOS Waiter Order", order_name,
-        ["name", "status", "table", "pos_profile", "is_guest_order"], as_dict=True)
+    if not order_data:
+        # Already processed or expired
+        # Check if order was already created for this reference
+        existing = frappe.db.get_value("ServePOS Waiter Order", {"guest_token": reference_id}, "name")
+        if existing:
+            return {"confirmed": True, "order_name": existing, "status": "Already created"}
+        return {"confirmed": False, "error": "Order data expired. Please contact staff."}
 
-    if not order or not order.is_guest_order:
-        return {"confirmed": False, "error": "Order not found"}
+    # Build payment details for notes
+    amount_str = f"{txn_data.currency or 'QAR'} {flt(txn_data.amount):.2f}"
+    parts = ["[PAID ONLINE]", f"Amount: {amount_str}"]
+    if txn_data.transaction_id:
+        parts.append(f"QIB Txn: {txn_data.transaction_id}")
+    if txn_data.transaction_datetime:
+        parts.append(f"Date: {txn_data.transaction_datetime}")
+    payment_note = " | ".join(parts)
 
-    # Only notify if not already notified
-    if order.status == "Pending":
-        # Build payment details for notes
-        payment_note = f"[PAID ONLINE] Txn ID: {txn.name}"
-        if hasattr(txn, "transaction_id") and txn.get("transaction_id"):
-            payment_note = f"[PAID ONLINE] QIB Txn: {txn.transaction_id}"
+    guest_notes = order_data.get("notes") or ""
+    full_notes = f"{guest_notes}\n{payment_note}".strip() if guest_notes else payment_note
 
-        # Try to get more details from the full transaction doc
-        try:
-            txn_doc = frappe.get_doc("QIB Payment Transaction", txn.name)
-            amount_str = f"{txn_doc.currency or 'QAR'} {txn_doc.amount:.2f}"
-            parts = [f"[PAID ONLINE]", f"Amount: {amount_str}"]
-            if txn_doc.transaction_id:
-                parts.append(f"QIB Txn: {txn_doc.transaction_id}")
-            if txn_doc.transaction_datetime:
-                parts.append(f"Date: {txn_doc.transaction_datetime}")
-            payment_note = " | ".join(parts)
-        except Exception:
-            pass
+    # Resolve waiter and branch
+    pos_profile = order_data["pos_profile"]
+    profile_data = frappe.db.get_value("POS Profile", pos_profile,
+        ["branch", "servepos_online_waiter"], as_dict=True) or {}
 
-        # Append payment info to existing notes
-        existing_notes = frappe.db.get_value("ServePOS Waiter Order", order_name, "notes") or ""
-        updated_notes = f"{existing_notes}\n{payment_note}".strip() if existing_notes else payment_note
+    online_waiter = profile_data.get("servepos_online_waiter") or ""
+    online_waiter_name = "Online"
+    if online_waiter:
+        online_waiter_name = frappe.db.get_value("ServePOS Waiter", online_waiter, "waiter_name") or "Online"
 
-        frappe.db.set_value("ServePOS Waiter Order", order_name, {
-            "payment_status": "Paid Online",
-            "notes": updated_notes,
+    # Create the Waiter Order NOW (payment confirmed)
+    doc = frappe.new_doc("ServePOS Waiter Order")
+    doc.waiter = ""
+    doc.waiter_name = online_waiter_name
+    doc.order_type = "Dine In"
+    doc.table = order_data["seat_code"]
+    doc.room = order_data.get("room") or ""
+    doc.guests = 1
+    doc.pos_profile = pos_profile
+    doc.branch = profile_data.get("branch") or ""
+    doc.status = "Pending"
+    doc.is_guest_order = 1
+    doc.guest_token = reference_id  # use payment ref as token for lookup
+    doc.payment_status = "Paid Online"
+    doc.notes = full_notes
+
+    for item in order_data["items"]:
+        doc.append("items", item)
+
+    doc.insert(ignore_permissions=True)
+
+    # Link the QIB transaction to this order
+    try:
+        frappe.db.set_value("QIB Payment Transaction", txn_data.name, {
+            "reference_doctype": "ServePOS Waiter Order",
+            "reference_docname": doc.name,
         })
-        frappe.db.commit()
+    except Exception:
+        pass
 
-        table_name = frappe.db.get_value("ServePOS Table", order.table, "table_name") or order.table
+    frappe.db.commit()
 
-        # Notify waiters — they'll see "Paid Online" on the order
-        frappe.publish_realtime(
-            "servepos_new_order",
-            {
-                "order_name": order.name,
-                "table": table_name,
-                "pos_profile": order.pos_profile,
-                "is_guest_order": 1,
-                "payment_status": "Paid Online",
-                "item_count": frappe.db.count("ServePOS Waiter Order Item", {"parent": order.name}),
-            },
-            doctype="ServePOS Waiter Order",
-        )
+    # Clear cached order data
+    frappe.cache.delete_value(cache_key)
 
-        try:
-            from servepos.api.fcm import send_push_to_waiters
-            send_push_to_waiters(order.pos_profile, {
-                "name": order.name,
-                "table": table_name,
-                "type": "guest_order_paid",
-            })
-        except Exception:
-            pass
+    # Notify waiters
+    table_name = order_data.get("table_name") or order_data["seat_code"]
 
-    return {"confirmed": True, "order_name": order_name, "status": order.status}
+    frappe.publish_realtime(
+        "servepos_new_order",
+        {
+            "order_name": doc.name,
+            "table": table_name,
+            "pos_profile": pos_profile,
+            "is_guest_order": 1,
+            "payment_status": "Paid Online",
+            "item_count": len(order_data["items"]),
+        },
+        doctype="ServePOS Waiter Order",
+    )
+
+    try:
+        from servepos.api.fcm import send_push_to_waiters
+        send_push_to_waiters(pos_profile, {
+            "name": doc.name,
+            "table": table_name,
+            "type": "guest_order_paid",
+        })
+    except Exception:
+        pass
+
+    return {"confirmed": True, "order_name": doc.name, "status": "Pending"}
 
 
 def expire_stale_calls():
