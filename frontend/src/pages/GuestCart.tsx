@@ -51,6 +51,8 @@ export default function GuestCart({
   currency = "",
 }: GuestCartProps) {
   const navigate = useNavigate();
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [placing, setPlacing] = useState(false);
   const [orderResult, setOrderResult] = useState<{
@@ -90,6 +92,20 @@ export default function GuestCart({
 
   const placeOrder = useCallback(async () => {
     if (cart.length === 0) return;
+    if (!customerName.trim()) {
+      alert("Please enter your name");
+      return;
+    }
+    if (!customerPhone.trim()) {
+      alert("Please enter your mobile number");
+      return;
+    }
+
+    // Build notes with customer info
+    const customerInfo = `Name: ${customerName.trim()} | Mobile: ${customerPhone.trim()}`;
+    const fullNotes = notes.trim()
+      ? `${customerInfo}\n${notes.trim()}`
+      : customerInfo;
 
     setPlacing(true);
     try {
@@ -106,7 +122,7 @@ export default function GuestCart({
             special_instructions: ci.special_instructions,
           }))
         ),
-        notes,
+        notes: fullNotes,
       });
 
       // If payment is required, redirect to QIB checkout
@@ -125,7 +141,7 @@ export default function GuestCart({
     } finally {
       setPlacing(false);
     }
-  }, [cart, seatCode, posProfile, token, notes, setCart]);
+  }, [cart, seatCode, posProfile, token, customerName, customerPhone, notes, setCart]);
 
   // Poll order status after placing
   useEffect(() => {
@@ -274,16 +290,41 @@ export default function GuestCart({
         ))}
       </div>
 
-      {/* Order Notes */}
-      <div className="px-4 py-2">
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Add a note for the restaurant..."
-          maxLength={500}
-          rows={2}
-          className="w-full px-4 py-3 rounded-2xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
-        />
+      {/* Customer Details */}
+      <div className="px-4 py-2 space-y-2.5">
+        <div>
+          <label className="text-xs font-semibold text-gray-700 mb-1 block">Your Name <span className="text-red-400">*</span></label>
+          <input
+            type="text"
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            placeholder="Enter your name"
+            maxLength={128}
+            className="w-full px-4 py-3 rounded-2xl bg-gray-50 border-0 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:bg-white transition-all"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-gray-700 mb-1 block">Mobile Number <span className="text-red-400">*</span></label>
+          <input
+            type="tel"
+            value={customerPhone}
+            onChange={(e) => setCustomerPhone(e.target.value)}
+            placeholder="e.g. 55001234"
+            maxLength={20}
+            className="w-full px-4 py-3 rounded-2xl bg-gray-50 border-0 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:bg-white transition-all"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-gray-700 mb-1 block">Note <span className="text-gray-400 font-normal">(optional)</span></label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Any special requests..."
+            maxLength={500}
+            rows={2}
+            className="w-full px-4 py-3 rounded-2xl bg-gray-50 border-0 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400/50 resize-none"
+          />
+        </div>
       </div>
 
       {/* Order Summary */}
