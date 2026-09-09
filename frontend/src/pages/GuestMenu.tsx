@@ -229,10 +229,9 @@ export default function GuestMenu({
 
   const handleAddFromModal = useCallback(() => {
     if (!selectedItem) return;
-    let modifierStr = "";
     let modifierTotal = 0;
     const itemMods = itemModifierMap[selectedItem.item_code] || [];
-    const parts: string[] = [];
+    const modifierList: { name: string; price: number }[] = [];
     for (const mgName of itemMods) {
       const mg = modifierGroups.find((g) => g.name === mgName);
       if (!mg) continue;
@@ -240,12 +239,13 @@ export default function GuestMenu({
       for (const modName of selected) {
         const mod = mg.modifiers.find((m) => m.modifier_name === modName);
         if (mod) {
-          parts.push(mod.modifier_name);
+          modifierList.push({ name: mod.modifier_name, price: mod.price || 0 });
           modifierTotal += mod.price || 0;
         }
       }
     }
-    modifierStr = parts.join(", ");
+    // Store as JSON string matching desktop app format: [{"name":"Cold","price":0.0}]
+    const modifierStr = modifierList.length > 0 ? JSON.stringify(modifierList) : "";
     addToCart(selectedItem, itemQty, modifierStr, modifierTotal, itemInstructions);
   }, [selectedItem, itemQty, itemInstructions, selectedModifiers, itemModifierMap, modifierGroups, addToCart]);
 

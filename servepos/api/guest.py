@@ -495,13 +495,27 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
         if not item_data or item_data.disabled:
             frappe.throw(_("Item {0} is not available").format(item_code), frappe.ValidationError)
 
+        # Validate and recalculate modifier_total from the JSON modifiers
+        modifiers_str = item.get("modifiers") or ""
+        modifier_total = 0
+        if modifiers_str:
+            try:
+                import json as _json3
+                mod_list = _json3.loads(modifiers_str) if isinstance(modifiers_str, str) else modifiers_str
+                modifier_total = sum(flt(m.get("price", 0)) for m in mod_list)
+                # Re-serialize to ensure clean format
+                modifiers_str = _json3.dumps(mod_list)
+            except (ValueError, TypeError):
+                modifiers_str = ""
+                modifier_total = 0
+
         validated_items.append({
             "item_code": item_code,
             "item_name": item_data.item_name,
             "qty": max(1, cint(item.get("qty", 1))),
             "rate": flt(item_data.standard_rate),
-            "modifiers": item.get("modifiers") or "",
-            "modifier_total": flt(item.get("modifier_total", 0)),
+            "modifiers": modifiers_str,
+            "modifier_total": flt(modifier_total),
             "special_instructions": (item.get("special_instructions") or "")[:200],
         })
 

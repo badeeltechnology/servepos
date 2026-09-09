@@ -255,7 +255,16 @@ export default function GuestCart({
                   </button>
                 </div>
                 {ci.modifiers && (
-                  <p className="text-xs text-gray-500 mt-0.5">{ci.modifiers}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {(() => {
+                      try {
+                        const mods = JSON.parse(ci.modifiers);
+                        return mods.map((m: { name: string }) => m.name).join(", ");
+                      } catch {
+                        return ci.modifiers;
+                      }
+                    })()}
+                  </p>
                 )}
                 {ci.special_instructions && (
                   <p className="text-xs text-amber-600 mt-0.5 italic">

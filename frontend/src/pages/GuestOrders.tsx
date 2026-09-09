@@ -193,7 +193,14 @@ export default function GuestOrders({ seatCode, token, currency = "" }: GuestOrd
                         {item.qty}x {item.item_name}
                         {item.modifiers && (
                           <span className="text-gray-400 text-xs ml-1">
-                            ({item.modifiers})
+                            ({(() => {
+                              try {
+                                const mods = JSON.parse(item.modifiers);
+                                return mods.map((m: { name: string }) => m.name).join(", ");
+                              } catch {
+                                return item.modifiers;
+                              }
+                            })()})
                           </span>
                         )}
                       </span>
