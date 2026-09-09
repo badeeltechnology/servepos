@@ -23,7 +23,9 @@
     "notes",
     "section_break_4",
     "edit_log",
-    "pos_order_id"
+    "pos_order_id",
+    "is_guest_order",
+    "guest_token"
   ],
   "fields": [
     {
@@ -147,6 +149,20 @@
       "fieldtype": "Data",
       "hidden": 1,
       "label": "POS Order ID",
+      "read_only": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "is_guest_order",
+      "fieldtype": "Check",
+      "label": "Is Guest Order",
+      "read_only": 1
+    },
+    {
+      "fieldname": "guest_token",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "label": "Guest Token",
       "read_only": 1
     }
   ],

@@ -303,6 +303,303 @@ def _validate_token(token, seat_code):
         frappe.throw(_("Invalid session for this seat"), frappe.ValidationError)
 
 
+# --- Guest Menu & Ordering ---
+
+@frappe.whitelist(allow_guest=True)
+def get_guest_menu(seat_code, pos_profile):
+    """Return item groups and items for a restaurant, visible to guests.
+    No auth required — only returns publicly safe data (name, price, image)."""
+    if not seat_code or not pos_profile:
+        frappe.throw(_("Seat code and restaurant are required"), frappe.ValidationError)
+
+    if not frappe.db.exists("ServePOS Table", seat_code):
+        frappe.throw(_("Invalid seat code"), frappe.ValidationError)
+
+    # Verify restaurant has guest calling enabled (same gate as call-waiter)
+    enabled = frappe.db.get_value("POS Profile", pos_profile, "servepos_enable_guest_calling")
+    if not enabled:
+        frappe.throw(_("Menu not available for this restaurant"), frappe.ValidationError)
+
+    # Fetch item groups (only menu groups with visible items)
+    from servepos.api.registry import _visible_to_profile, _has_field
+
+    group_filters = {"is_group": 0}
+    if _has_field("Item Group", "servepos_is_menu_group"):
+        any_menu = frappe.db.count("Item Group", {"servepos_is_menu_group": 1})
+        if any_menu:
+            group_filters["servepos_is_menu_group"] = 1
+
+    group_fields = ["name", "image"]
+    if _has_field("Item Group", "servepos_visible_profiles"):
+        group_fields.append("servepos_visible_profiles")
+
+    groups = frappe.get_all("Item Group", filters=group_filters, fields=group_fields, limit=0)
+    groups = [g for g in groups if _visible_to_profile(g.get("servepos_visible_profiles"), pos_profile)]
+
+    # Fetch items
+    item_filters = [["disabled", "=", 0]]
+    if _has_field("Item", "servepos_is_available"):
+        item_filters.append(["servepos_is_available", "=", 1])
+
+    item_fields = [
+        "name", "item_name", "item_code", "item_group", "standard_rate",
+        "description", "image",
+    ]
+    for f in ("servepos_item_name_ar", "servepos_description_ar", "servepos_visible_profiles"):
+        if _has_field("Item", f):
+            item_fields.append(f)
+
+    items = frappe.get_all("Item", filters=item_filters, fields=item_fields, limit=0, order_by="item_name asc")
+    items = [it for it in items if _visible_to_profile(it.get("servepos_visible_profiles"), pos_profile)]
+
+    # Drop groups with no items
+    groups_with_items = {it["item_group"] for it in items}
+    groups = [g for g in groups if g["name"] in groups_with_items]
+
+    # Strip internal fields from response
+    for it in items:
+        it.pop("servepos_visible_profiles", None)
+    for g in groups:
+        g.pop("servepos_visible_profiles", None)
+
+    # Fetch modifier groups
+    modifier_groups = []
+    try:
+        mg_fields = ["name", "group_name", "selection_type", "is_required", "max_selections"]
+        mgs = frappe.get_all("ServePOS Modifier Group", fields=mg_fields, limit=0)
+        for mg in mgs:
+            mg["modifiers"] = frappe.get_all(
+                "ServePOS Modifier",
+                filters={"parent": mg["name"]},
+                fields=["modifier_name", "price", "is_default"],
+            )
+        modifier_groups = mgs
+    except Exception:
+        pass
+
+    # Fetch item-modifier-group links
+    item_modifier_map = {}
+    try:
+        links = frappe.get_all(
+            "ServePOS Item Modifier Group",
+            fields=["parent", "modifier_group"],
+            limit=0,
+        )
+        for link in links:
+            item_modifier_map.setdefault(link["parent"], []).append(link["modifier_group"])
+    except Exception:
+        pass
+
+    return {
+        "item_groups": groups,
+        "items": items,
+        "modifier_groups": modifier_groups,
+        "item_modifier_map": item_modifier_map,
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def place_guest_order(seat_code, pos_profile, token, items, notes=None):
+    """Place an order as a guest (no auth). Creates a ServePOS Waiter Order
+    with is_guest_order=1. Payment will be handled separately."""
+    if not seat_code or not pos_profile or not token or not items:
+        frappe.throw(_("Seat code, restaurant, token, and items are required"), frappe.ValidationError)
+
+    import json as _json
+    from frappe.utils import flt, cint
+
+    if isinstance(items, str):
+        items = _json.loads(items)
+
+    if not items:
+        frappe.throw(_("At least one item is required"), frappe.ValidationError)
+
+    # Validate token
+    _validate_token(token, seat_code)
+
+    # Validate seat
+    if not frappe.db.exists("ServePOS Table", seat_code):
+        frappe.throw(_("Invalid seat"), frappe.ValidationError)
+
+    table = frappe.db.get_value("ServePOS Table", seat_code, ["table_name", "room", "is_active"], as_dict=True)
+    if not table or not table.is_active:
+        frappe.throw(_("This seat is currently not available"), frappe.ValidationError)
+
+    # Validate restaurant
+    profile_data = frappe.db.get_value("POS Profile", pos_profile,
+        ["servepos_enable_guest_calling", "servepos_guest_order_start_time", "servepos_guest_order_end_time"],
+        as_dict=True)
+
+    if not profile_data or not profile_data.servepos_enable_guest_calling:
+        frappe.throw(_("Ordering is not available for this restaurant"), frappe.ValidationError)
+
+    # Check operating hours
+    start_time = profile_data.servepos_guest_order_start_time
+    end_time = profile_data.servepos_guest_order_end_time
+    if start_time and end_time:
+        from datetime import datetime
+        now_time = datetime.now().time()
+        # Convert frappe timedelta to time if needed
+        if hasattr(start_time, "seconds"):
+            start_time = (datetime.min + start_time).time()
+        if hasattr(end_time, "seconds"):
+            end_time = (datetime.min + end_time).time()
+
+        if start_time <= end_time:
+            # Normal range: e.g. 09:00 - 23:00
+            if not (start_time <= now_time <= end_time):
+                frappe.throw(_("Online ordering is available from {0} to {1}").format(
+                    start_time.strftime("%I:%M %p"), end_time.strftime("%I:%M %p")
+                ), frappe.ValidationError)
+        else:
+            # Overnight range: e.g. 18:00 - 02:00
+            if end_time < now_time < start_time:
+                frappe.throw(_("Online ordering is available from {0} to {1}").format(
+                    start_time.strftime("%I:%M %p"), end_time.strftime("%I:%M %p")
+                ), frappe.ValidationError)
+
+    # Rate limit: max 10 guest orders per seat per hour
+    one_hour_ago = add_to_date(now_datetime(), hours=-1)
+    recent_orders = frappe.db.count("ServePOS Waiter Order", {
+        "table": seat_code,
+        "is_guest_order": 1,
+        "creation": [">=", one_hour_ago],
+    })
+    if recent_orders >= 10:
+        frappe.throw(_("Too many orders from this seat. Please try again later."), frappe.ValidationError)
+
+    # Validate items exist and get prices from server (never trust client prices)
+    validated_items = []
+    for item in items:
+        item_code = item.get("item_code")
+        if not item_code:
+            continue
+
+        item_data = frappe.db.get_value("Item", item_code, ["item_name", "standard_rate", "disabled"], as_dict=True)
+        if not item_data or item_data.disabled:
+            frappe.throw(_("Item {0} is not available").format(item_code), frappe.ValidationError)
+
+        validated_items.append({
+            "item_code": item_code,
+            "item_name": item_data.item_name,
+            "qty": max(1, cint(item.get("qty", 1))),
+            "rate": flt(item_data.standard_rate),
+            "modifiers": item.get("modifiers") or "",
+            "modifier_total": flt(item.get("modifier_total", 0)),
+            "special_instructions": (item.get("special_instructions") or "")[:200],
+        })
+
+    if not validated_items:
+        frappe.throw(_("No valid items in order"), frappe.ValidationError)
+
+    # Create the order
+    profile_branch = frappe.db.get_value("POS Profile", pos_profile, "branch")
+
+    doc = frappe.new_doc("ServePOS Waiter Order")
+    doc.waiter_name = "Guest Order"
+    doc.order_type = "Dine In"
+    doc.table = seat_code
+    doc.room = table.room or ""
+    doc.guests = 1
+    doc.notes = (notes or "")[:500]
+    doc.pos_profile = pos_profile
+    doc.branch = profile_branch
+    doc.status = "Pending"
+    doc.is_guest_order = 1
+    doc.guest_token = token
+
+    for vi in validated_items:
+        doc.append("items", vi)
+
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    # Notify waiters via realtime
+    table_name = table.table_name or seat_code
+    frappe.publish_realtime(
+        "servepos_new_order",
+        {
+            "order_name": doc.name,
+            "table": table_name,
+            "pos_profile": pos_profile,
+            "is_guest_order": 1,
+            "item_count": len(validated_items),
+        },
+        doctype="ServePOS Waiter Order",
+    )
+
+    # Try FCM push
+    try:
+        from servepos.api.fcm import send_push_to_waiters
+        send_push_to_waiters(pos_profile, {
+            "name": doc.name,
+            "table": table_name,
+            "type": "guest_order",
+        })
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "order_name": doc.name,
+        "status": "Pending",
+        "message": _("Order placed successfully! A waiter will attend to you shortly."),
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def get_guest_order_status(order_name, token):
+    """Guest polls this to check their order status."""
+    if not order_name or not token:
+        frappe.throw(_("Order name and token are required"), frappe.ValidationError)
+
+    order = frappe.db.get_value(
+        "ServePOS Waiter Order", order_name,
+        ["status", "guest_token", "is_guest_order"],
+        as_dict=True,
+    )
+    if not order or not order.is_guest_order:
+        frappe.throw(_("Order not found"), frappe.DoesNotExistError)
+
+    if order.guest_token != token:
+        frappe.throw(_("Invalid token"), frappe.ValidationError)
+
+    return {
+        "order_name": order_name,
+        "status": order.status,
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def get_guest_orders(seat_code, token):
+    """Get all guest orders for this seat/session."""
+    if not seat_code or not token:
+        frappe.throw(_("Seat code and token are required"), frappe.ValidationError)
+
+    _validate_token(token, seat_code)
+
+    orders = frappe.get_all(
+        "ServePOS Waiter Order",
+        filters={
+            "table": seat_code,
+            "is_guest_order": 1,
+            "guest_token": token,
+        },
+        fields=["name", "status", "creation", "notes"],
+        order_by="creation desc",
+        limit=20,
+    )
+
+    for order in orders:
+        order["items"] = frappe.get_all(
+            "ServePOS Waiter Order Item",
+            filters={"parent": order["name"]},
+            fields=["item_code", "item_name", "qty", "rate", "modifiers", "special_instructions"],
+        )
+
+    return orders
+
+
 def expire_stale_calls():
     """Scheduled task: expire Pending calls older than CALL_EXPIRY_MINUTES.
     Called by scheduler via hooks.py."""

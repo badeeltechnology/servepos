@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { ImageGallery } from "@/components/ImageGallery";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { cn } from "@/lib/utils";
@@ -65,6 +65,7 @@ async function guestApi(method: string, args: Record<string, string>) {
 
 export default function CallWaiter() {
   const { seatCode } = useParams<{ seatCode: string }>();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [token, setToken] = useState("");
@@ -99,6 +100,9 @@ export default function CallWaiter() {
         setSeat(result.seat);
         setRestaurants(result.restaurants || []);
         sessionStorage.setItem(`servepos_token_${seatCode}`, newToken);
+        // Save venue name for guest menu pages
+        const vName = result.restaurants?.[0]?.venue_name || "";
+        sessionStorage.setItem(`servepos_restaurant_${seatCode}`, vName);
       } catch (e: any) {
         setError(e.message || "Failed to load. Please scan the QR code again.");
       } finally {
@@ -268,6 +272,9 @@ export default function CallWaiter() {
               key={restaurant.pos_profile}
               restaurant={restaurant}
               onCallWaiter={() => handleCallWaiter(restaurant)}
+              onViewMenu={() =>
+                navigate(`/${seatCode}/menu/${restaurant.pos_profile}`)
+              }
               isCalling={callingProfile === restaurant.pos_profile}
               hasActiveCall={
                 activeCall?.pos_profile === restaurant.pos_profile
@@ -277,6 +284,18 @@ export default function CallWaiter() {
           ))
         )}
       </div>
+
+      {/* View Orders Link */}
+      {token && (
+        <div className="max-w-lg mx-auto px-4 pb-4">
+          <button
+            onClick={() => navigate(`/${seatCode}/orders`)}
+            className="w-full py-3 rounded-xl border border-gray-200 text-gray-600 font-medium text-sm hover:bg-gray-50 transition-colors"
+          >
+            View My Orders
+          </button>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="text-center py-4 text-xs text-gray-400">
@@ -299,12 +318,14 @@ function GuestShell({ children }: { children: React.ReactNode }) {
 function RestaurantCard({
   restaurant,
   onCallWaiter,
+  onViewMenu,
   isCalling,
   hasActiveCall,
   disabled,
 }: {
   restaurant: Restaurant;
   onCallWaiter: () => void;
+  onViewMenu: () => void;
   isCalling: boolean;
   hasActiveCall: boolean;
   disabled: boolean;
@@ -345,10 +366,22 @@ function RestaurantCard({
         </div>
       )}
 
-      {/* Call Waiter Button */}
-      <div className="px-4 pb-4">
+      {/* Action Buttons */}
+      <div className="px-4 pb-4 space-y-2">
+        {/* View Menu & Order */}
+        <button
+          onClick={onViewMenu}
+          className="w-full py-3.5 rounded-xl font-semibold text-base transition-all duration-200 active:scale-[0.98] bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md shadow-emerald-200 hover:shadow-lg hover:shadow-emerald-200"
+        >
+          <span className="flex items-center justify-center gap-2">
+            <MenuIcon />
+            View Menu & Order
+          </span>
+        </button>
+
+        {/* Call Waiter */}
         {hasActiveCall ? (
-          <div className="w-full py-3 rounded-xl bg-emerald-50 text-emerald-700 text-center font-semibold text-sm">
+          <div className="w-full py-3 rounded-xl bg-amber-50 text-amber-700 text-center font-semibold text-sm">
             ✓ Waiter called
           </div>
         ) : (
@@ -356,16 +389,16 @@ function RestaurantCard({
             onClick={onCallWaiter}
             disabled={isCalling || disabled}
             className={cn(
-              "w-full py-3.5 rounded-xl font-semibold text-base transition-all duration-200 touch-target",
+              "w-full py-3 rounded-xl font-medium text-sm transition-all duration-200 touch-target",
               "active:scale-[0.98]",
               isCalling || disabled
                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                : "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-orange-200 hover:shadow-lg hover:shadow-orange-200"
+                : "border border-amber-400 text-amber-700 hover:bg-amber-50"
             )}
           >
             {isCalling ? (
               <span className="flex items-center justify-center gap-2">
-                <LoadingSpinner size="sm" className="text-white" />
+                <LoadingSpinner size="sm" />
                 Calling...
               </span>
             ) : (
@@ -509,6 +542,24 @@ function CallStatusCard({
         </button>
       )}
     </div>
+  );
+}
+
+function MenuIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={cn("w-5 h-5", className)}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+      />
+    </svg>
   );
 }
 

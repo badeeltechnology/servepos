@@ -252,11 +252,25 @@ def create_custom_fields_for_pos_profile_guest():
                 "insert_after": "servepos_guest_section"
             },
             {
+                "fieldname": "servepos_guest_order_start_time",
+                "fieldtype": "Time",
+                "label": "Online Order Start Time",
+                "description": "Guests can place orders from this time (leave blank for 24/7)",
+                "insert_after": "servepos_enable_guest_calling"
+            },
+            {
+                "fieldname": "servepos_guest_order_end_time",
+                "fieldtype": "Time",
+                "label": "Online Order End Time",
+                "description": "Guests can place orders until this time",
+                "insert_after": "servepos_guest_order_start_time"
+            },
+            {
                 "fieldname": "servepos_restaurant_display_name",
                 "fieldtype": "Data",
                 "label": "Restaurant Display Name",
                 "description": "Friendly name shown to guests (e.g. 'Beach Grill')",
-                "insert_after": "servepos_enable_guest_calling"
+                "insert_after": "servepos_guest_order_end_time"
             },
             {
                 "fieldname": "servepos_restaurant_description",
