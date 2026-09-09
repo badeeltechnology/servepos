@@ -518,18 +518,24 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
     doc.is_guest_order = 1
     doc.guest_token = token
 
-    for vi in validated_items:
-        doc.append("items", vi)
-
-    doc.insert(ignore_permissions=True)
-    frappe.db.commit()
-
     # Check if POS Profile has QIB payment gateway configured
     qib_account = None
     try:
         qib_account = frappe.db.get_value("POS Profile", pos_profile, "qib_payment_account")
     except Exception:
         pass
+
+    # Set payment_status based on whether gateway is configured
+    if qib_account:
+        doc.payment_status = "Pending Payment"
+    else:
+        doc.payment_status = "Pay at Table"
+
+    for vi in validated_items:
+        doc.append("items", vi)
+
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
 
     if qib_account:
         # Initiate payment via QIB gateway
@@ -560,9 +566,11 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
             }
         except Exception as e:
             frappe.log_error(title="QIB Payment Initiation Failed", message=str(e))
-            # Fall through to normal flow if payment fails to initiate
+            # Fall through to normal flow — update status to Pay at Table
+            frappe.db.set_value("ServePOS Waiter Order", doc.name, "payment_status", "Pay at Table")
+            frappe.db.commit()
 
-    # No payment gateway — notify waiters directly
+    # No payment gateway or payment initiation failed — notify waiters directly
     table_name = table.table_name or seat_code
     frappe.publish_realtime(
         "servepos_new_order",
@@ -571,6 +579,7 @@ def place_guest_order(seat_code, pos_profile, token, items, notes=None):
             "table": table_name,
             "pos_profile": pos_profile,
             "is_guest_order": 1,
+            "payment_status": "Pay at Table",
             "item_count": len(validated_items),
         },
         doctype="ServePOS Waiter Order",
@@ -685,9 +694,13 @@ def confirm_paid_order(reference_id):
 
     # Only notify if not already notified
     if order.status == "Pending":
+        # Mark payment as complete
+        frappe.db.set_value("ServePOS Waiter Order", order_name, "payment_status", "Paid Online")
+        frappe.db.commit()
+
         table_name = frappe.db.get_value("ServePOS Table", order.table, "table_name") or order.table
 
-        # Notify waiters
+        # Notify waiters — they'll see "Paid Online" on the order
         frappe.publish_realtime(
             "servepos_new_order",
             {
@@ -695,7 +708,8 @@ def confirm_paid_order(reference_id):
                 "table": table_name,
                 "pos_profile": order.pos_profile,
                 "is_guest_order": 1,
-                "is_paid": 1,
+                "payment_status": "Paid Online",
+                "item_count": frappe.db.count("ServePOS Waiter Order Item", {"parent": order.name}),
             },
             doctype="ServePOS Waiter Order",
         )

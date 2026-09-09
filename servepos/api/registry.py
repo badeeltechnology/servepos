@@ -405,6 +405,7 @@ def get_active_orders(pos_profile, statuses=None, days=1):
             "name", "status", "waiter", "waiter_name", "table", "room",
             "order_type", "guests", "notes", "pos_profile", "branch",
             "creation", "modified", "pos_order_id",
+            "is_guest_order", "payment_status",
         ],
         order_by="creation desc",
         limit=0,

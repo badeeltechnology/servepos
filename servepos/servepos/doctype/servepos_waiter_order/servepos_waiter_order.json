@@ -25,7 +25,8 @@
     "edit_log",
     "pos_order_id",
     "is_guest_order",
-    "guest_token"
+    "guest_token",
+    "payment_status"
   ],
   "fields": [
     {
@@ -164,6 +165,15 @@
       "hidden": 1,
       "label": "Guest Token",
       "read_only": 1
+    },
+    {
+      "fieldname": "payment_status",
+      "fieldtype": "Select",
+      "label": "Payment Status",
+      "options": "\nPending Payment\nPaid Online\nPay at Table",
+      "read_only": 1,
+      "in_list_view": 1,
+      "description": "Online payment status for guest orders"
     }
   ],
   "links": [],
