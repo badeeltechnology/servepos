@@ -1,0 +1,271 @@
+{
+  "actions": [],
+  "autoname": "naming_series:",
+  "creation": "2026-09-12 12:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "naming_series",
+    "pos_session_id",
+    "pos_profile",
+    "branch",
+    "column_break_header",
+    "cashier_name",
+    "opened_at",
+    "closed_at",
+    "section_break_summary",
+    "total_orders",
+    "total_sales",
+    "column_break_summary",
+    "total_void_orders",
+    "total_void_amount",
+    "total_removed_items",
+    "total_removed_amount",
+    "section_break_balance",
+    "opening_balance",
+    "closing_balance",
+    "column_break_balance",
+    "expected_balance",
+    "cash_difference",
+    "section_break_payments",
+    "payment_breakdown",
+    "section_break_details",
+    "order_list",
+    "section_break_voids",
+    "voided_orders_detail",
+    "column_break_voids",
+    "removed_items_detail",
+    "section_break_remarks",
+    "remarks"
+  ],
+  "fields": [
+    {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "hidden": 1,
+      "label": "Series",
+      "options": "SHIFT-.YYYY.-.#####",
+      "reqd": 1
+    },
+    {
+      "fieldname": "pos_session_id",
+      "fieldtype": "Data",
+      "label": "POS Session ID",
+      "read_only": 1,
+      "unique": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "pos_profile",
+      "fieldtype": "Link",
+      "label": "POS Profile",
+      "options": "POS Profile",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "branch",
+      "fieldtype": "Link",
+      "label": "Branch",
+      "options": "Branch",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_header",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "cashier_name",
+      "fieldtype": "Data",
+      "label": "Cashier",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "opened_at",
+      "fieldtype": "Datetime",
+      "label": "Shift Opened",
+      "read_only": 1
+    },
+    {
+      "fieldname": "closed_at",
+      "fieldtype": "Datetime",
+      "label": "Shift Closed",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "section_break_summary",
+      "fieldtype": "Section Break",
+      "label": "Sales Summary"
+    },
+    {
+      "fieldname": "total_orders",
+      "fieldtype": "Int",
+      "label": "Total Orders",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "total_sales",
+      "fieldtype": "Currency",
+      "label": "Total Sales",
+      "read_only": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "column_break_summary",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "total_void_orders",
+      "fieldtype": "Int",
+      "label": "Voided Orders",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_void_amount",
+      "fieldtype": "Currency",
+      "label": "Void Amount",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_removed_items",
+      "fieldtype": "Int",
+      "label": "Removed Items",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_removed_amount",
+      "fieldtype": "Currency",
+      "label": "Removed Amount",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_break_balance",
+      "fieldtype": "Section Break",
+      "label": "Cash Balance"
+    },
+    {
+      "fieldname": "opening_balance",
+      "fieldtype": "Small Text",
+      "label": "Opening Balance",
+      "read_only": 1
+    },
+    {
+      "fieldname": "closing_balance",
+      "fieldtype": "Small Text",
+      "label": "Closing Balance",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_balance",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "expected_balance",
+      "fieldtype": "Small Text",
+      "label": "Expected Balance",
+      "read_only": 1
+    },
+    {
+      "fieldname": "cash_difference",
+      "fieldtype": "Currency",
+      "label": "Cash Difference",
+      "read_only": 1,
+      "description": "Closing cash minus expected cash (negative = shortage)"
+    },
+    {
+      "fieldname": "section_break_payments",
+      "fieldtype": "Section Break",
+      "label": "Payment Breakdown"
+    },
+    {
+      "fieldname": "payment_breakdown",
+      "fieldtype": "Small Text",
+      "label": "Payment Breakdown",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_break_details",
+      "fieldtype": "Section Break",
+      "label": "Order List",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "order_list",
+      "fieldtype": "Long Text",
+      "label": "Order List (JSON)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_break_voids",
+      "fieldtype": "Section Break",
+      "label": "Void Details",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "voided_orders_detail",
+      "fieldtype": "Long Text",
+      "label": "Voided Orders (JSON)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_voids",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "removed_items_detail",
+      "fieldtype": "Long Text",
+      "label": "Removed Items (JSON)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_break_remarks",
+      "fieldtype": "Section Break",
+      "label": "Remarks"
+    },
+    {
+      "fieldname": "remarks",
+      "fieldtype": "Small Text",
+      "label": "Remarks",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "links": [],
+  "modified": "2026-09-12 12:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Servepos",
+  "name": "ServePOS Shift Log",
+  "naming_rule": "By \"Naming Series\" field",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "Accounts User",
+      "share": 1
+    }
+  ],
+  "sort_field": "closed_at",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 0
+}

@@ -1154,3 +1154,65 @@ def get_sales_analytics(pos_profile=None, from_date=None, to_date=None):
             "top_items": void_item_logs,
         },
     }
+
+
+@frappe.whitelist()
+def record_shift_log(pos_session_id, pos_profile=None, branch=None, cashier_name=None,
+                     opened_at=None, closed_at=None, total_orders=0, total_sales=0,
+                     total_void_orders=0, total_void_amount=0, total_removed_items=0,
+                     total_removed_amount=0, opening_balance=None, closing_balance=None,
+                     expected_balance=None, payment_breakdown=None, remarks=None,
+                     voided_orders_detail=None, removed_items_detail=None, order_list=None):
+    """
+    Record a shift closing log from the Desktop POS app.
+    Creates a ServePOS Shift Log entry for reporting and auditing.
+    Idempotent: if a log with the same pos_session_id already exists, returns it.
+    """
+    if not pos_session_id:
+        frappe.throw(_("POS Session ID is required"))
+
+    # Idempotent — same session ID won't create duplicates
+    existing = frappe.db.exists("ServePOS Shift Log", {"pos_session_id": pos_session_id})
+    if existing:
+        return {"message": "Already recorded", "name": existing}
+
+    # Compute cash difference from closing vs expected balance
+    cash_difference = 0
+    try:
+        closing_data = json.loads(closing_balance) if isinstance(closing_balance, str) else (closing_balance or [])
+        expected_data = json.loads(expected_balance) if isinstance(expected_balance, str) else (expected_balance or [])
+        closing_cash = sum(b.get("amount", 0) for b in closing_data if b.get("mode", "").lower() == "cash")
+        expected_cash = sum(b.get("amount", 0) for b in expected_data if b.get("mode", "").lower() == "cash")
+        cash_difference = closing_cash - expected_cash
+    except Exception:
+        pass
+
+    doc = frappe.get_doc({
+        "doctype": "ServePOS Shift Log",
+        "pos_session_id": pos_session_id,
+        "pos_profile": pos_profile,
+        "branch": branch,
+        "cashier_name": cashier_name,
+        "opened_at": opened_at,
+        "closed_at": closed_at,
+        "total_orders": cint(total_orders),
+        "total_sales": flt(total_sales),
+        "total_void_orders": cint(total_void_orders),
+        "total_void_amount": flt(total_void_amount),
+        "total_removed_items": cint(total_removed_items),
+        "total_removed_amount": flt(total_removed_amount),
+        "opening_balance": opening_balance if isinstance(opening_balance, str) else json.dumps(opening_balance or []),
+        "closing_balance": closing_balance if isinstance(closing_balance, str) else json.dumps(closing_balance or []),
+        "expected_balance": expected_balance if isinstance(expected_balance, str) else json.dumps(expected_balance or []),
+        "cash_difference": flt(cash_difference),
+        "payment_breakdown": payment_breakdown if isinstance(payment_breakdown, str) else json.dumps(payment_breakdown or {}),
+        "voided_orders_detail": voided_orders_detail if isinstance(voided_orders_detail, str) else json.dumps(voided_orders_detail or []),
+        "removed_items_detail": removed_items_detail if isinstance(removed_items_detail, str) else json.dumps(removed_items_detail or []),
+        "order_list": order_list if isinstance(order_list, str) else json.dumps(order_list or []),
+        "remarks": remarks,
+    })
+
+    doc.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {"message": "Shift log recorded", "name": doc.name}
