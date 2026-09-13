@@ -76,8 +76,6 @@ export default function MenuManagement() {
 
   // POS Profiles + Branches
   const { data: posProfiles } = useFrappeGetDocList("POS Profile", { fields: ["name", "branch"], limit: 50 });
-  const { data: branches } = useFrappeGetDocList("Branch", { fields: ["name"], limit: 50 });
-
   // Group profiles by branch for the availability UI
   const branchProfileMap = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -235,24 +233,6 @@ export default function MenuManagement() {
     } catch (err: any) { alert(err.message || "Failed to update"); }
   }
 
-  // --- Availability helpers ---
-  function addAvailabilityRow() {
-    setAvailability([...availability, { branch: "", pos_profile: "", show_on_pos: 1, show_on_website: 0 }]);
-  }
-  function removeAvailabilityRow(idx: number) {
-    setAvailability(availability.filter((_, i) => i !== idx));
-  }
-  function updateAvailabilityRow(idx: number, field: keyof AvailabilityRow, value: any) {
-    const updated = [...availability];
-    updated[idx] = { ...updated[idx], [field]: value };
-    // Clear pos_profile if branch changed (profile may not belong to new branch)
-    if (field === "branch") updated[idx].pos_profile = "";
-    setAvailability(updated);
-  }
-  function getProfilesForBranch(branch: string): string[] {
-    if (!branch) return (posProfiles || []).map(p => p.name);
-    return (posProfiles || []).filter(p => p.branch === branch).map(p => p.name);
-  }
 
   return (
     <div className="p-6">
@@ -394,7 +374,7 @@ export default function MenuManagement() {
       {/* Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 pt-[10vh]">
-          <div className="w-[560px] max-h-[80vh] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl">
+          <div className="w-[640px] max-h-[80vh] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3.5 flex-shrink-0">
               <h2 className="text-[14px] font-semibold text-gray-900">{editingItem ? "Edit item" : "Add new item"}</h2>
               <button onClick={resetForm} className="rounded p-1 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
@@ -526,95 +506,86 @@ export default function MenuManagement() {
                 </div>
               )}
 
-              {/* Branch / Profile Availability */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-[12px] font-medium text-gray-600">Branch / Profile Availability</label>
-                  <button type="button" onClick={addAvailabilityRow}
-                    className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-200">
-                    <Plus className="h-3 w-3" /> Add rule
-                  </button>
-                </div>
-                {availability.length === 0 ? (
-                  <div className="rounded-md border border-dashed border-gray-200 px-3 py-4 text-center text-[11px] text-gray-400">
-                    No availability rules. Uses legacy POS Profile visibility below.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {availability.map((row, idx) => (
-                      <div key={idx} className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2">
-                        <select value={row.branch} onChange={(e) => updateAvailabilityRow(idx, "branch", e.target.value)}
-                          className="flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-[12px] text-gray-800 focus:border-gray-400 focus:outline-none">
-                          <option value="">All branches</option>
-                          {branchNames.filter(b => b !== "__no_branch__").map(b => <option key={b} value={b}>{b}</option>)}
-                        </select>
-                        <select value={row.pos_profile} onChange={(e) => updateAvailabilityRow(idx, "pos_profile", e.target.value)}
-                          className="flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-[12px] text-gray-800 focus:border-gray-400 focus:outline-none">
-                          <option value="">All profiles{row.branch ? ` in ${row.branch}` : ""}</option>
-                          {getProfilesForBranch(row.branch).map(p => <option key={p} value={p}>{p}</option>)}
-                        </select>
-                        <label className="flex items-center gap-1 text-[11px] text-gray-600 whitespace-nowrap">
-                          <input type="checkbox" checked={row.show_on_pos === 1}
-                            onChange={() => updateAvailabilityRow(idx, "show_on_pos", row.show_on_pos ? 0 : 1)}
-                            className="h-3 w-3 rounded border-gray-300 text-gray-900" />
-                          POS
-                        </label>
-                        <label className="flex items-center gap-1 text-[11px] text-gray-600 whitespace-nowrap">
-                          <input type="checkbox" checked={row.show_on_website === 1}
-                            onChange={() => updateAvailabilityRow(idx, "show_on_website", row.show_on_website ? 0 : 1)}
-                            className="h-3 w-3 rounded border-gray-300 text-blue-600" />
-                          Web
-                        </label>
-                        <button type="button" onClick={() => removeAvailabilityRow(idx)}
-                          className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <p className="mt-1 text-[11px] text-gray-400">
-                  Add rules to control which branches/profiles see this item. Each rule specifies a branch, profile, and channel (POS/Web).
-                </p>
-              </div>
-
-              {/* Legacy POS Profile Visibility */}
+              {/* Where to display — branch-grouped profile list */}
               {posProfiles && posProfiles.length > 0 && (
-                <details className="group">
-                  <summary className="cursor-pointer text-[12px] font-medium text-gray-500 hover:text-gray-700">
-                    Legacy: POS Profile Visibility {availability.length > 0 && <span className="text-[10px] text-gray-400">(overridden by availability rules above)</span>}
-                  </summary>
-                  <div className="mt-2 rounded-md border border-gray-200 divide-y divide-gray-100">
-                    {posProfiles.map((p) => {
-                      const raw = (formData.servepos_visible_profiles || "").trim();
-                      const visibleList = raw ? raw.split(",").map(s => s.trim()).filter(Boolean) : [];
-                      const isVisible = !raw || visibleList.includes(p.name);
+                <div>
+                  <label className="mb-2 block text-[12px] font-medium text-gray-600">Where to display</label>
+                  <div className="rounded-md border border-gray-200 divide-y divide-gray-100 max-h-[240px] overflow-y-auto">
+                    {branchNames.map((branch) => {
+                      const profiles = branchProfileMap[branch] || [];
+                      const branchLabel = branch === "__no_branch__" ? "No Branch" : branch;
                       return (
-                        <label key={p.name} className="flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 cursor-pointer">
-                          <div className="flex items-center gap-2.5">
-                            <input type="checkbox" checked={isVisible}
-                              onChange={() => {
-                                const allNames = posProfiles.map(pp => pp.name);
-                                let list = raw ? raw.split(",").map(s => s.trim()).filter(Boolean) : [...allNames];
-                                if (isVisible) list = list.filter(n => n !== p.name);
-                                else if (!list.includes(p.name)) list.push(p.name);
-                                const ordered = allNames.filter(n => list.includes(n));
-                                setFormData({ ...formData, servepos_visible_profiles: ordered.join(",") });
-                              }}
-                              className="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500" />
-                            <div>
-                              <span className="text-[13px] font-medium text-gray-800">{p.name}</span>
-                              {p.branch && <span className="ml-2 text-[11px] text-gray-400">{p.branch}</span>}
+                        <div key={branch}>
+                          {/* Branch header */}
+                          <div className="sticky top-0 bg-gray-50 px-3 py-1.5 flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{branchLabel}</span>
+                            <div className="flex items-center gap-3 text-[10px] font-medium text-gray-400">
+                              <span className="w-8 text-center">POS</span>
+                              <span className="w-8 text-center">Web</span>
                             </div>
                           </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${isVisible ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-400"}`}>
-                            {isVisible ? "Visible" : "Hidden"}
-                          </span>
-                        </label>
+                          {/* Profiles in this branch */}
+                          {profiles.map((profileName) => {
+                            const row = availability.find(r => r.pos_profile === profileName);
+                            const posOn = row ? row.show_on_pos === 1 : false;
+                            const webOn = row ? row.show_on_website === 1 : false;
+
+                            const togglePos = () => {
+                              if (row) {
+                                if (posOn && !webOn) {
+                                  // Removing last channel — remove the row entirely
+                                  setAvailability(availability.filter(r => r.pos_profile !== profileName));
+                                } else {
+                                  setAvailability(availability.map(r =>
+                                    r.pos_profile === profileName ? { ...r, show_on_pos: posOn ? 0 : 1 } : r
+                                  ));
+                                }
+                              } else {
+                                // Add a new row
+                                const b = (posProfiles || []).find(p => p.name === profileName)?.branch || "";
+                                setAvailability([...availability, { branch: b, pos_profile: profileName, show_on_pos: 1, show_on_website: 0 }]);
+                              }
+                            };
+
+                            const toggleWeb = () => {
+                              if (row) {
+                                if (webOn && !posOn) {
+                                  setAvailability(availability.filter(r => r.pos_profile !== profileName));
+                                } else {
+                                  setAvailability(availability.map(r =>
+                                    r.pos_profile === profileName ? { ...r, show_on_website: webOn ? 0 : 1 } : r
+                                  ));
+                                }
+                              } else {
+                                const b = (posProfiles || []).find(p => p.name === profileName)?.branch || "";
+                                setAvailability([...availability, { branch: b, pos_profile: profileName, show_on_pos: 0, show_on_website: 1 }]);
+                              }
+                            };
+
+                            return (
+                              <div key={profileName} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
+                                <span className="text-[13px] text-gray-800">{profileName}</span>
+                                <div className="flex items-center gap-3">
+                                  <button type="button" onClick={togglePos}
+                                    className={`w-8 h-6 rounded text-[10px] font-bold transition-colors ${posOn ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-400 hover:bg-gray-200"}`}>
+                                    {posOn ? "ON" : "OFF"}
+                                  </button>
+                                  <button type="button" onClick={toggleWeb}
+                                    className={`w-8 h-6 rounded text-[10px] font-bold transition-colors ${webOn ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-400 hover:bg-gray-200"}`}>
+                                    {webOn ? "ON" : "OFF"}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       );
                     })}
                   </div>
-                </details>
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    Toggle POS and Web for each profile. Items with no toggles enabled are hidden everywhere.
+                  </p>
+                </div>
               )}
             </div>
             <div className="flex gap-2 border-t border-gray-200 px-5 py-3 flex-shrink-0">
