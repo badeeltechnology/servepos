@@ -678,8 +678,8 @@ export default function GuestMenu({
         </div>
       )}
 
-      {/* Cart Floating Bar */}
-      {cartCount > 0 && (
+      {/* Cart Floating Bar — hidden when item modal is open */}
+      {cartCount > 0 && !selectedItem && (
         <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-8 bg-gradient-to-t from-white via-white to-transparent pointer-events-none">
           <button
             onClick={() => navigate(`/${seatCode}/cart/${posProfile}`)}
