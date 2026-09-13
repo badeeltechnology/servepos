@@ -325,6 +325,50 @@
   "description": "Comma-separated list of POS Profile names where this item is visible. Managed via the ServePOS visibility matrix."
  },
  {
+  "name": "Item-servepos_is_disabled",
+  "doctype": "Custom Field",
+  "dt": "Item",
+  "fieldname": "servepos_is_disabled",
+  "fieldtype": "Check",
+  "label": "Disabled (hidden from all channels)",
+  "default": "0",
+  "insert_after": "servepos_is_available",
+  "description": "When checked, this item will not appear on any POS terminal or online store."
+ },
+ {
+  "name": "Item-servepos_show_on_website",
+  "doctype": "Custom Field",
+  "dt": "Item",
+  "fieldname": "servepos_show_on_website",
+  "fieldtype": "Check",
+  "label": "Show on Website / Online Store",
+  "default": "0",
+  "insert_after": "servepos_is_disabled",
+  "description": "When checked, this item will be visible on the online ordering store."
+ },
+ {
+  "name": "Item-servepos_availability_section",
+  "doctype": "Custom Field",
+  "dt": "Item",
+  "fieldname": "servepos_availability_section",
+  "fieldtype": "Section Break",
+  "label": "Branch / Profile Availability",
+  "insert_after": "servepos_show_on_website",
+  "collapsible": 1,
+  "description": "Control which branches and POS profiles can see this item."
+ },
+ {
+  "name": "Item-servepos_availability",
+  "doctype": "Custom Field",
+  "dt": "Item",
+  "fieldname": "servepos_availability",
+  "fieldtype": "Table",
+  "label": "Availability",
+  "options": "ServePOS Item Availability",
+  "insert_after": "servepos_availability_section",
+  "description": "Add rows to control per-branch and per-profile visibility."
+ },
+ {
   "name": "Sales Invoice-servepos_voucher",
   "doctype": "Custom Field",
   "dt": "Sales Invoice",

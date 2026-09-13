@@ -1,0 +1,57 @@
+{
+ "actions": [],
+ "creation": "2026-09-13 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "branch",
+  "pos_profile",
+  "show_on_pos",
+  "show_on_website"
+ ],
+ "fields": [
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Branch",
+   "options": "Branch",
+   "description": "Leave blank to apply to all branches"
+  },
+  {
+   "fieldname": "pos_profile",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "POS Profile",
+   "options": "POS Profile",
+   "description": "Leave blank to apply to all profiles in this branch"
+  },
+  {
+   "default": "1",
+   "fieldname": "show_on_pos",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Show on POS"
+  },
+  {
+   "default": "0",
+   "fieldname": "show_on_website",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Show on Website"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-13 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Servepos",
+ "name": "ServePOS Item Availability",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

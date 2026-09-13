@@ -168,6 +168,38 @@ def create_custom_fields_for_item():
                 "fieldtype": "Small Text",
                 "label": "Available Modifiers (comma separated)",
                 "insert_after": "servepos_is_available"
+            },
+            {
+                "fieldname": "servepos_is_disabled",
+                "fieldtype": "Check",
+                "label": "Disabled (hidden from all channels)",
+                "default": "0",
+                "insert_after": "servepos_is_available",
+                "description": "When checked, this item will not appear on any POS terminal or online store."
+            },
+            {
+                "fieldname": "servepos_show_on_website",
+                "fieldtype": "Check",
+                "label": "Show on Website / Online Store",
+                "default": "0",
+                "insert_after": "servepos_is_disabled",
+                "description": "When checked, this item will be visible on the online ordering store."
+            },
+            {
+                "fieldname": "servepos_availability_section",
+                "fieldtype": "Section Break",
+                "label": "Branch / Profile Availability",
+                "insert_after": "servepos_show_on_website",
+                "collapsible": 1,
+                "description": "Control which branches and POS profiles can see this item. Leave empty to use the legacy visibility profiles field."
+            },
+            {
+                "fieldname": "servepos_availability",
+                "fieldtype": "Table",
+                "label": "Availability",
+                "options": "ServePOS Item Availability",
+                "insert_after": "servepos_availability_section",
+                "description": "Add rows to control per-branch and per-profile visibility. No rows = hidden everywhere (once migrated from legacy)."
             }
         ]
     }
@@ -1030,6 +1062,83 @@ def create_demo_kitchen_stations():
             print(f"Kitchen station already exists: {station_data['station_name']}")
 
 
+def migrate_visible_profiles_to_availability():
+    """
+    One-time migration: convert legacy `servepos_visible_profiles` (comma-separated
+    POS Profile names) on Item into `servepos_availability` child table rows.
+
+    Logic:
+      - Empty servepos_visible_profiles  -> one row: all branches, all profiles, POS=1, Web=0
+      - "ProfileA,ProfileB"              -> one row per profile with POS=1, Web=0
+      - Items that already have availability rows are skipped (idempotent).
+
+    The legacy field is NOT cleared so old desktop/mobile apps keep working.
+    """
+    if not frappe.db.exists("DocType", "ServePOS Item Availability"):
+        print("ServePOS Item Availability doctype not found — skipping migration")
+        return
+
+    # Skip if migration already ran (any item has availability rows)
+    existing = frappe.db.count("ServePOS Item Availability", {"parenttype": "Item"})
+    if existing > 0:
+        print(f"Availability migration already done ({existing} rows exist) — skipping")
+        return
+
+    meta = frappe.get_meta("Item")
+    if not meta.get_field("servepos_visible_profiles"):
+        print("servepos_visible_profiles field not found on Item — skipping migration")
+        return
+    if not meta.get_field("servepos_availability"):
+        print("servepos_availability field not found on Item — skipping migration")
+        return
+
+    # Get all non-disabled menu items
+    items = frappe.get_all(
+        "Item",
+        filters=[["disabled", "=", 0]],
+        fields=["name", "servepos_visible_profiles"],
+        limit=0,
+    )
+    if not items:
+        print("No items to migrate")
+        return
+
+    migrated = 0
+    for item in items:
+        raw = (item.get("servepos_visible_profiles") or "").strip()
+        profiles = [p.strip() for p in raw.split(",") if p.strip()] if raw else []
+
+        doc = frappe.get_doc("Item", item["name"])
+        if profiles:
+            # Specific profiles listed — create one row per profile
+            for profile_name in profiles:
+                if not frappe.db.exists("POS Profile", profile_name):
+                    continue
+                branch = frappe.db.get_value("POS Profile", profile_name, "branch") or ""
+                doc.append("servepos_availability", {
+                    "branch": branch,
+                    "pos_profile": profile_name,
+                    "show_on_pos": 1,
+                    "show_on_website": 0,
+                })
+        else:
+            # Empty = visible everywhere — one catch-all row
+            doc.append("servepos_availability", {
+                "branch": "",
+                "pos_profile": "",
+                "show_on_pos": 1,
+                "show_on_website": 0,
+            })
+
+        doc.flags.ignore_validate = True
+        doc.flags.ignore_mandatory = True
+        doc.save(ignore_permissions=True)
+        migrated += 1
+
+    frappe.db.commit()
+    print(f"Migrated {migrated} items to servepos_availability child table")
+
+
 def setup_all():
     """Run all setup functions.
     Called on after_install and after_migrate via hooks.py.
@@ -1057,6 +1166,10 @@ def setup_all():
     create_custom_fields_for_restaurant()
     create_custom_fields_for_stock_entry()
     create_visible_profiles_fields()
+
+    # Migrate legacy visibility data to new availability table
+    print("\nMigrating visibility data...")
+    migrate_visible_profiles_to_availability()
 
     # Create print formats
     print("\nCreating print formats...")

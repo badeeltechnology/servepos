@@ -321,7 +321,10 @@ def get_guest_menu(seat_code, pos_profile):
         frappe.throw(_("Menu not available for this restaurant"), frappe.ValidationError)
 
     # Fetch item groups (only menu groups with visible items)
-    from servepos.api.registry import _visible_to_profile, _has_field
+    from servepos.api.registry import (
+        _visible_to_profile, _has_field,
+        _get_availability_map, _item_visible_via_availability,
+    )
 
     group_filters = {"is_group": 0}
     if _has_field("Item Group", "servepos_is_menu_group"):
@@ -340,17 +343,62 @@ def get_guest_menu(seat_code, pos_profile):
     item_filters = [["disabled", "=", 0]]
     if _has_field("Item", "servepos_is_available"):
         item_filters.append(["servepos_is_available", "=", 1])
+    if _has_field("Item", "servepos_is_disabled"):
+        item_filters.append(["servepos_is_disabled", "=", 0])
 
     item_fields = [
         "name", "item_name", "item_code", "item_group", "standard_rate",
         "description", "image",
     ]
-    for f in ("servepos_item_name_ar", "servepos_description_ar", "servepos_visible_profiles"):
+    for f in ("servepos_item_name_ar", "servepos_description_ar", "servepos_visible_profiles", "servepos_show_on_website"):
         if _has_field("Item", f):
             item_fields.append(f)
 
     items = frappe.get_all("Item", filters=item_filters, fields=item_fields, limit=0, order_by="item_name asc")
-    items = [it for it in items if _visible_to_profile(it.get("servepos_visible_profiles"), pos_profile)]
+
+    # Filter for website channel: dual-read availability table + legacy fallback.
+    # For the online store, an item must be explicitly opted-in via either:
+    #   1. Availability child table row with show_on_website=1 for this profile/branch
+    #   2. Legacy: servepos_visible_profiles allows this profile AND servepos_show_on_website=1
+    #
+    # Grace period: if NO items have show_on_website=1 and the availability table
+    # is empty, skip the website filter entirely so existing guest menus keep
+    # working until the admin starts configuring website visibility.
+    avail_map = _get_availability_map("website")
+    # Grace period: only apply website filtering if someone has actually
+    # enabled show_on_website somewhere (either on the Item field or in an
+    # availability row). This keeps guest menus working until the admin
+    # starts explicitly configuring website visibility.
+    has_any_website_config = False
+    if _has_field("Item", "servepos_show_on_website"):
+        has_any_website_config = frappe.db.count("Item", {"servepos_show_on_website": 1}) > 0
+    if not has_any_website_config:
+        try:
+            has_any_website_config = frappe.db.count(
+                "ServePOS Item Availability", {"parenttype": "Item", "show_on_website": 1}
+            ) > 0
+        except Exception:
+            pass
+
+    if has_any_website_config:
+        profile_branch = frappe.db.get_value("POS Profile", pos_profile, "branch")
+        filtered_items = []
+        for it in items:
+            avail_rows = avail_map.get(it["name"])
+            if avail_rows is not None:
+                # New model: use availability rows for website channel
+                if _item_visible_via_availability(avail_rows, pos_profile, profile_branch, "website"):
+                    filtered_items.append(it)
+            else:
+                # Legacy fallback: must pass both profile visibility AND website toggle
+                if not _visible_to_profile(it.get("servepos_visible_profiles"), pos_profile):
+                    continue
+                if it.get("servepos_show_on_website"):
+                    filtered_items.append(it)
+        items = filtered_items
+    else:
+        # No website config yet — use legacy profile-only filtering
+        items = [it for it in items if _visible_to_profile(it.get("servepos_visible_profiles"), pos_profile)]
 
     # Drop groups with no items
     groups_with_items = {it["item_group"] for it in items}
@@ -359,6 +407,7 @@ def get_guest_menu(seat_code, pos_profile):
     # Strip internal fields from response
     for it in items:
         it.pop("servepos_visible_profiles", None)
+        it.pop("servepos_show_on_website", None)
     for g in groups:
         g.pop("servepos_visible_profiles", None)
 

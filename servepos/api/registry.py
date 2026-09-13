@@ -71,6 +71,52 @@ def _has_field(doctype, fieldname):
         return False
 
 
+def _get_availability_map(channel="pos"):
+    """
+    Build a lookup of item visibility from the ServePOS Item Availability
+    child table.  Returns a dict:
+        { item_name: [(branch, pos_profile, show_on_pos, show_on_website), ...] }
+    Only populated for items that have at least one availability row.
+    Items NOT in this dict should fall back to legacy servepos_visible_profiles.
+    """
+    if not frappe.db.exists("DocType", "ServePOS Item Availability"):
+        return {}
+    try:
+        rows = frappe.get_all(
+            "ServePOS Item Availability",
+            filters={"parenttype": "Item"},
+            fields=["parent", "branch", "pos_profile", "show_on_pos", "show_on_website"],
+            limit=0,
+        )
+    except Exception:
+        return {}
+    result = {}
+    for r in rows:
+        result.setdefault(r["parent"], []).append(r)
+    return result
+
+
+def _item_visible_via_availability(avail_rows, pos_profile, profile_branch, channel="pos"):
+    """
+    Given a list of availability rows for a single item, determine if
+    the item is visible on the given pos_profile + channel.
+
+    channel: "pos" or "website"
+    """
+    field = "show_on_pos" if channel == "pos" else "show_on_website"
+    for row in avail_rows:
+        # Branch check: row.branch blank = matches all branches
+        if row.get("branch") and profile_branch and row["branch"] != profile_branch:
+            continue
+        # Profile check: row.pos_profile blank = matches all profiles in the branch
+        if row.get("pos_profile") and row["pos_profile"] != pos_profile:
+            continue
+        # Channel check
+        if row.get(field):
+            return True
+    return False
+
+
 # --------------------------------------------------------------------------- #
 # Items & Item Groups
 # --------------------------------------------------------------------------- #
@@ -84,7 +130,7 @@ def get_item_groups(pos_profile):
       2. It contains at least one item that is visible to this profile
          (so empty categories never show up on the POS / Waiter App).
     """
-    _assert_profile(pos_profile)
+    profile_doc = _assert_profile(pos_profile)
 
     filters = {"is_group": 0}
     if _has_field("Item Group", "servepos_is_menu_group"):
@@ -105,15 +151,28 @@ def get_item_groups(pos_profile):
     item_filters = [["disabled", "=", 0]]
     if _has_field("Item", "servepos_is_available"):
         item_filters.append(["servepos_is_available", "=", 1])
-    item_fields = ["item_group"]
+    if _has_field("Item", "servepos_is_disabled"):
+        item_filters.append(["servepos_is_disabled", "=", 0])
+    item_fields = ["name", "item_group"]
     if _has_field("Item", "servepos_visible_profiles"):
         item_fields.append("servepos_visible_profiles")
     items = frappe.get_all("Item", filters=item_filters, fields=item_fields, limit=0)
-    groups_with_items = {
-        it["item_group"]
-        for it in items
-        if _visible_to_profile(it.get("servepos_visible_profiles"), pos_profile)
-    }
+
+    # Dual-read: check availability child table first, fall back to legacy field.
+    avail_map = _get_availability_map("pos")
+    profile_branch = getattr(profile_doc, "branch", None)
+    groups_with_items = set()
+    for it in items:
+        avail_rows = avail_map.get(it["name"])
+        if avail_rows is not None:
+            # New model: item has availability rows — use them
+            if _item_visible_via_availability(avail_rows, pos_profile, profile_branch, "pos"):
+                groups_with_items.add(it["item_group"])
+        else:
+            # Legacy fallback: use comma-separated servepos_visible_profiles
+            if _visible_to_profile(it.get("servepos_visible_profiles"), pos_profile):
+                groups_with_items.add(it["item_group"])
+
     return [r for r in rows if r["name"] in groups_with_items]
 
 
@@ -124,11 +183,13 @@ def get_items(pos_profile, item_group=None, search=None, limit=0, modified_after
     Optional: filter by item_group, search text, or incremental sync via
     `modified_after` timestamp.
     """
-    _assert_profile(pos_profile)
+    profile_doc = _assert_profile(pos_profile)
 
     filters = [["disabled", "=", 0]]
     if _has_field("Item", "servepos_is_available"):
         filters.append(["servepos_is_available", "=", 1])
+    if _has_field("Item", "servepos_is_disabled"):
+        filters.append(["servepos_is_disabled", "=", 0])
     if item_group:
         filters.append(["item_group", "=", item_group])
     if search:
@@ -158,7 +219,21 @@ def get_items(pos_profile, item_group=None, search=None, limit=0, modified_after
         limit=int(limit) or 0,
         order_by="item_name asc",
     )
-    return _filter_by_visible_profiles(rows, pos_profile)
+
+    # Dual-read: check availability child table first, fall back to legacy field.
+    avail_map = _get_availability_map("pos")
+    profile_branch = getattr(profile_doc, "branch", None)
+    result = []
+    for row in rows:
+        avail_rows = avail_map.get(row["name"])
+        if avail_rows is not None:
+            if _item_visible_via_availability(avail_rows, pos_profile, profile_branch, "pos"):
+                result.append(row)
+        else:
+            # Legacy fallback
+            if _visible_to_profile(row.get("servepos_visible_profiles"), pos_profile):
+                result.append(row)
+    return result
 
 
 # --------------------------------------------------------------------------- #

@@ -1,7 +1,14 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useFrappeGetDocList, useFrappeGetCall, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
 import { useProfile } from "@/App";
-import { Plus, Search, Edit3, Trash2, X, Eye, EyeOff, FolderPlus, ImagePlus } from "lucide-react";
+import { Plus, Search, Edit3, Trash2, X, FolderPlus, ImagePlus, Ban, Globe } from "lucide-react";
+
+interface AvailabilityRow {
+  branch: string;
+  pos_profile: string;
+  show_on_pos: number;
+  show_on_website: number;
+}
 
 export default function MenuManagement() {
   const { profile } = useProfile();
@@ -9,7 +16,12 @@ export default function MenuManagement() {
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ item_code: "", item_name: "", item_group: "", standard_rate: 0, description: "", servepos_item_name_ar: "", servepos_description_ar: "", servepos_visible_profiles: "" });
+  const [formData, setFormData] = useState({
+    item_code: "", item_name: "", item_group: "", standard_rate: 0,
+    description: "", servepos_item_name_ar: "", servepos_description_ar: "",
+    servepos_visible_profiles: "", servepos_is_disabled: 0, servepos_show_on_website: 0,
+  });
+  const [availability, setAvailability] = useState<AvailabilityRow[]>([]);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -17,12 +29,10 @@ export default function MenuManagement() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
 
-  // Admin ("__all__") view shows everything unfiltered; otherwise use the
-  // centralized registry API that enforces POS Profile filtering server-side.
   const isAdminView = !profile || profile === "__all__";
   const activeProfile = isAdminView ? null : profile;
 
-  // --- Admin fallback: direct doctype list (only when viewing all profiles) ---
+  // --- Admin fallback: direct doctype list ---
   const { data: adminMenuGroups } = useFrappeGetDocList("Item Group", {
     fields: ["name"],
     filters: [["is_group", "=", 0], ["name", "not in", ["All Item Groups", "Raw Material", "Sub Assemblies", "Consumable", "Services"]]],
@@ -36,11 +46,13 @@ export default function MenuManagement() {
   if (search) adminItemFilters.push(["item_name", "like", `%${search}%`]);
 
   const { data: adminItems, mutate: refreshAdminItems } = useFrappeGetDocList("Item", {
-    fields: ["name", "item_name", "item_code", "item_group", "standard_rate", "description", "image", "servepos_item_name_ar", "servepos_description_ar", "servepos_visible_profiles"],
+    fields: ["name", "item_name", "item_code", "item_group", "standard_rate", "description", "image",
+      "servepos_item_name_ar", "servepos_description_ar", "servepos_visible_profiles",
+      "servepos_is_disabled", "servepos_show_on_website"],
     filters: adminItemFilters, limit: 200, orderBy: { field: "item_name", order: "asc" },
   }, isAdminView ? undefined : null);
 
-  // --- Registry-backed path: filtered by the selected POS Profile ---
+  // --- Registry-backed path ---
   const { data: registryGroupsResp } = useFrappeGetCall(
     "servepos.api.registry.get_item_groups",
     activeProfile ? { pos_profile: activeProfile } : undefined,
@@ -62,8 +74,25 @@ export default function MenuManagement() {
     : ((registryItemsResp?.message as any[]) || []);
   const refreshItems = isAdminView ? refreshAdminItems : refreshRegistryItems;
 
-  // POS Profiles for visibility (used only in the edit dialog)
+  // POS Profiles + Branches
   const { data: posProfiles } = useFrappeGetDocList("POS Profile", { fields: ["name", "branch"], limit: 50 });
+  const { data: branches } = useFrappeGetDocList("Branch", { fields: ["name"], limit: 50 });
+
+  // Group profiles by branch for the availability UI
+  const branchProfileMap = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const p of posProfiles || []) {
+      const b = p.branch || "__no_branch__";
+      if (!map[b]) map[b] = [];
+      map[b].push(p.name);
+    }
+    return map;
+  }, [posProfiles]);
+  const branchNames = useMemo(() => {
+    const names = Object.keys(branchProfileMap).filter(b => b !== "__no_branch__").sort();
+    if (branchProfileMap["__no_branch__"]) names.push("__no_branch__");
+    return names;
+  }, [branchProfileMap]);
 
   // Modifier groups
   const { data: allModifierGroups } = useFrappeGetDocList("ServePOS Modifier Group", {
@@ -71,7 +100,6 @@ export default function MenuManagement() {
   });
   const [itemModifiers, setItemModifiers] = useState<{ modifier_group: string; is_required: number; display_order: number }[]>([]);
 
-  // Fetch item's modifier assignments when editing
   const fetchItemModifiers = useCallback(async (itemName: string) => {
     try {
       const res = await fetch(`/api/resource/Item/${encodeURIComponent(itemName)}?fields=["name","servepos_modifier_groups"]`);
@@ -84,6 +112,22 @@ export default function MenuManagement() {
         setItemModifiers([]);
       }
     } catch { setItemModifiers([]); }
+  }, []);
+
+  // Fetch availability rows when editing
+  const fetchAvailability = useCallback(async (itemName: string) => {
+    try {
+      const res = await fetch(`/api/resource/Item/${encodeURIComponent(itemName)}?fields=["name","servepos_availability"]`);
+      const data = await res.json();
+      if (data.data?.servepos_availability?.length) {
+        setAvailability(data.data.servepos_availability.map((r: any) => ({
+          branch: r.branch || "", pos_profile: r.pos_profile || "",
+          show_on_pos: r.show_on_pos ?? 1, show_on_website: r.show_on_website ?? 0,
+        })));
+      } else {
+        setAvailability([]);
+      }
+    } catch { setAvailability([]); }
   }, []);
 
   const { createDoc } = useFrappeCreateDoc();
@@ -114,13 +158,16 @@ export default function MenuManagement() {
   }
 
   function resetForm() {
-    // New items default to the currently selected POS Profile. If "All
-    // Profiles" is active, leave empty (= visible everywhere).
     const defaultVisible = profile && profile !== "__all__" ? profile : "";
-    setFormData({ item_code: "", item_name: "", item_group: "", standard_rate: 0, description: "", servepos_item_name_ar: "", servepos_description_ar: "", servepos_visible_profiles: defaultVisible });
+    setFormData({
+      item_code: "", item_name: "", item_group: "", standard_rate: 0,
+      description: "", servepos_item_name_ar: "", servepos_description_ar: "",
+      servepos_visible_profiles: defaultVisible, servepos_is_disabled: 0, servepos_show_on_website: 0,
+    });
     setEditingItem(null);
     setShowForm(false);
     setItemModifiers([]);
+    setAvailability([]);
     setImageFile(null);
     setImagePreview(null);
   }
@@ -129,7 +176,17 @@ export default function MenuManagement() {
     try {
       setUploadingImage(!!imageFile);
       if (editingItem) {
-        const updateData: any = { item_name: formData.item_name, item_group: formData.item_group, standard_rate: formData.standard_rate, description: formData.description, servepos_visible_profiles: formData.servepos_visible_profiles, servepos_item_name_ar: formData.servepos_item_name_ar || "", servepos_description_ar: formData.servepos_description_ar || "", servepos_modifier_groups: itemModifiers };
+        const updateData: any = {
+          item_name: formData.item_name, item_group: formData.item_group,
+          standard_rate: formData.standard_rate, description: formData.description,
+          servepos_visible_profiles: formData.servepos_visible_profiles,
+          servepos_item_name_ar: formData.servepos_item_name_ar || "",
+          servepos_description_ar: formData.servepos_description_ar || "",
+          servepos_modifier_groups: itemModifiers,
+          servepos_is_disabled: formData.servepos_is_disabled,
+          servepos_show_on_website: formData.servepos_show_on_website,
+          servepos_availability: availability,
+        };
         await updateDoc("Item", editingItem, updateData);
         if (imageFile) {
           const imageUrl = await uploadImage(editingItem);
@@ -138,17 +195,15 @@ export default function MenuManagement() {
       } else {
         const itemCode = formData.item_code || formData.item_name.toUpperCase().replace(/\s+/g, "-").slice(0, 20);
         const doc = await createDoc("Item", {
-          item_code: itemCode,
-          item_name: formData.item_name,
-          item_group: formData.item_group,
-          standard_rate: formData.standard_rate,
-          description: formData.description,
-          stock_uom: "Nos",
-          is_stock_item: 0,
+          item_code: itemCode, item_name: formData.item_name, item_group: formData.item_group,
+          standard_rate: formData.standard_rate, description: formData.description, stock_uom: "Nos", is_stock_item: 0,
           servepos_item_name_ar: formData.servepos_item_name_ar || "",
           servepos_description_ar: formData.servepos_description_ar || "",
           servepos_is_available: 1,
           servepos_visible_profiles: formData.servepos_visible_profiles || "",
+          servepos_is_disabled: formData.servepos_is_disabled,
+          servepos_show_on_website: formData.servepos_show_on_website,
+          servepos_availability: availability,
         });
         if (imageFile && doc?.name) {
           const imageUrl = await uploadImage(doc.name);
@@ -162,21 +217,41 @@ export default function MenuManagement() {
   async function handleCreateCategory() {
     if (!newCategoryName.trim()) return;
     try {
-      await createDoc("Item Group", {
-        item_group_name: newCategoryName.trim(),
-        parent_item_group: "All Item Groups",
-        servepos_is_menu_group: 1,
-      });
-      setNewCategoryName("");
-      setShowCategoryForm(false);
-      // Refresh menu groups
-      window.location.reload();
+      await createDoc("Item Group", { item_group_name: newCategoryName.trim(), parent_item_group: "All Item Groups", servepos_is_menu_group: 1 });
+      setNewCategoryName(""); setShowCategoryForm(false); window.location.reload();
     } catch (err: any) { alert(err.message || "Failed to create category"); }
   }
 
   async function handleDeleteCategory(name: string) {
     if (!confirm(`Delete category "${name}"? Items in this category will need to be reassigned.`)) return;
     try { await deleteDoc("Item Group", name); window.location.reload(); } catch (err: any) { alert(err.message); }
+  }
+
+  async function toggleDisabled(item: any, e: React.MouseEvent) {
+    e.stopPropagation();
+    try {
+      await updateDoc("Item", item.name, { servepos_is_disabled: item.servepos_is_disabled ? 0 : 1 });
+      refreshItems();
+    } catch (err: any) { alert(err.message || "Failed to update"); }
+  }
+
+  // --- Availability helpers ---
+  function addAvailabilityRow() {
+    setAvailability([...availability, { branch: "", pos_profile: "", show_on_pos: 1, show_on_website: 0 }]);
+  }
+  function removeAvailabilityRow(idx: number) {
+    setAvailability(availability.filter((_, i) => i !== idx));
+  }
+  function updateAvailabilityRow(idx: number, field: keyof AvailabilityRow, value: any) {
+    const updated = [...availability];
+    updated[idx] = { ...updated[idx], [field]: value };
+    // Clear pos_profile if branch changed (profile may not belong to new branch)
+    if (field === "branch") updated[idx].pos_profile = "";
+    setAvailability(updated);
+  }
+  function getProfilesForBranch(branch: string): string[] {
+    if (!branch) return (posProfiles || []).map(p => p.name);
+    return (posProfiles || []).filter(p => p.branch === branch).map(p => p.name);
   }
 
   return (
@@ -243,38 +318,70 @@ export default function MenuManagement() {
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Item</th>
               <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+              <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Status</th>
               <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Price</th>
               <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20"></th>
             </tr>
           </thead>
           <tbody>
-            {items?.map((item, idx) => (
-              <tr key={item.name} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${idx % 2 === 0 ? "" : "bg-gray-50/30"}`}>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    {item.image ? (
-                      <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-gray-100"><img src={item.image} className="h-full w-full object-cover" /></div>
-                    ) : (
-                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-[13px] font-bold text-gray-400">{item.item_name?.charAt(0)}</div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-medium text-gray-900 truncate">{item.item_name}</p>
-                      {item.servepos_item_name_ar && <p className="text-[11px] text-gray-400 truncate" dir="rtl">{item.servepos_item_name_ar}</p>}
+            {items?.map((item, idx) => {
+              const isDisabled = item.servepos_is_disabled === 1;
+              const isOnWebsite = item.servepos_show_on_website === 1;
+              return (
+                <tr key={item.name} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${isDisabled ? "opacity-50" : ""} ${idx % 2 === 0 ? "" : "bg-gray-50/30"}`}>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      {item.image ? (
+                        <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-md bg-gray-100"><img src={item.image} className="h-full w-full object-cover" /></div>
+                      ) : (
+                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-[13px] font-bold text-gray-400">{item.item_name?.charAt(0)}</div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className={`text-[13px] font-medium truncate ${isDisabled ? "text-gray-400 line-through" : "text-gray-900"}`}>{item.item_name}</p>
+                          {isOnWebsite && <span title="Shown on website"><Globe className="h-3 w-3 text-blue-500 flex-shrink-0" /></span>}
+                        </div>
+                        {item.servepos_item_name_ar && <p className="text-[11px] text-gray-400 truncate" dir="rtl">{item.servepos_item_name_ar}</p>}
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3"><span className="text-[12px] text-gray-500">{item.item_group}</span></td>
-                <td className="px-4 py-3 text-right"><span className="text-[13px] font-semibold text-gray-900">{(item.standard_rate || 0).toFixed(2)}</span></td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <button onClick={() => { setEditingItem(item.name); setFormData({ item_code: item.name, item_name: item.item_name, item_group: item.item_group, standard_rate: item.standard_rate || 0, description: item.description || "", servepos_item_name_ar: item.servepos_item_name_ar || "", servepos_description_ar: item.servepos_description_ar || "", servepos_visible_profiles: item.servepos_visible_profiles || "" }); fetchItemModifiers(item.name); setShowForm(true); }}
-                      className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"><Edit3 className="h-3.5 w-3.5" /></button>
-                    <button onClick={async () => { if (confirm("Delete?")) { await deleteDoc("Item", item.name); refreshItems(); } }}
-                      className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-4 py-3"><span className="text-[12px] text-gray-500">{item.item_group}</span></td>
+                  <td className="px-4 py-3 text-center">
+                    {isDisabled ? (
+                      <button onClick={(e) => toggleDisabled(item, e)}
+                        className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-600 hover:bg-red-100" title="Click to enable">
+                        <Ban className="h-3 w-3" /> Disabled
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">Active</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right"><span className="text-[13px] font-semibold text-gray-900">{(item.standard_rate || 0).toFixed(2)}</span></td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => {
+                        setEditingItem(item.name);
+                        setFormData({
+                          item_code: item.name, item_name: item.item_name, item_group: item.item_group,
+                          standard_rate: item.standard_rate || 0, description: item.description || "",
+                          servepos_item_name_ar: item.servepos_item_name_ar || "",
+                          servepos_description_ar: item.servepos_description_ar || "",
+                          servepos_visible_profiles: item.servepos_visible_profiles || "",
+                          servepos_is_disabled: item.servepos_is_disabled || 0,
+                          servepos_show_on_website: item.servepos_show_on_website || 0,
+                        });
+                        fetchItemModifiers(item.name);
+                        fetchAvailability(item.name);
+                        setShowForm(true);
+                      }}
+                        className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"><Edit3 className="h-3.5 w-3.5" /></button>
+                      <button onClick={async () => { if (confirm("Delete?")) { await deleteDoc("Item", item.name); refreshItems(); } }}
+                        className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {(!items || items.length === 0) && (
@@ -287,12 +394,38 @@ export default function MenuManagement() {
       {/* Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 pt-[10vh]">
-          <div className="w-[520px] max-h-[80vh] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl">
+          <div className="w-[560px] max-h-[80vh] flex flex-col rounded-lg border border-gray-200 bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3.5 flex-shrink-0">
               <h2 className="text-[14px] font-semibold text-gray-900">{editingItem ? "Edit item" : "Add new item"}</h2>
               <button onClick={resetForm} className="rounded p-1 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
             </div>
             <div className="space-y-3 px-5 py-4 overflow-y-auto flex-1">
+              {/* Disabled + Website toggles */}
+              <div className="flex items-center gap-4 rounded-md border border-gray-200 px-3 py-2.5">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={formData.servepos_is_disabled === 1}
+                    onChange={() => setFormData({ ...formData, servepos_is_disabled: formData.servepos_is_disabled ? 0 : 1 })}
+                    className="h-3.5 w-3.5 rounded border-gray-300 text-red-600 focus:ring-red-500" />
+                  <span className="flex items-center gap-1 text-[12px] font-medium text-gray-700">
+                    <Ban className="h-3 w-3" /> Disabled
+                  </span>
+                </label>
+                <div className="h-4 w-px bg-gray-200" />
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={formData.servepos_show_on_website === 1}
+                    onChange={() => setFormData({ ...formData, servepos_show_on_website: formData.servepos_show_on_website ? 0 : 1 })}
+                    className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                  <span className="flex items-center gap-1 text-[12px] font-medium text-gray-700">
+                    <Globe className="h-3 w-3" /> Show on Online Store
+                  </span>
+                </label>
+              </div>
+              {formData.servepos_is_disabled === 1 && (
+                <div className="rounded-md bg-red-50 px-3 py-2 text-[11px] text-red-700">
+                  This item is disabled and will not appear on any POS terminal or online store.
+                </div>
+              )}
+
               {/* Image Upload */}
               <div>
                 <label className="mb-1 block text-[12px] font-medium text-gray-600">Image</label>
@@ -369,7 +502,8 @@ export default function MenuManagement() {
                 <textarea value={formData.servepos_description_ar} onChange={(e) => setFormData({ ...formData, servepos_description_ar: e.target.value })}
                   className="w-full resize-none rounded-md border border-gray-200 px-3 py-2 text-right text-[13px] focus:border-gray-400 focus:outline-none" rows={2} dir="rtl" />
               </div>
-              {/* Modifier Group Assignments — shown when editing */}
+
+              {/* Modifier Group Assignments */}
               {editingItem && allModifierGroups && allModifierGroups.length > 0 && (
                 <div>
                   <label className="mb-2 block text-[12px] font-medium text-gray-600">Modifier Groups</label>
@@ -378,18 +512,12 @@ export default function MenuManagement() {
                       const assigned = itemModifiers.find((m) => m.modifier_group === mg.name);
                       return (
                         <label key={mg.name} className="flex items-center gap-2.5 cursor-pointer rounded-md px-2 py-1.5 hover:bg-gray-50">
-                          <input
-                            type="checkbox"
-                            checked={!!assigned}
+                          <input type="checkbox" checked={!!assigned}
                             onChange={() => {
-                              if (assigned) {
-                                setItemModifiers(itemModifiers.filter((m) => m.modifier_group !== mg.name));
-                              } else {
-                                setItemModifiers([...itemModifiers, { modifier_group: mg.name, is_required: 0, display_order: itemModifiers.length }]);
-                              }
+                              if (assigned) setItemModifiers(itemModifiers.filter((m) => m.modifier_group !== mg.name));
+                              else setItemModifiers([...itemModifiers, { modifier_group: mg.name, is_required: 0, display_order: itemModifiers.length }]);
                             }}
-                            className="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500"
-                          />
+                            className="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500" />
                           <span className="text-[13px] text-gray-800">{mg.group_name}</span>
                         </label>
                       );
@@ -397,41 +525,83 @@ export default function MenuManagement() {
                   </div>
                 </div>
               )}
-              {/* POS Profile Visibility — always shown so both new and
-                  existing items can be scoped per profile. */}
+
+              {/* Branch / Profile Availability */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[12px] font-medium text-gray-600">Branch / Profile Availability</label>
+                  <button type="button" onClick={addAvailabilityRow}
+                    className="flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 hover:bg-gray-200">
+                    <Plus className="h-3 w-3" /> Add rule
+                  </button>
+                </div>
+                {availability.length === 0 ? (
+                  <div className="rounded-md border border-dashed border-gray-200 px-3 py-4 text-center text-[11px] text-gray-400">
+                    No availability rules. Uses legacy POS Profile visibility below.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {availability.map((row, idx) => (
+                      <div key={idx} className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2">
+                        <select value={row.branch} onChange={(e) => updateAvailabilityRow(idx, "branch", e.target.value)}
+                          className="flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-[12px] text-gray-800 focus:border-gray-400 focus:outline-none">
+                          <option value="">All branches</option>
+                          {branchNames.filter(b => b !== "__no_branch__").map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                        <select value={row.pos_profile} onChange={(e) => updateAvailabilityRow(idx, "pos_profile", e.target.value)}
+                          className="flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-[12px] text-gray-800 focus:border-gray-400 focus:outline-none">
+                          <option value="">All profiles{row.branch ? ` in ${row.branch}` : ""}</option>
+                          {getProfilesForBranch(row.branch).map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                        <label className="flex items-center gap-1 text-[11px] text-gray-600 whitespace-nowrap">
+                          <input type="checkbox" checked={row.show_on_pos === 1}
+                            onChange={() => updateAvailabilityRow(idx, "show_on_pos", row.show_on_pos ? 0 : 1)}
+                            className="h-3 w-3 rounded border-gray-300 text-gray-900" />
+                          POS
+                        </label>
+                        <label className="flex items-center gap-1 text-[11px] text-gray-600 whitespace-nowrap">
+                          <input type="checkbox" checked={row.show_on_website === 1}
+                            onChange={() => updateAvailabilityRow(idx, "show_on_website", row.show_on_website ? 0 : 1)}
+                            className="h-3 w-3 rounded border-gray-300 text-blue-600" />
+                          Web
+                        </label>
+                        <button type="button" onClick={() => removeAvailabilityRow(idx)}
+                          className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-1 text-[11px] text-gray-400">
+                  Add rules to control which branches/profiles see this item. Each rule specifies a branch, profile, and channel (POS/Web).
+                </p>
+              </div>
+
+              {/* Legacy POS Profile Visibility */}
               {posProfiles && posProfiles.length > 0 && (
-                <div>
-                  <label className="mb-2 block text-[12px] font-medium text-gray-600">Visible on POS Profiles</label>
-                  <div className="rounded-md border border-gray-200 divide-y divide-gray-100">
+                <details className="group">
+                  <summary className="cursor-pointer text-[12px] font-medium text-gray-500 hover:text-gray-700">
+                    Legacy: POS Profile Visibility {availability.length > 0 && <span className="text-[10px] text-gray-400">(overridden by availability rules above)</span>}
+                  </summary>
+                  <div className="mt-2 rounded-md border border-gray-200 divide-y divide-gray-100">
                     {posProfiles.map((p) => {
                       const raw = (formData.servepos_visible_profiles || "").trim();
                       const visibleList = raw ? raw.split(",").map(s => s.trim()).filter(Boolean) : [];
-                      // Empty means visible on every profile (legacy default).
                       const isVisible = !raw || visibleList.includes(p.name);
                       return (
                         <label key={p.name} className="flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 cursor-pointer">
                           <div className="flex items-center gap-2.5">
-                            <input
-                              type="checkbox"
-                              checked={isVisible}
+                            <input type="checkbox" checked={isVisible}
                               onChange={() => {
                                 const allNames = posProfiles.map(pp => pp.name);
-                                // If currently "visible everywhere" (empty),
-                                // expand to all profile names before we
-                                // remove a single one. Never write an empty
-                                // string afterwards — always an explicit
-                                // comma list so Frappe's REST API keeps it.
-                                let list = raw
-                                  ? raw.split(",").map(s => s.trim()).filter(Boolean)
-                                  : [...allNames];
+                                let list = raw ? raw.split(",").map(s => s.trim()).filter(Boolean) : [...allNames];
                                 if (isVisible) list = list.filter(n => n !== p.name);
                                 else if (!list.includes(p.name)) list.push(p.name);
-                                // Preserve stable order matching posProfiles list.
                                 const ordered = allNames.filter(n => list.includes(n));
                                 setFormData({ ...formData, servepos_visible_profiles: ordered.join(",") });
                               }}
-                              className="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500"
-                            />
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500" />
                             <div>
                               <span className="text-[13px] font-medium text-gray-800">{p.name}</span>
                               {p.branch && <span className="ml-2 text-[11px] text-gray-400">{p.branch}</span>}
@@ -444,10 +614,7 @@ export default function MenuManagement() {
                       );
                     })}
                   </div>
-                  <p className="mt-1 text-[11px] text-gray-400">
-                    Tick the profiles where this item should appear. Untick all to hide it everywhere (use the visibility page for emergency 86'ing).
-                  </p>
-                </div>
+                </details>
               )}
             </div>
             <div className="flex gap-2 border-t border-gray-200 px-5 py-3 flex-shrink-0">
