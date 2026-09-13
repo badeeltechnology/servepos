@@ -205,18 +205,37 @@ export default function GuestMenu({
     [setCart]
   );
 
-  const handleItemClick = useCallback((item: MenuItem) => {
-    const itemMods = itemModifierMap[item.item_code] || [];
-    // If no modifiers, add directly
-    if (itemMods.length === 0) {
-      addToCart(item, 1, "", 0, "");
-      return;
-    }
-    // Otherwise show detail modal
+  // Quick add: for items without modifiers, add 1 directly
+  const quickAdd = useCallback((item: MenuItem) => {
+    addToCart(item, 1, "", 0, "");
+  }, [addToCart]);
+
+  // Update qty of a simple (no-modifier, no-instructions) cart item inline
+  const updateSimpleQty = useCallback((itemCode: string, delta: number) => {
+    setCart((prev) => {
+      // Find the simple entry (no modifiers, no instructions)
+      const idx = prev.findIndex(
+        (ci) => ci.item_code === itemCode && !ci.modifiers && !ci.special_instructions
+      );
+      if (idx < 0) return prev;
+      const updated = [...prev];
+      const newQty = updated[idx].qty + delta;
+      if (newQty <= 0) {
+        updated.splice(idx, 1);
+      } else {
+        updated[idx] = { ...updated[idx], qty: newQty };
+      }
+      return updated;
+    });
+  }, [setCart]);
+
+  // Open item detail modal (always — for viewing details + adding with modifiers)
+  const openItemDetail = useCallback((item: MenuItem) => {
     setSelectedItem(item);
     setItemQty(1);
     setItemInstructions("");
     const defaults: Record<string, string[]> = {};
+    const itemMods = itemModifierMap[item.item_code] || [];
     for (const mgName of itemMods) {
       const mg = modifierGroups.find((g) => g.name === mgName);
       if (mg) {
@@ -225,7 +244,18 @@ export default function GuestMenu({
       }
     }
     setSelectedModifiers(defaults);
-  }, [itemModifierMap, modifierGroups, addToCart]);
+  }, [itemModifierMap, modifierGroups]);
+
+  // + button: quick-add if no modifiers, else open modal
+  const handlePlusButton = useCallback((e: React.MouseEvent, item: MenuItem) => {
+    e.stopPropagation();
+    const itemMods = itemModifierMap[item.item_code] || [];
+    if (itemMods.length === 0) {
+      quickAdd(item);
+    } else {
+      openItemDetail(item);
+    }
+  }, [itemModifierMap, quickAdd, openItemDetail]);
 
   const handleAddFromModal = useCallback(() => {
     if (!selectedItem) return;
@@ -293,7 +323,7 @@ export default function GuestMenu({
     : [];
 
   return (
-    <div className="pb-28 bg-white min-h-screen">
+    <div className="pb-32 bg-white min-h-screen">
       {/* Search Bar */}
       <div className="px-4 pt-4 pb-3 bg-white sticky top-0 z-20">
         <div className="relative">
@@ -367,17 +397,23 @@ export default function GuestMenu({
                 </div>
               )}
 
-              {/* Items — List layout for better readability */}
+              {/* Items */}
               <div className="space-y-3">
                 {groupItems.map((item) => {
                   const inCart = getItemCartQty(item.item_code);
                   const justAdded = addedItem === item.item_code;
+                  const hasModifiers = (itemModifierMap[item.item_code] || []).length > 0;
+                  // Check if there's a simple (no modifier) entry we can adjust inline
+                  const simpleCartItem = cart.find(
+                    (ci) => ci.item_code === item.item_code && !ci.modifiers && !ci.special_instructions
+                  );
                   return (
                     <div
                       key={item.item_code}
+                      onClick={() => openItemDetail(item)}
                       className={cn(
-                        "w-full flex gap-3.5 bg-white rounded-2xl p-3 text-left transition-all duration-200",
-                        "border border-gray-100",
+                        "w-full flex gap-3.5 bg-white rounded-2xl p-3 text-left transition-all duration-200 cursor-pointer",
+                        "border border-gray-100 active:bg-gray-50",
                         justAdded && "ring-2 ring-emerald-400 border-emerald-200"
                       )}
                     >
@@ -396,15 +432,6 @@ export default function GuestMenu({
                             </svg>
                           </div>
                         )}
-                        {/* Cart badge */}
-                        {inCart > 0 && (
-                          <div className={cn(
-                            "absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center shadow-sm transition-transform",
-                            justAdded && "scale-125"
-                          )}>
-                            {inCart}
-                          </div>
-                        )}
                       </div>
 
                       {/* Item Info */}
@@ -419,7 +446,7 @@ export default function GuestMenu({
                             </p>
                           )}
                           {item.description && (
-                            <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-relaxed">
+                            <p className="text-xs text-gray-400 mt-1 line-clamp-1 leading-relaxed">
                               {item.description}
                             </p>
                           )}
@@ -428,15 +455,52 @@ export default function GuestMenu({
                           <span className="text-sm font-bold text-gray-900">
                             {currency} {item.standard_rate.toFixed(2)}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => handleItemClick(item)}
-                            className="w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-sm active:scale-95 transition-transform"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                            </svg>
-                          </button>
+                          {/* Add / Qty controls */}
+                          {simpleCartItem && simpleCartItem.qty > 0 && !hasModifiers ? (
+                            // Inline qty controls for simple items
+                            <div
+                              className="flex items-center bg-amber-500 rounded-full overflow-hidden shadow-sm"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => updateSimpleQty(item.item_code, -1)}
+                                className="w-9 h-9 flex items-center justify-center text-white active:bg-amber-600 transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
+                                </svg>
+                              </button>
+                              <span className="w-7 text-center text-sm font-bold text-white">{simpleCartItem.qty}</span>
+                              <button
+                                type="button"
+                                onClick={() => updateSimpleQty(item.item_code, 1)}
+                                className="w-9 h-9 flex items-center justify-center text-white active:bg-amber-600 transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                                </svg>
+                              </button>
+                            </div>
+                          ) : (
+                            // + button (bigger 44px touch target)
+                            <button
+                              type="button"
+                              onClick={(e) => handlePlusButton(e, item)}
+                              className={cn(
+                                "w-10 h-10 rounded-full flex items-center justify-center shadow-sm active:scale-90 transition-transform",
+                                inCart > 0 ? "bg-amber-500 text-white" : "bg-amber-500 text-white"
+                              )}
+                            >
+                              {inCart > 0 ? (
+                                <span className="text-xs font-bold">{inCart}</span>
+                              ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                                </svg>
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -586,7 +650,7 @@ export default function GuestMenu({
                 <div className="flex items-center bg-gray-100 rounded-2xl overflow-hidden">
                   <button
                     onClick={() => setItemQty((q) => Math.max(1, q - 1))}
-                    className="w-11 h-11 flex items-center justify-center text-gray-500 active:bg-gray-200 transition-colors"
+                    className="w-12 h-12 flex items-center justify-center text-gray-500 active:bg-gray-200 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
@@ -595,7 +659,7 @@ export default function GuestMenu({
                   <span className="w-8 text-center font-bold text-gray-900">{itemQty}</span>
                   <button
                     onClick={() => setItemQty((q) => q + 1)}
-                    className="w-11 h-11 flex items-center justify-center text-gray-500 active:bg-gray-200 transition-colors"
+                    className="w-12 h-12 flex items-center justify-center text-gray-500 active:bg-gray-200 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -604,7 +668,7 @@ export default function GuestMenu({
                 </div>
                 <button
                   onClick={handleAddFromModal}
-                  className="flex-1 py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-semibold text-[15px] active:scale-[0.98] transition-all shadow-lg shadow-amber-200"
+                  className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-semibold text-[15px] active:scale-[0.98] transition-all shadow-lg shadow-amber-200"
                 >
                   Add — {currency} {((selectedItem.standard_rate + calculateModifierTotal()) * itemQty).toFixed(2)}
                 </button>
@@ -616,10 +680,10 @@ export default function GuestMenu({
 
       {/* Cart Floating Bar */}
       {cartCount > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pt-6 bg-gradient-to-t from-white via-white/95 to-transparent">
+        <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-8 bg-gradient-to-t from-white via-white to-transparent pointer-events-none">
           <button
             onClick={() => navigate(`/${seatCode}/cart/${posProfile}`)}
-            className="w-full max-w-lg mx-auto flex items-center justify-between px-5 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl shadow-xl shadow-amber-300/40 active:scale-[0.98] transition-all"
+            className="pointer-events-auto w-full max-w-lg mx-auto flex items-center justify-between px-5 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl shadow-xl shadow-amber-300/40 active:scale-[0.98] transition-all"
           >
             <div className="flex items-center gap-3">
               <span className="bg-white/25 rounded-xl w-8 h-8 flex items-center justify-center text-sm font-bold">
