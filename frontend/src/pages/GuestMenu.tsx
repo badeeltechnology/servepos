@@ -373,13 +373,11 @@ export default function GuestMenu({
                   const inCart = getItemCartQty(item.item_code);
                   const justAdded = addedItem === item.item_code;
                   return (
-                    <button
+                    <div
                       key={item.item_code}
-                      onClick={() => handleItemClick(item)}
                       className={cn(
                         "w-full flex gap-3.5 bg-white rounded-2xl p-3 text-left transition-all duration-200",
-                        "border border-gray-100 hover:border-gray-200 hover:shadow-sm",
-                        "active:scale-[0.99]",
+                        "border border-gray-100",
                         justAdded && "ring-2 ring-emerald-400 border-emerald-200"
                       )}
                     >
@@ -430,14 +428,18 @@ export default function GuestMenu({
                           <span className="text-sm font-bold text-gray-900">
                             {currency} {item.standard_rate.toFixed(2)}
                           </span>
-                          <span className="w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-sm">
+                          <button
+                            type="button"
+                            onClick={() => handleItemClick(item)}
+                            className="w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-sm active:scale-95 transition-transform"
+                          >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                             </svg>
-                          </span>
+                          </button>
                         </div>
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
