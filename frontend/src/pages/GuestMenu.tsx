@@ -483,23 +483,23 @@ export default function GuestMenu({
                               </button>
                             </div>
                           ) : (
-                            // + button (bigger 44px touch target)
-                            <button
-                              type="button"
-                              onClick={(e) => handlePlusButton(e, item)}
-                              className={cn(
-                                "w-10 h-10 rounded-full flex items-center justify-center shadow-sm active:scale-90 transition-transform",
-                                inCart > 0 ? "bg-amber-500 text-white" : "bg-amber-500 text-white"
+                            // + button with qty badge
+                            <div className="relative" onClick={(e) => e.stopPropagation()}>
+                              {inCart > 0 && (
+                                <div className="absolute -top-1.5 -right-1.5 z-10 w-5 h-5 rounded-full bg-white border-2 border-amber-500 text-amber-600 text-[10px] font-bold flex items-center justify-center">
+                                  {inCart}
+                                </div>
                               )}
-                            >
-                              {inCart > 0 ? (
-                                <span className="text-xs font-bold">{inCart}</span>
-                              ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => handlePlusButton(e, item)}
+                                className="w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-sm active:scale-90 transition-transform"
+                              >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                                 </svg>
-                              )}
-                            </button>
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
