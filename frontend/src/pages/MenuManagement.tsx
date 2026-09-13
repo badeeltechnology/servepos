@@ -491,69 +491,65 @@ export default function MenuManagement() {
                 </div>
               )}
 
-              {/* Where to display — simple profile checklist */}
+              {/* Where to display */}
               {posProfiles && posProfiles.length > 0 && (
                 <div>
                   <label className="mb-2 block text-[12px] font-medium text-gray-600">Where to display</label>
-                  <div className="rounded-md border border-gray-200 divide-y divide-gray-100">
-                    {(posProfiles || []).map((p) => {
-                      const row = availability.find(r => r.pos_profile === p.name);
-                      const posOn = row ? row.show_on_pos === 1 : false;
-                      const webOn = row ? row.show_on_website === 1 : false;
+                  <div className="rounded-md border border-gray-200 overflow-hidden">
+                    {/* Header */}
+                    <div className="flex items-center bg-gray-50 px-3 py-2 border-b border-gray-200">
+                      <span className="flex-1 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Profile</span>
+                      <span className="w-12 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider">POS</span>
+                      <span className="w-12 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Web</span>
+                    </div>
+                    {/* Rows */}
+                    <div className="divide-y divide-gray-100">
+                      {(posProfiles || []).map((p) => {
+                        const row = availability.find(r => r.pos_profile === p.name);
+                        const posOn = row ? row.show_on_pos === 1 : false;
+                        const webOn = row ? row.show_on_website === 1 : false;
 
-                      const toggle = (channel: "pos" | "web") => {
-                        const isPosToggle = channel === "pos";
-                        const currentVal = isPosToggle ? posOn : webOn;
-                        if (row) {
-                          const newPos = isPosToggle ? (currentVal ? 0 : 1) : row.show_on_pos;
-                          const newWeb = isPosToggle ? row.show_on_website : (currentVal ? 0 : 1);
-                          if (newPos === 0 && newWeb === 0) {
-                            setAvailability(availability.filter(r => r.pos_profile !== p.name));
+                        const toggle = (channel: "pos" | "web") => {
+                          const isPosToggle = channel === "pos";
+                          const currentVal = isPosToggle ? posOn : webOn;
+                          if (row) {
+                            const newPos = isPosToggle ? (currentVal ? 0 : 1) : row.show_on_pos;
+                            const newWeb = isPosToggle ? row.show_on_website : (currentVal ? 0 : 1);
+                            if (newPos === 0 && newWeb === 0) {
+                              setAvailability(availability.filter(r => r.pos_profile !== p.name));
+                            } else {
+                              setAvailability(availability.map(r =>
+                                r.pos_profile === p.name ? { ...r, show_on_pos: newPos, show_on_website: newWeb } : r
+                              ));
+                            }
                           } else {
-                            setAvailability(availability.map(r =>
-                              r.pos_profile === p.name ? { ...r, show_on_pos: newPos, show_on_website: newWeb } : r
-                            ));
+                            setAvailability([...availability, {
+                              branch: p.branch || "", pos_profile: p.name,
+                              show_on_pos: isPosToggle ? 1 : 0,
+                              show_on_website: isPosToggle ? 0 : 1,
+                            }]);
                           }
-                        } else {
-                          setAvailability([...availability, {
-                            branch: p.branch || "", pos_profile: p.name,
-                            show_on_pos: isPosToggle ? 1 : 0,
-                            show_on_website: isPosToggle ? 0 : 1,
-                          }]);
-                        }
-                      };
+                        };
 
-                      return (
-                        <label key={p.name} className="flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 cursor-pointer">
-                          <div className="flex items-center gap-2.5">
-                            <input type="checkbox" checked={posOn}
-                              onChange={() => toggle("pos")}
-                              className="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500" />
-                            <div>
+                        return (
+                          <div key={p.name} className="flex items-center px-3 py-2.5 hover:bg-gray-50">
+                            <div className="flex-1 min-w-0">
                               <span className="text-[13px] font-medium text-gray-800">{p.name}</span>
                               {p.branch && <span className="ml-2 text-[11px] text-gray-400">{p.branch}</span>}
                             </div>
+                            <div className="w-12 flex justify-center">
+                              <input type="checkbox" checked={posOn} onChange={() => toggle("pos")}
+                                className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500 cursor-pointer" />
+                            </div>
+                            <div className="w-12 flex justify-center">
+                              <input type="checkbox" checked={webOn} onChange={() => toggle("web")}
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button type="button" onClick={(e) => { e.preventDefault(); toggle("web"); }}
-                              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                                webOn ? "bg-blue-50 text-blue-700 hover:bg-blue-100" : "bg-gray-50 text-gray-400 hover:bg-gray-100"
-                              }`}
-                            >
-                              <Globe className="h-3 w-3" />
-                              {webOn ? "Online" : "Online"}
-                            </button>
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${posOn ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-400"}`}>
-                              {posOn ? "POS" : "Hidden"}
-                            </span>
-                          </div>
-                        </label>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                  <p className="mt-1 text-[11px] text-gray-400">
-                    Check profiles to show on POS. Click "Online" to also show on the website.
-                  </p>
                 </div>
               )}
             </div>
