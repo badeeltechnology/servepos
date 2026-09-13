@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useFrappeGetDocList, useFrappeGetCall, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
 import { useProfile } from "@/App";
-import { Plus, Search, Edit3, Trash2, X, FolderPlus, ImagePlus, Ban, Globe } from "lucide-react";
+import { Plus, Search, Edit3, Trash2, X, FolderPlus, ImagePlus, Ban } from "lucide-react";
 
 interface AvailabilityRow {
   branch: string;
@@ -291,7 +291,6 @@ export default function MenuManagement() {
           <tbody>
             {items?.map((item, idx) => {
               const isDisabled = item.servepos_is_disabled === 1;
-              const isOnWebsite = item.servepos_show_on_website === 1;
               return (
                 <tr key={item.name} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${isDisabled ? "opacity-50" : ""} ${idx % 2 === 0 ? "" : "bg-gray-50/30"}`}>
                   <td className="px-4 py-3">
@@ -302,10 +301,7 @@ export default function MenuManagement() {
                         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-[13px] font-bold text-gray-400">{item.item_name?.charAt(0)}</div>
                       )}
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className={`text-[13px] font-medium truncate ${isDisabled ? "text-gray-400 line-through" : "text-gray-900"}`}>{item.item_name}</p>
-                          {isOnWebsite && <span title="Shown on website"><Globe className="h-3 w-3 text-blue-500 flex-shrink-0" /></span>}
-                        </div>
+                        <p className={`text-[13px] font-medium truncate ${isDisabled ? "text-gray-400 line-through" : "text-gray-900"}`}>{item.item_name}</p>
                         {item.servepos_item_name_ar && <p className="text-[11px] text-gray-400 truncate" dir="rtl">{item.servepos_item_name_ar}</p>}
                       </div>
                     </div>
@@ -373,15 +369,6 @@ export default function MenuManagement() {
                     className="h-3.5 w-3.5 rounded border-gray-300 text-red-600 focus:ring-red-500" />
                   <span className="flex items-center gap-1 text-[12px] font-medium text-gray-700">
                     <Ban className="h-3 w-3" /> Disabled
-                  </span>
-                </label>
-                <div className="h-4 w-px bg-gray-200" />
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={formData.servepos_show_on_website === 1}
-                    onChange={() => setFormData({ ...formData, servepos_show_on_website: formData.servepos_show_on_website ? 0 : 1 })}
-                    className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                  <span className="flex items-center gap-1 text-[12px] font-medium text-gray-700">
-                    <Globe className="h-3 w-3" /> Show on Online Store
                   </span>
                 </label>
               </div>
