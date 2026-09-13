@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useFrappeGetDocList, useFrappeGetCall, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
 import { useProfile } from "@/App";
 import { Plus, Search, Edit3, Trash2, X, FolderPlus, ImagePlus, Ban, Globe } from "lucide-react";
@@ -76,21 +76,6 @@ export default function MenuManagement() {
 
   // POS Profiles + Branches
   const { data: posProfiles } = useFrappeGetDocList("POS Profile", { fields: ["name", "branch"], limit: 50 });
-  // Group profiles by branch for the availability UI
-  const branchProfileMap = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    for (const p of posProfiles || []) {
-      const b = p.branch || "__no_branch__";
-      if (!map[b]) map[b] = [];
-      map[b].push(p.name);
-    }
-    return map;
-  }, [posProfiles]);
-  const branchNames = useMemo(() => {
-    const names = Object.keys(branchProfileMap).filter(b => b !== "__no_branch__").sort();
-    if (branchProfileMap["__no_branch__"]) names.push("__no_branch__");
-    return names;
-  }, [branchProfileMap]);
 
   // Modifier groups
   const { data: allModifierGroups } = useFrappeGetDocList("ServePOS Modifier Group", {
@@ -506,84 +491,68 @@ export default function MenuManagement() {
                 </div>
               )}
 
-              {/* Where to display — branch-grouped profile list */}
+              {/* Where to display — simple profile checklist */}
               {posProfiles && posProfiles.length > 0 && (
                 <div>
                   <label className="mb-2 block text-[12px] font-medium text-gray-600">Where to display</label>
-                  <div className="rounded-md border border-gray-200 divide-y divide-gray-100 max-h-[240px] overflow-y-auto">
-                    {branchNames.map((branch) => {
-                      const profiles = branchProfileMap[branch] || [];
-                      const branchLabel = branch === "__no_branch__" ? "No Branch" : branch;
+                  <div className="rounded-md border border-gray-200 divide-y divide-gray-100">
+                    {(posProfiles || []).map((p) => {
+                      const row = availability.find(r => r.pos_profile === p.name);
+                      const posOn = row ? row.show_on_pos === 1 : false;
+                      const webOn = row ? row.show_on_website === 1 : false;
+
+                      const toggle = (channel: "pos" | "web") => {
+                        const isPosToggle = channel === "pos";
+                        const currentVal = isPosToggle ? posOn : webOn;
+                        if (row) {
+                          const newPos = isPosToggle ? (currentVal ? 0 : 1) : row.show_on_pos;
+                          const newWeb = isPosToggle ? row.show_on_website : (currentVal ? 0 : 1);
+                          if (newPos === 0 && newWeb === 0) {
+                            setAvailability(availability.filter(r => r.pos_profile !== p.name));
+                          } else {
+                            setAvailability(availability.map(r =>
+                              r.pos_profile === p.name ? { ...r, show_on_pos: newPos, show_on_website: newWeb } : r
+                            ));
+                          }
+                        } else {
+                          setAvailability([...availability, {
+                            branch: p.branch || "", pos_profile: p.name,
+                            show_on_pos: isPosToggle ? 1 : 0,
+                            show_on_website: isPosToggle ? 0 : 1,
+                          }]);
+                        }
+                      };
+
                       return (
-                        <div key={branch}>
-                          {/* Branch header */}
-                          <div className="sticky top-0 bg-gray-50 px-3 py-1.5 flex items-center justify-between">
-                            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{branchLabel}</span>
-                            <div className="flex items-center gap-3 text-[10px] font-medium text-gray-400">
-                              <span className="w-8 text-center">POS</span>
-                              <span className="w-8 text-center">Web</span>
+                        <label key={p.name} className="flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 cursor-pointer">
+                          <div className="flex items-center gap-2.5">
+                            <input type="checkbox" checked={posOn}
+                              onChange={() => toggle("pos")}
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500" />
+                            <div>
+                              <span className="text-[13px] font-medium text-gray-800">{p.name}</span>
+                              {p.branch && <span className="ml-2 text-[11px] text-gray-400">{p.branch}</span>}
                             </div>
                           </div>
-                          {/* Profiles in this branch */}
-                          {profiles.map((profileName) => {
-                            const row = availability.find(r => r.pos_profile === profileName);
-                            const posOn = row ? row.show_on_pos === 1 : false;
-                            const webOn = row ? row.show_on_website === 1 : false;
-
-                            const togglePos = () => {
-                              if (row) {
-                                if (posOn && !webOn) {
-                                  // Removing last channel — remove the row entirely
-                                  setAvailability(availability.filter(r => r.pos_profile !== profileName));
-                                } else {
-                                  setAvailability(availability.map(r =>
-                                    r.pos_profile === profileName ? { ...r, show_on_pos: posOn ? 0 : 1 } : r
-                                  ));
-                                }
-                              } else {
-                                // Add a new row
-                                const b = (posProfiles || []).find(p => p.name === profileName)?.branch || "";
-                                setAvailability([...availability, { branch: b, pos_profile: profileName, show_on_pos: 1, show_on_website: 0 }]);
-                              }
-                            };
-
-                            const toggleWeb = () => {
-                              if (row) {
-                                if (webOn && !posOn) {
-                                  setAvailability(availability.filter(r => r.pos_profile !== profileName));
-                                } else {
-                                  setAvailability(availability.map(r =>
-                                    r.pos_profile === profileName ? { ...r, show_on_website: webOn ? 0 : 1 } : r
-                                  ));
-                                }
-                              } else {
-                                const b = (posProfiles || []).find(p => p.name === profileName)?.branch || "";
-                                setAvailability([...availability, { branch: b, pos_profile: profileName, show_on_pos: 0, show_on_website: 1 }]);
-                              }
-                            };
-
-                            return (
-                              <div key={profileName} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
-                                <span className="text-[13px] text-gray-800">{profileName}</span>
-                                <div className="flex items-center gap-3">
-                                  <button type="button" onClick={togglePos}
-                                    className={`w-8 h-6 rounded text-[10px] font-bold transition-colors ${posOn ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-400 hover:bg-gray-200"}`}>
-                                    {posOn ? "ON" : "OFF"}
-                                  </button>
-                                  <button type="button" onClick={toggleWeb}
-                                    className={`w-8 h-6 rounded text-[10px] font-bold transition-colors ${webOn ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-400 hover:bg-gray-200"}`}>
-                                    {webOn ? "ON" : "OFF"}
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                          <div className="flex items-center gap-2">
+                            <button type="button" onClick={(e) => { e.preventDefault(); toggle("web"); }}
+                              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                                webOn ? "bg-blue-50 text-blue-700 hover:bg-blue-100" : "bg-gray-50 text-gray-400 hover:bg-gray-100"
+                              }`}
+                            >
+                              <Globe className="h-3 w-3" />
+                              {webOn ? "Online" : "Online"}
+                            </button>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${posOn ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-400"}`}>
+                              {posOn ? "POS" : "Hidden"}
+                            </span>
+                          </div>
+                        </label>
                       );
                     })}
                   </div>
                   <p className="mt-1 text-[11px] text-gray-400">
-                    Toggle POS and Web for each profile. Items with no toggles enabled are hidden everywhere.
+                    Check profiles to show on POS. Click "Online" to also show on the website.
                   </p>
                 </div>
               )}
