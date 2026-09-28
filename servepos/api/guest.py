@@ -361,26 +361,19 @@ def get_guest_menu(seat_code, pos_profile):
     #   1. Availability child table row with show_on_website=1 for this profile/branch
     #   2. Legacy: servepos_visible_profiles allows this profile AND servepos_show_on_website=1
     #
-    # Grace period: if NO items have show_on_website=1 and the availability table
-    # is empty, skip the website filter entirely so existing guest menus keep
-    # working until the admin starts configuring website visibility.
+    # If the availability table is in use (any rows exist), always apply
+    # website filtering — items without show_on_website=1 should be hidden.
     avail_map = _get_availability_map("website")
-    # Grace period: only apply website filtering if someone has actually
-    # enabled show_on_website somewhere (either on the Item field or in an
-    # availability row). This keeps guest menus working until the admin
-    # starts explicitly configuring website visibility.
-    has_any_website_config = False
-    if _has_field("Item", "servepos_show_on_website"):
-        has_any_website_config = frappe.db.count("Item", {"servepos_show_on_website": 1}) > 0
-    if not has_any_website_config:
+    has_any_availability_config = bool(avail_map)
+    if not has_any_availability_config:
         try:
-            has_any_website_config = frappe.db.count(
-                "ServePOS Item Availability", {"parenttype": "Item", "show_on_website": 1}
+            has_any_availability_config = frappe.db.count(
+                "ServePOS Item Availability", {"parenttype": "Item"}
             ) > 0
         except Exception:
             pass
 
-    if has_any_website_config:
+    if has_any_availability_config:
         profile_branch = frappe.db.get_value("POS Profile", pos_profile, "branch")
         filtered_items = []
         for it in items:
@@ -397,12 +390,17 @@ def get_guest_menu(seat_code, pos_profile):
                     filtered_items.append(it)
         items = filtered_items
     else:
-        # No website config yet — use legacy profile-only filtering
+        # No availability config at all — use legacy profile-only filtering
         items = [it for it in items if _visible_to_profile(it.get("servepos_visible_profiles"), pos_profile)]
+
+    # Apply per-profile sort order (items and categories)
+    from servepos.api.registry import _apply_profile_sort_order, _apply_category_sort_order
+    items = _apply_profile_sort_order(items, pos_profile)
 
     # Drop groups with no items
     groups_with_items = {it["item_group"] for it in items}
     groups = [g for g in groups if g["name"] in groups_with_items]
+    groups = _apply_category_sort_order(groups, pos_profile)
 
     # Strip internal fields from response
     for it in items:

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useFrappeGetDocList, useFrappeGetCall, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
 import { useProfile } from "@/App";
-import { Plus, Search, Edit3, Trash2, X, FolderPlus, ImagePlus, Ban } from "lucide-react";
+import { Plus, Search, Edit3, Trash2, X, FolderPlus, ImagePlus, Ban, GripVertical, ArrowUpDown, CheckSquare, Square, Eye, EyeOff, FolderInput } from "lucide-react";
 
 interface AvailabilityRow {
   branch: string;
@@ -28,6 +28,11 @@ export default function MenuManagement() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [sortMode, setSortMode] = useState(false);
+  const [sortedItems, setSortedItems] = useState<any[]>([]);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
 
   const isAdminView = !profile || profile === "__all__";
   const activeProfile = isAdminView ? null : profile;
@@ -72,7 +77,201 @@ export default function MenuManagement() {
   const items: any[] = isAdminView
     ? (adminItems || [])
     : ((registryItemsResp?.message as any[]) || []);
-  const refreshItems = isAdminView ? refreshAdminItems : refreshRegistryItems;
+  // Availability map: { item_code: [{ pos_profile, show_on_pos, show_on_website }] }
+  const { data: availMapResp, mutate: refreshAvailMap } = useFrappeGetCall(
+    "servepos.api.registry.get_items_availability", undefined, undefined,
+  );
+  const availMap: Record<string, { pos_profile: string; show_on_pos: number; show_on_website: number }[]> =
+    (availMapResp?.message as any) || {};
+
+  const _refreshItems = isAdminView ? refreshAdminItems : refreshRegistryItems;
+  const refreshItems = useCallback(() => { _refreshItems(); refreshAvailMap?.(); }, [_refreshItems, refreshAvailMap]);
+
+  // Category sorting state
+  const [sortCategoriesMode, setSortCategoriesMode] = useState(false);
+  const [sortedCategories, setSortedCategories] = useState<string[]>([]);
+  const dragCat = useRef<number | null>(null);
+  const dragOverCat = useRef<number | null>(null);
+
+  // Displayed items: when sort mode, use sortedItems; otherwise use items
+  const displayItems = sortMode ? sortedItems : items;
+
+  // Enter sort mode for items
+  function enterSortMode() {
+    if (!activeGroup || !activeProfile) return;
+    const categoryItems = items.filter((i: any) => i.item_group === activeGroup);
+    setSortedItems([...categoryItems]);
+    setSortMode(true);
+  }
+
+  // Exit sort mode
+  function exitSortMode() {
+    setSortMode(false);
+    setSortedItems([]);
+  }
+
+  // Drag handlers for items
+  function handleDragStart(idx: number) { dragItem.current = idx; }
+  function handleDragEnter(idx: number) { dragOverItem.current = idx; }
+  function handleDragEnd() {
+    if (dragItem.current === null || dragOverItem.current === null) return;
+    const list = [...sortedItems];
+    const [dragged] = list.splice(dragItem.current, 1);
+    list.splice(dragOverItem.current, 0, dragged);
+    setSortedItems(list);
+    dragItem.current = null;
+    dragOverItem.current = null;
+  }
+
+  // Save item sort order
+  async function saveItemOrder() {
+    if (!activeProfile || !activeGroup) return;
+    setSavingOrder(true);
+    try {
+      const ordered = sortedItems.map((i: any) => i.name);
+      await fetch("/api/method/servepos.api.registry.save_menu_item_order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Frappe-CSRF-Token": (window as any).csrf_token || "" },
+        body: JSON.stringify({ pos_profile: activeProfile, item_group: activeGroup, ordered_items: JSON.stringify(ordered) }),
+      });
+      refreshItems();
+      setSortMode(false);
+      setSortedItems([]);
+    } catch (err: any) { alert(err.message || "Failed to save order"); }
+    finally { setSavingOrder(false); }
+  }
+
+  // Enter category sort mode
+  function enterCategorySortMode() {
+    if (!activeProfile) return;
+    setSortedCategories([...menuGroupNames]);
+    setSortCategoriesMode(true);
+  }
+
+  // Drag handlers for categories
+  function handleCatDragStart(idx: number) { dragCat.current = idx; }
+  function handleCatDragEnter(idx: number) { dragOverCat.current = idx; }
+  function handleCatDragEnd() {
+    if (dragCat.current === null || dragOverCat.current === null) return;
+    const list = [...sortedCategories];
+    const [dragged] = list.splice(dragCat.current, 1);
+    list.splice(dragOverCat.current, 0, dragged);
+    setSortedCategories(list);
+    dragCat.current = null;
+    dragOverCat.current = null;
+  }
+
+  // Save category order
+  async function saveCategoryOrder() {
+    if (!activeProfile) return;
+    setSavingOrder(true);
+    try {
+      await fetch("/api/method/servepos.api.registry.save_category_order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Frappe-CSRF-Token": (window as any).csrf_token || "" },
+        body: JSON.stringify({ pos_profile: activeProfile, ordered_categories: JSON.stringify(sortedCategories) }),
+      });
+      refreshItems();
+      setSortCategoriesMode(false);
+      setSortedCategories([]);
+    } catch (err: any) { alert(err.message || "Failed to save order"); }
+    finally { setSavingOrder(false); }
+  }
+
+  // --- Bulk edit ---
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [showBulkCategoryPicker, setShowBulkCategoryPicker] = useState(false);
+
+  const bulkMode = selectedItems.size > 0;
+
+  function toggleSelectItem(itemName: string) {
+    setSelectedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemName)) next.delete(itemName);
+      else next.add(itemName);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (!displayItems) return;
+    if (selectedItems.size === displayItems.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(displayItems.map((i: any) => i.name)));
+    }
+  }
+
+  function clearSelection() { setSelectedItems(new Set()); }
+
+  async function bulkToggleDisabled(disable: boolean) {
+    setBulkActionLoading(true);
+    try {
+      await Promise.all(
+        Array.from(selectedItems).map((name) =>
+          updateDoc("Item", name, { servepos_is_disabled: disable ? 1 : 0 })
+        )
+      );
+      clearSelection();
+      refreshItems();
+    } catch (err: any) { alert(err.message || "Failed to update items"); }
+    finally { setBulkActionLoading(false); }
+  }
+
+  async function bulkToggleWebVisibility(show: boolean) {
+    setBulkActionLoading(true);
+    try {
+      // For each selected item, fetch current availability rows and toggle web for the active profile
+      for (const itemName of selectedItems) {
+        if (activeProfile) {
+          // Fetch current availability
+          const res = await fetch(`/api/resource/Item/${encodeURIComponent(itemName)}?fields=["name","servepos_availability"]`);
+          const data = await res.json();
+          const rows: AvailabilityRow[] = (data.data?.servepos_availability || []).map((r: any) => ({
+            branch: r.branch || "", pos_profile: r.pos_profile || "",
+            show_on_pos: r.show_on_pos ?? 0, show_on_website: r.show_on_website ?? 0,
+          }));
+          const existing = rows.find((r) => r.pos_profile === activeProfile);
+          let updatedRows: AvailabilityRow[];
+          if (existing) {
+            updatedRows = rows.map((r) =>
+              r.pos_profile === activeProfile ? { ...r, show_on_website: show ? 1 : 0 } : r
+            );
+            // Remove row if both POS and Web are off
+            updatedRows = updatedRows.filter((r) => r.show_on_pos || r.show_on_website);
+          } else if (show) {
+            const profileBranch = posProfiles?.find((p) => p.name === activeProfile)?.branch || "";
+            updatedRows = [...rows, { branch: profileBranch, pos_profile: activeProfile, show_on_pos: 0, show_on_website: 1 }];
+          } else {
+            updatedRows = rows;
+          }
+          await updateDoc("Item", itemName, { servepos_availability: updatedRows });
+        } else {
+          // Admin view: toggle legacy field
+          await updateDoc("Item", itemName, { servepos_show_on_website: show ? 1 : 0 });
+        }
+      }
+      clearSelection();
+      refreshItems();
+    } catch (err: any) { alert(err.message || "Failed to update items"); }
+    finally { setBulkActionLoading(false); }
+  }
+
+  async function bulkChangeCategory(newCategory: string) {
+    setBulkActionLoading(true);
+    try {
+      await Promise.all(
+        Array.from(selectedItems).map((name) =>
+          updateDoc("Item", name, { item_group: newCategory })
+        )
+      );
+      clearSelection();
+      setShowBulkCategoryPicker(false);
+      refreshItems();
+    } catch (err: any) { alert(err.message || "Failed to update items"); }
+    finally { setBulkActionLoading(false); }
+  }
 
   // POS Profiles + Branches
   const { data: posProfiles } = useFrappeGetDocList("POS Profile", { fields: ["name", "branch"], limit: 50 });
@@ -227,6 +426,13 @@ export default function MenuManagement() {
           <p className="text-sm text-gray-500">{items?.length || 0} items</p>
         </div>
         <div className="flex gap-2">
+          {activeProfile && !sortMode && !sortCategoriesMode && (
+            <button onClick={enterCategorySortMode}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50"
+              title="Reorder categories">
+              <ArrowUpDown className="h-3.5 w-3.5" /> Sort categories
+            </button>
+          )}
           <button onClick={() => setShowCategoryForm(true)}
             className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50">
             <FolderPlus className="h-3.5 w-3.5" /> Add category
@@ -259,40 +465,126 @@ export default function MenuManagement() {
         </div>
       )}
 
-      {/* Categories */}
-      <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
-        <button onClick={() => setActiveGroup(null)}
-          className={`whitespace-nowrap rounded-md px-3 py-1.5 text-[12px] font-medium ${!activeGroup ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>All</button>
-        {menuGroupNames.map((g) => (
-          <div key={g} className="group relative">
-            <button onClick={() => setActiveGroup(g)}
-              className={`whitespace-nowrap rounded-md px-3 py-1.5 pr-6 text-[12px] font-medium ${activeGroup === g ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{g}</button>
-            <button onClick={(e) => { e.stopPropagation(); handleDeleteCategory(g); }}
-              className="absolute right-1 top-1/2 -translate-y-1/2 hidden rounded p-0.5 text-gray-400 hover:text-red-500 group-hover:block"
-              title="Delete category">
-              <X className="h-3 w-3" />
+      {/* Categories — sort mode */}
+      {sortCategoriesMode ? (
+        <div className="mb-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[12px] font-medium text-amber-700">Drag categories to reorder</p>
+            <div className="flex gap-2">
+              <button onClick={() => { setSortCategoriesMode(false); setSortedCategories([]); }}
+                className="rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={saveCategoryOrder} disabled={savingOrder}
+                className="rounded-md bg-gray-900 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-gray-800 disabled:opacity-40">
+                {savingOrder ? "Saving..." : "Save order"}
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            {sortedCategories.map((g, idx) => (
+              <div key={g}
+                draggable
+                onDragStart={() => handleCatDragStart(idx)}
+                onDragEnter={() => handleCatDragEnter(idx)}
+                onDragEnd={handleCatDragEnd}
+                onDragOver={(e) => e.preventDefault()}
+                className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 cursor-grab active:cursor-grabbing hover:bg-gray-50">
+                <GripVertical className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                <span className="text-[12px] font-medium text-gray-700">{g}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
+          <button onClick={() => { setActiveGroup(null); exitSortMode(); }}
+            className={`whitespace-nowrap rounded-md px-3 py-1.5 text-[12px] font-medium ${!activeGroup ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>All</button>
+          {menuGroupNames.map((g) => (
+            <div key={g} className="group relative">
+              <button onClick={() => { setActiveGroup(g); exitSortMode(); }}
+                className={`whitespace-nowrap rounded-md px-3 py-1.5 pr-6 text-[12px] font-medium ${activeGroup === g ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{g}</button>
+              <button onClick={(e) => { e.stopPropagation(); handleDeleteCategory(g); }}
+                className="absolute right-1 top-1/2 -translate-y-1/2 hidden rounded p-0.5 text-gray-400 hover:text-red-500 group-hover:block"
+                title="Delete category">
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Sort mode bar */}
+      {sortMode && (
+        <div className="mb-3 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5">
+          <p className="text-[12px] font-medium text-amber-700">Drag items to reorder within "{activeGroup}"</p>
+          <div className="flex gap-2">
+            <button onClick={exitSortMode}
+              className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+            <button onClick={saveItemOrder} disabled={savingOrder}
+              className="rounded-md bg-gray-900 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-gray-800 disabled:opacity-40">
+              {savingOrder ? "Saving..." : "Save order"}
             </button>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* Sort items button — show when a category is selected + profile is active */}
+      {!sortMode && !sortCategoriesMode && activeGroup && activeProfile && (
+        <div className="mb-3">
+          <button onClick={enterSortMode}
+            className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-600 hover:bg-gray-50">
+            <ArrowUpDown className="h-3.5 w-3.5" /> Sort items in this category
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
+              {sortMode && <th className="px-2 py-2.5 w-8"></th>}
+              {!sortMode && (
+                <th className="pl-4 pr-1 py-2.5 w-8">
+                  <button onClick={toggleSelectAll} className="text-gray-400 hover:text-gray-600">
+                    {displayItems && selectedItems.size === displayItems.length && displayItems.length > 0
+                      ? <CheckSquare className="h-4 w-4 text-gray-900" />
+                      : <Square className="h-4 w-4" />}
+                  </button>
+                </th>
+              )}
               <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Item</th>
-              <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+              {!sortMode && <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Category</th>}
               <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+              {!sortMode && <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Web</th>}
               <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Price</th>
-              <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20"></th>
+              {!sortMode && <th className="px-4 py-2.5 text-right text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20"></th>}
             </tr>
           </thead>
           <tbody>
-            {items?.map((item, idx) => {
+            {displayItems?.map((item, idx) => {
               const isDisabled = item.servepos_is_disabled === 1;
               return (
-                <tr key={item.name} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${isDisabled ? "opacity-50" : ""} ${idx % 2 === 0 ? "" : "bg-gray-50/30"}`}>
+                <tr key={item.name}
+                  draggable={sortMode}
+                  onDragStart={sortMode ? () => handleDragStart(idx) : undefined}
+                  onDragEnter={sortMode ? () => handleDragEnter(idx) : undefined}
+                  onDragEnd={sortMode ? handleDragEnd : undefined}
+                  onDragOver={sortMode ? (e) => e.preventDefault() : undefined}
+                  className={`border-b border-gray-100 transition-colors ${sortMode ? "cursor-grab active:cursor-grabbing hover:bg-amber-50" : "hover:bg-gray-50"} ${isDisabled ? "opacity-50" : ""} ${idx % 2 === 0 ? "" : "bg-gray-50/30"}`}>
+                  {sortMode && (
+                    <td className="px-2 py-3">
+                      <GripVertical className="h-4 w-4 text-gray-400" />
+                    </td>
+                  )}
+                  {!sortMode && (
+                    <td className="pl-4 pr-1 py-3 w-8">
+                      <button onClick={(e) => { e.stopPropagation(); toggleSelectItem(item.name); }} className="text-gray-400 hover:text-gray-600">
+                        {selectedItems.has(item.name)
+                          ? <CheckSquare className="h-4 w-4 text-gray-900" />
+                          : <Square className="h-4 w-4" />}
+                      </button>
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       {item.image ? (
@@ -306,7 +598,7 @@ export default function MenuManagement() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3"><span className="text-[12px] text-gray-500">{item.item_group}</span></td>
+                  {!sortMode && <td className="px-4 py-3"><span className="text-[12px] text-gray-500">{item.item_group}</span></td>}
                   <td className="px-4 py-3 text-center">
                     {isDisabled ? (
                       <button onClick={(e) => toggleDisabled(item, e)}
@@ -317,40 +609,120 @@ export default function MenuManagement() {
                       <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">Active</span>
                     )}
                   </td>
+                  {!sortMode && (
+                    <td className="px-4 py-3 text-center">
+                      {(() => {
+                        // Check web visibility for this item
+                        const rows = availMap[item.name];
+                        let webOn = false;
+                        if (rows && rows.length > 0) {
+                          if (activeProfile) {
+                            const row = rows.find((r) => r.pos_profile === activeProfile);
+                            webOn = row ? row.show_on_website === 1 : false;
+                          } else {
+                            webOn = rows.some((r) => r.show_on_website === 1);
+                          }
+                        } else {
+                          // Legacy fallback
+                          webOn = item.servepos_show_on_website === 1;
+                        }
+                        return webOn
+                          ? <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600"><Eye className="h-3 w-3" /> Visible</span>
+                          : <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-400"><EyeOff className="h-3 w-3" /> Hidden</span>;
+                      })()}
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-right"><span className="text-[13px] font-semibold text-gray-900">{(item.standard_rate || 0).toFixed(2)}</span></td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => {
-                        setEditingItem(item.name);
-                        setFormData({
-                          item_code: item.name, item_name: item.item_name, item_group: item.item_group,
-                          standard_rate: item.standard_rate || 0, description: item.description || "",
-                          servepos_item_name_ar: item.servepos_item_name_ar || "",
-                          servepos_description_ar: item.servepos_description_ar || "",
-                          servepos_visible_profiles: item.servepos_visible_profiles || "",
-                          servepos_is_disabled: item.servepos_is_disabled || 0,
-                          servepos_show_on_website: item.servepos_show_on_website || 0,
-                        });
-                        fetchItemModifiers(item.name);
-                        fetchAvailability(item.name);
-                        setShowForm(true);
-                      }}
-                        className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"><Edit3 className="h-3.5 w-3.5" /></button>
-                      <button onClick={async () => { if (confirm("Delete?")) { await deleteDoc("Item", item.name); refreshItems(); } }}
-                        className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
-                    </div>
-                  </td>
+                  {!sortMode && (
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => {
+                          setEditingItem(item.name);
+                          setFormData({
+                            item_code: item.name, item_name: item.item_name, item_group: item.item_group,
+                            standard_rate: item.standard_rate || 0, description: item.description || "",
+                            servepos_item_name_ar: item.servepos_item_name_ar || "",
+                            servepos_description_ar: item.servepos_description_ar || "",
+                            servepos_visible_profiles: item.servepos_visible_profiles || "",
+                            servepos_is_disabled: item.servepos_is_disabled || 0,
+                            servepos_show_on_website: item.servepos_show_on_website || 0,
+                          });
+                          fetchItemModifiers(item.name);
+                          fetchAvailability(item.name);
+                          setShowForm(true);
+                        }}
+                          className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"><Edit3 className="h-3.5 w-3.5" /></button>
+                        <button onClick={async () => { if (confirm("Delete?")) { await deleteDoc("Item", item.name); refreshItems(); } }}
+                          className="rounded p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               );
             })}
           </tbody>
         </table>
-        {(!items || items.length === 0) && (
+        {(!displayItems || displayItems.length === 0) && (
           <div className="py-12 text-center text-sm text-gray-400">
             {menuGroupNames.length === 0 ? "Mark item groups as menu groups in ERPNext to see items here" : "No items found"}
           </div>
         )}
       </div>
+
+      {/* Bulk Action Bar */}
+      {bulkMode && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-center pb-6 pointer-events-none">
+          <div className="pointer-events-auto flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-5 py-3 shadow-xl">
+            <span className="text-[13px] font-semibold text-gray-900">{selectedItems.size} selected</span>
+            <div className="h-5 w-px bg-gray-200" />
+            <button onClick={() => setShowBulkCategoryPicker(true)} disabled={bulkActionLoading}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+              <FolderInput className="h-3.5 w-3.5" /> Move to category
+            </button>
+            <button onClick={() => bulkToggleDisabled(true)} disabled={bulkActionLoading}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-40">
+              <Ban className="h-3.5 w-3.5" /> Disable
+            </button>
+            <button onClick={() => bulkToggleDisabled(false)} disabled={bulkActionLoading}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-green-700 hover:bg-green-50 disabled:opacity-40">
+              <CheckSquare className="h-3.5 w-3.5" /> Enable
+            </button>
+            <button onClick={() => bulkToggleWebVisibility(true)} disabled={bulkActionLoading}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-40">
+              <Eye className="h-3.5 w-3.5" /> Show on web
+            </button>
+            <button onClick={() => bulkToggleWebVisibility(false)} disabled={bulkActionLoading}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40">
+              <EyeOff className="h-3.5 w-3.5" /> Hide from web
+            </button>
+            <div className="h-5 w-px bg-gray-200" />
+            <button onClick={clearSelection}
+              className="rounded-md px-2 py-1.5 text-[12px] text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Category Picker Modal */}
+      {showBulkCategoryPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowBulkCategoryPicker(false)}>
+          <div className="w-[320px] rounded-lg border border-gray-200 bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <h3 className="text-[14px] font-semibold text-gray-900">Move {selectedItems.size} items to...</h3>
+              <button onClick={() => setShowBulkCategoryPicker(false)} className="rounded p-1 text-gray-400 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="max-h-[300px] overflow-y-auto p-2">
+              {menuGroupNames.map((g) => (
+                <button key={g} onClick={() => bulkChangeCategory(g)} disabled={bulkActionLoading}
+                  className="w-full rounded-md px-3 py-2.5 text-left text-[13px] font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-40">
+                  {g}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {showForm && (

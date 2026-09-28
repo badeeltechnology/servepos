@@ -173,7 +173,8 @@ def get_item_groups(pos_profile):
             if _visible_to_profile(it.get("servepos_visible_profiles"), pos_profile):
                 groups_with_items.add(it["item_group"])
 
-    return [r for r in rows if r["name"] in groups_with_items]
+    result = [r for r in rows if r["name"] in groups_with_items]
+    return _apply_category_sort_order(result, pos_profile)
 
 
 @frappe.whitelist()
@@ -233,7 +234,123 @@ def get_items(pos_profile, item_group=None, search=None, limit=0, modified_after
             # Legacy fallback
             if _visible_to_profile(row.get("servepos_visible_profiles"), pos_profile):
                 result.append(row)
+    # Apply per-profile sort order if configured
+    return _apply_profile_sort_order(result, pos_profile)
+
+
+def _get_menu_item_order(pos_profile):
+    """Return the parsed menu item order dict for a POS Profile, or empty dict.
+    Structure: { "_category_order": ["Cat1", "Cat2"], "Cat1": ["ITEM-1", "ITEM-2"], ... }"""
+    import json as _json
+    try:
+        raw = frappe.db.get_value("POS Profile", pos_profile, "servepos_menu_item_order")
+        if raw:
+            return _json.loads(raw)
+    except Exception:
+        pass
+    return {}
+
+
+def _apply_profile_sort_order(items, pos_profile):
+    """Sort items using the per-profile menu item order JSON.
+    Items listed in the order come first (in their specified order),
+    unlisted items follow alphabetically."""
+    order_map = _get_menu_item_order(pos_profile)
+    if not order_map:
+        return items
+
+    # Build a lookup: item_code -> position within its category
+    item_position = {}
+    for category, ordered_codes in order_map.items():
+        if category.startswith("_"):
+            continue
+        if isinstance(ordered_codes, list):
+            for idx, code in enumerate(ordered_codes):
+                item_position[code] = idx
+
+    def sort_key(item):
+        pos = item_position.get(item.get("name") or item.get("item_code"))
+        if pos is not None:
+            return (0, pos, item.get("item_name", ""))
+        return (1, 0, item.get("item_name", ""))
+
+    return sorted(items, key=sort_key)
+
+
+def _apply_category_sort_order(groups, pos_profile):
+    """Sort item groups/categories using the per-profile category order."""
+    order_map = _get_menu_item_order(pos_profile)
+    cat_order = order_map.get("_category_order")
+    if not cat_order or not isinstance(cat_order, list):
+        return groups
+
+    order_lookup = {name: idx for idx, name in enumerate(cat_order)}
+
+    def sort_key(g):
+        pos = order_lookup.get(g.get("name"))
+        if pos is not None:
+            return (0, pos)
+        return (1, g.get("name", ""))
+
+    return sorted(groups, key=sort_key)
+
+
+@frappe.whitelist()
+def get_items_availability():
+    """Return per-item availability rows for all items.
+    Returns: { item_code: [{ pos_profile, show_on_pos, show_on_website }, ...] }"""
+    avail_map = _get_availability_map("pos")
+    # Simplify: only return pos_profile + flags (drop branch/parent)
+    result = {}
+    for item_name, rows in avail_map.items():
+        result[item_name] = [
+            {"pos_profile": r["pos_profile"], "show_on_pos": r.get("show_on_pos", 0), "show_on_website": r.get("show_on_website", 0)}
+            for r in rows
+        ]
     return result
+
+
+@frappe.whitelist()
+def save_menu_item_order(pos_profile, item_group, ordered_items):
+    """Save the display order of items within a category for a POS Profile.
+    ordered_items: JSON array of item codes in desired order."""
+    import json as _json
+    _assert_profile(pos_profile)
+
+    if isinstance(ordered_items, str):
+        ordered_items = _json.loads(ordered_items)
+
+    order_map = _get_menu_item_order(pos_profile)
+    order_map[item_group] = ordered_items
+
+    frappe.db.set_value("POS Profile", pos_profile, "servepos_menu_item_order", _json.dumps(order_map))
+    frappe.db.commit()
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def save_category_order(pos_profile, ordered_categories):
+    """Save the display order of categories for a POS Profile.
+    ordered_categories: JSON array of category names in desired order."""
+    import json as _json
+    _assert_profile(pos_profile)
+
+    if isinstance(ordered_categories, str):
+        ordered_categories = _json.loads(ordered_categories)
+
+    order_map = _get_menu_item_order(pos_profile)
+    order_map["_category_order"] = ordered_categories
+
+    frappe.db.set_value("POS Profile", pos_profile, "servepos_menu_item_order", _json.dumps(order_map))
+    frappe.db.commit()
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def get_menu_item_order(pos_profile):
+    """Return the menu item order JSON for a POS Profile."""
+    _assert_profile(pos_profile)
+    return _get_menu_item_order(pos_profile)
 
 
 # --------------------------------------------------------------------------- #

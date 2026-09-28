@@ -143,16 +143,24 @@ export default function GuestMenu({
     return result;
   }, [items, activeGroup, search]);
 
-  // Group items by category for list view
+  // Group items by category for list view, preserving category order from API
   const groupedItems = useMemo(() => {
     if (activeGroup !== "All") return { [activeGroup]: filteredItems };
     const grouped: Record<string, MenuItem[]> = {};
+    // Initialize groups in the order returned by API (which respects profile sort order)
+    for (const g of groups) {
+      grouped[g.name] = [];
+    }
     for (const item of filteredItems) {
       if (!grouped[item.item_group]) grouped[item.item_group] = [];
       grouped[item.item_group].push(item);
     }
+    // Remove empty groups
+    for (const key of Object.keys(grouped)) {
+      if (grouped[key].length === 0) delete grouped[key];
+    }
     return grouped;
-  }, [filteredItems, activeGroup]);
+  }, [filteredItems, activeGroup, groups]);
 
   const cartTotal = useMemo(
     () => cart.reduce((sum, ci) => sum + (ci.rate + ci.modifier_total) * ci.qty, 0),
@@ -520,9 +528,18 @@ export default function GuestMenu({
             className="relative bg-white rounded-t-[28px] w-full max-w-lg max-h-[90vh] flex flex-col animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close handle */}
-            <div className="sticky top-0 z-10 flex justify-center pt-3 pb-1">
+            {/* Close bar with handle + X button */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-4 pt-3 pb-1">
+              <div className="w-9" />
               <div className="w-10 h-1 rounded-full bg-gray-300" />
+              <button
+                onClick={() => setSelectedItem(null)}
+                className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 active:bg-gray-200 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
             {/* Scrollable content */}

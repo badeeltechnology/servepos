@@ -435,5 +435,16 @@
   "label": "Void Remarks",
   "insert_after": "servepos_voided_by",
   "read_only": 1
+ },
+ {
+  "name": "POS Profile-servepos_menu_item_order",
+  "doctype": "Custom Field",
+  "dt": "POS Profile",
+  "fieldname": "servepos_menu_item_order",
+  "fieldtype": "Long Text",
+  "label": "Menu Item Order (JSON)",
+  "insert_after": "servepos_section",
+  "hidden": 1,
+  "description": "JSON object mapping category names to ordered arrays of item codes for this profile."
  }
 ]

@@ -1,0 +1,184 @@
+{
+  "actions": [],
+  "autoname": "naming_series:",
+  "creation": "2026-09-06 12:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "naming_series",
+    "branch",
+    "warehouse",
+    "column_break_1",
+    "request_date",
+    "required_by",
+    "status",
+    "section_break_items",
+    "items",
+    "section_break_notes",
+    "notes",
+    "section_break_processing",
+    "processed_by",
+    "column_break_processing",
+    "processed_on",
+    "amended_from"
+  ],
+  "fields": [
+    {
+      "default": "BR-.YYYY.-.#####",
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "hidden": 1,
+      "label": "Naming Series",
+      "options": "BR-.YYYY.-.#####"
+    },
+    {
+      "fieldname": "branch",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Branch",
+      "options": "Branch",
+      "reqd": 1
+    },
+    {
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "label": "Target Warehouse",
+      "options": "Warehouse",
+      "reqd": 1,
+      "description": "Branch warehouse where items are needed"
+    },
+    {
+      "fieldname": "column_break_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "default": "Today",
+      "fieldname": "request_date",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "label": "Request Date",
+      "reqd": 1
+    },
+    {
+      "fieldname": "required_by",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "label": "Required By",
+      "reqd": 1
+    },
+    {
+      "default": "Draft",
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Status",
+      "options": "Draft\nPending\nPartially Fulfilled\nFulfilled\nCancelled",
+      "read_only": 1
+    },
+    {
+      "fieldname": "section_break_items",
+      "fieldtype": "Section Break",
+      "label": "Items"
+    },
+    {
+      "fieldname": "items",
+      "fieldtype": "Table",
+      "label": "Items",
+      "options": "ServePOS Branch Request Item",
+      "reqd": 1
+    },
+    {
+      "fieldname": "section_break_notes",
+      "fieldtype": "Section Break",
+      "label": "Notes"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "Notes"
+    },
+    {
+      "fieldname": "section_break_processing",
+      "fieldtype": "Section Break",
+      "label": "Processing"
+    },
+    {
+      "fieldname": "processed_by",
+      "fieldtype": "Link",
+      "label": "Processed By",
+      "options": "User",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_processing",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "processed_on",
+      "fieldtype": "Datetime",
+      "label": "Processed On",
+      "read_only": 1
+    },
+    {
+      "fieldname": "amended_from",
+      "fieldtype": "Link",
+      "label": "Amended From",
+      "no_copy": 1,
+      "options": "ServePOS Branch Request",
+      "print_hide": 1,
+      "read_only": 1
+    }
+  ],
+  "is_submittable": 1,
+  "links": [],
+  "modified": "2026-09-06 12:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Servepos",
+  "name": "ServePOS Branch Request",
+  "naming_rule": "By \"Naming Series\" field",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "amend": 1,
+      "cancel": 1,
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "submit": 1,
+      "write": 1
+    },
+    {
+      "amend": 1,
+      "cancel": 1,
+      "create": 1,
+      "delete": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "ServePOS Manager",
+      "submit": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "print": 1,
+      "read": 1,
+      "role": "ServePOS Supervisor",
+      "write": 1
+    }
+  ],
+  "search_fields": "branch,status,required_by",
+  "sort_field": "creation",
+  "sort_order": "DESC",
+  "states": [],
+  "title_field": "branch",
+  "track_changes": 1
+}
