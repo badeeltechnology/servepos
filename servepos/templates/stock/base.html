@@ -1,0 +1,30 @@
+{# Shared layout for ServePOS stock documents (PDF and print). #}
+<style>
+  .sp-doc { font-family: Inter, -apple-system, "Segoe UI", Arial, sans-serif; font-size: 11px; color: #1f1f1f; }
+  .sp-doc h1 { font-size: 18px; margin: 0 0 2px; }
+  .sp-doc .sub { color: #6b6b6b; margin-bottom: 12px; }
+  .sp-doc .meta { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  .sp-doc .meta td { padding: 3px 8px 3px 0; vertical-align: top; }
+  .sp-doc .meta .k { color: #6b6b6b; width: 90px; }
+  .sp-doc table.lines { width: 100%; border-collapse: collapse; }
+  .sp-doc table.lines th { text-align: left; font-weight: 600; color: #525252; border-bottom: 1.5px solid #333; padding: 5px 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .02em; }
+  .sp-doc table.lines td { border-bottom: 1px solid #e2e2e2; padding: 5px 6px; }
+  .sp-doc .r { text-align: right; white-space: nowrap; }
+  .sp-doc table.lines td:nth-child(2) { white-space: nowrap; color: #6b6b6b; }
+  .sp-doc .meta .k { font-size: 9px; text-transform: uppercase; letter-spacing: .03em; }
+  .sp-doc .meta div:not(.k) { font-weight: 600; }
+  .sp-doc .muted { color: #8a8a8a; }
+  .sp-doc .box { display: inline-block; min-width: 70px; border-bottom: 1px solid #999; height: 14px; }
+  .sp-doc .group td { background: #f3f3f3; font-weight: 600; }
+  .sp-doc .neg { color: #b42318; } .sp-doc .pos { color: #8a4b00; }
+  .sp-doc .sign { margin-top: 28px; width: 100%; } .sp-doc .sign td { width: 33%; padding-top: 30px; border-top: 1px solid #999; color: #6b6b6b; }
+  .sp-doc .total td { font-weight: 700; border-top: 1.5px solid #333; }
+  .sp-doc .foot { margin-top: 14px; color: #8a8a8a; font-size: 9px; }
+</style>
+<div class="sp-doc">
+  <h1>{{ title }}</h1>
+  <div class="sub">{{ company }}{% if subtitle %} · {{ subtitle }}{% endif %}</div>
+  {% if meta %}<table class="meta"><tr>{% for k, v in meta %}<td><div class="k">{{ k }}</div><div>{{ v or "-" }}</div></td>{% endfor %}</tr></table>{% endif %}
+  {{ body }}
+  <div class="foot">{{ printed }}</div>
+</div>

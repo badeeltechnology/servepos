@@ -1,0 +1,14 @@
+@import 'frappe-ui/style.css';
+
+html, body, #app { height: 100%; }
+
+@layer components {
+  /* quantity cells: right aligned, tabular */
+  .qty [data-slot='control'] { text-align: right; font-variant-numeric: tabular-nums; }
+  .num { font-variant-numeric: tabular-nums; }
+  .card { @apply rounded-6 border border-outline-gray-1 bg-surface-base; }
+}
+
+@media print {
+  [data-slot='sidebar'], header button, header input, .no-print { display: none !important; }
+}
