@@ -1,1 +1,0 @@
-import{aw as t,d as s,c,a2 as r}from"./index-B-FGdb6J.js";const n={},o={class:"px-3 py-10 text-center text-p-sm text-ink-gray-5"};function a(e,_){return s(),c("div",o,[r(e.$slots,"default")])}const d=t(n,[["render",a]]);export{d as E};

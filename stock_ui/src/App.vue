@@ -90,6 +90,7 @@ const nav = computed(() => {
     )
   }
   if (loc && isProvider.value) {
+    out.push({ route: '/home', label: 'Today', icon: 'lucide-house' })
     if (shipsHere.value) {
       out.push(
         { route: '/picking', label: 'Picking sheet', icon: 'lucide-table-2' },

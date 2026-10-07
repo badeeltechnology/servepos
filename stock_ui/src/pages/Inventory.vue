@@ -22,7 +22,7 @@
       <TextInput v-model="q" label="Find" placeholder="Item name or code" class="w-56" />
       <TabButtons :options="['All', 'Not counted', 'Counted'].map((v) => ({ label: v, value: v }))" v-model="show" />
       <span class="flex-1" />
-      <div class="space-y-1.5"><div class="text-xs text-ink-gray-5">Counted</div><div class="flex h-7 items-center rounded-4 bg-surface-gray-2 px-3 text-base num">{{ counted }} of {{ lines.length }}</div></div>
+      <Badge size="lg" :theme="counted && counted === lines.length ? 'green' : 'gray'" variant="subtle" :label="`${counted} of ${lines.length} counted`" />
     </div>
     <Alert v-if="banner" :theme="banner.theme" :title="banner.title" :description="banner.text" />
     <input ref="fileInput" type="file" accept=".xlsx" class="hidden" @change="importFile" />
@@ -53,19 +53,19 @@
 
     <section v-if="past.data && past.data.length" class="space-y-2 pt-4">
       <h2 class="text-lg-semibold">Past counts</h2>
-      <div class="card divide-y divide-outline-gray-1">
-        <button v-for="c in past.data" :key="c.name" class="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-gray-1" @click="date = c.count_date">
-          <span class="w-36 text-base">{{ fmtDate(c.count_date) }} {{ String(c.count_time || '').slice(0, 5) }}</span>
-          <span class="flex-1 text-sm text-ink-gray-5">{{ c.reconciliation || 'not submitted' }}{{ c.correction_reconciliation ? ' · corrected ' + c.correction_reconciliation : '' }}</span>
-          <StatusBadge :status="c.status" />
-        </button>
-      </div>
+      <List :columns="['10rem', 'minmax(0,1fr)', 'auto']" class="rounded-6 border border-outline-gray-1 list-row-px-3">
+        <ListRow v-for="c in past.data" :key="c.name" class="min-h-11" @click="date = c.count_date">
+          <ListCell class="num">{{ fmtDate(c.count_date) }} {{ String(c.count_time || '').slice(0, 5) }}</ListCell>
+          <ListCell class="text-sm text-ink-gray-5">{{ c.reconciliation || 'not submitted' }}{{ c.correction_reconciliation ? ' · corrected ' + c.correction_reconciliation : '' }}</ListCell>
+          <ListCell><StatusBadge :status="c.status" /></ListCell>
+        </ListRow>
+      </List>
     </section>
   </div>
 </template>
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { Alert, Button, DatePicker, Dropdown, LoadingText, Select, TabButtons, TextInput, TimePicker, dialog, toast } from 'frappe-ui'
+import { Alert, Badge, Button, DatePicker, Dropdown, LoadingText, Select, TabButtons, TextInput, TimePicker, dialog, toast } from 'frappe-ui'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow } from 'frappe-ui/list'
 import Header from '../components/Header.vue'
 import StatusBadge from '../components/StatusBadge.vue'

@@ -1,82 +1,126 @@
 <template>
-  <Header title="Today" :subtitle="home.data ? 'Orders for ' + fmtDate(home.data.for_date) : ''">
-    <span v-if="cut.order_cutoff" class="hidden text-sm text-ink-gray-5 lg:inline">Changes until {{ cut.change_cutoff }} · orders until {{ cut.order_cutoff }}</span>
-  </Header>
-  <div class="space-y-6 px-3 pb-10 pt-5 sm:px-5">
-    <template v-if="home.data">
+  <ProviderToday v-if="isProvider" />
+  <template v-else>
+    <Header title="Today" :subtitle="home.data ? 'Deliveries for ' + fmtDate(home.data.for_date) : ''">
+      <Badge v-if="cut.order_cutoff" :theme="cut.orders_open ? 'green' : 'amber'" variant="subtle" size="md"
+        :label="cut.orders_open ? 'Orders open until ' + cut.order_cutoff : 'Past ' + cut.order_cutoff + ': late orders'" />
+      <Button variant="solid" icon-left="lucide-plus" label="New order" route="/order" />
+    </Header>
+
+    <div v-if="home.data" class="space-y-6 px-3 pb-10 pt-5 sm:px-5">
+      <!-- figures -->
+      <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <NumberCard title="Stock on hand" :value="home.data.stock_value" :prefix="cur" :format="money" :delta-caption="home.data.items_in_stock + ' items in stock'" />
+        <NumberCard title="Received this week" :value="home.data.received_week_total" :prefix="cur" :format="money"
+          :sparkline="{ data: home.data.received_week.map((d) => d.value), type: 'bar' }" />
+        <NumberCard title="To receive" :value="home.data.incoming.length" :delta-caption="home.data.discrepancies.length ? home.data.discrepancies.length + ' with a discrepancy' : 'deliveries on the way'" />
+        <NumberCard title="Next inventory" :value="invValue" :delta-caption="invCaption" />
+      </div>
+
+      <!-- today's orders -->
       <section class="space-y-2">
-        <h2 class="text-lg-semibold">Order</h2>
+        <h2 class="text-lg-semibold">Orders for {{ fmtDate(home.data.for_date) }}</h2>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div v-for="c in cards" :key="c.provider" class="card flex flex-col gap-1 p-4" :style="{ borderTop: '3px solid ' + providerColor(c.provider) }">
-            <div class="flex items-center gap-2"><span class="text-lg-semibold">{{ c.provider }}</span><span class="flex-1" /><StatusBadge :status="c.order ? c.order.status : 'New'" /></div>
-            <p class="text-p-sm text-ink-gray-6">{{ c.order ? `${c.order.name} · ${c.filled} of ${c.list_items} items` : c.list_items ? `Your list has ${c.list_items} items` : 'No list yet: search and add items' }}</p>
+          <div v-for="c in cards" :key="c.provider" class="flex flex-col gap-3 rounded-6 border border-outline-gray-1 bg-surface-base p-4">
+            <div class="flex items-center gap-2">
+              <span class="size-2 rounded-full" :style="{ background: providerColor(c.provider) }" aria-hidden="true" />
+              <span class="text-lg-semibold">{{ c.provider }}</span>
+              <span class="flex-1" />
+              <StatusBadge :status="c.order ? c.order.status : 'New'" />
+            </div>
+            <Progress v-if="c.list_items" :value="Math.round((100 * (c.filled || 0)) / c.list_items)" size="sm"
+              :label="c.order ? `${c.filled} of ${c.list_items} items` : `${c.list_items} item${c.list_items === 1 ? '' : 's'} on your list`" />
+            <p v-else class="text-p-sm text-ink-gray-5">No list yet: search and add items.</p>
             <p class="text-p-sm text-ink-gray-5">{{ cardHint(c) }}</p>
-            <div class="pt-2"><Button :variant="c.order && c.order.status !== 'Draft' ? 'subtle' : 'solid'" :route="'/order/' + encodeURIComponent(c.provider)" :label="c.order ? (c.order.status === 'Draft' ? 'Continue' : 'Open') : 'New ' + c.provider + ' order'" /></div>
+            <div class="mt-auto">
+              <Button :variant="c.order && c.order.status !== 'Draft' ? 'subtle' : 'solid'" :route="'/order/' + encodeURIComponent(c.provider)"
+                :label="c.order ? (c.order.status === 'Draft' ? 'Continue draft' : 'Open ' + c.order.name) : 'Order from ' + c.provider" />
+            </div>
           </div>
         </div>
       </section>
 
-      <div class="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        <section class="space-y-2 lg:col-span-3">
+      <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <!-- deliveries -->
+        <section class="space-y-2">
           <h2 class="text-lg-semibold">To receive</h2>
-          <div class="card divide-y divide-outline-gray-1">
-            <router-link v-for="o in home.data.incoming" :key="o.name" :to="'/o/' + o.name" class="flex items-center gap-3 px-4 py-3 hover:bg-surface-gray-1">
-              <span class="size-2 shrink-0 rounded-full" :style="{ background: providerColor(o.from_location) }" />
-              <span class="flex min-w-0 flex-1 flex-col"><span class="text-base-medium">{{ o.order_type === 'Order' ? o.from_location : o.order_type + ' from ' + o.from_location }}</span>
-                <span class="mt-1 text-sm text-ink-gray-5">{{ o.name }} · {{ o.lines }} items · shipped {{ fmtTime(o.shipped_on) }}</span></span>
-              <Button variant="solid" label="Receive" />
-            </router-link>
-            <router-link v-for="o in home.data.discrepancies" :key="o.name" :to="'/o/' + o.name" class="flex items-center gap-3 px-4 py-3 hover:bg-surface-gray-1">
-              <span class="size-2 shrink-0 rounded-full bg-surface-red-7" />
-              <span class="flex min-w-0 flex-1 flex-col"><span class="text-base-medium">{{ o.from_location }}</span><span class="mt-1 text-sm text-ink-gray-5">{{ o.name }} · received less than shipped</span></span>
-              <StatusBadge status="Discrepancy" />
-            </router-link>
+          <List :columns="['auto', 'minmax(0,1fr)', 'auto']" class="rounded-6 border border-outline-gray-1 list-row-px-3">
+            <ListRow v-for="o in home.data.incoming" :key="o.name" :route="'/o/' + o.name" class="min-h-14">
+              <ListCell><span class="size-2 rounded-full" :style="{ background: providerColor(o.from_location) }" aria-hidden="true" /></ListCell>
+              <ListCell class="flex-col !items-start"><span class="text-base-medium">{{ o.order_type === 'Order' ? o.from_location : o.order_type + ' from ' + o.from_location }}</span>
+                <span class="mt-1 text-sm text-ink-gray-5">{{ o.name }} · {{ o.lines }} items · shipped {{ fmtTime(o.shipped_on) }}</span></ListCell>
+              <ListCell><Button variant="solid" label="Receive" :route="'/o/' + o.name" /></ListCell>
+            </ListRow>
+            <ListRow v-for="o in home.data.discrepancies" :key="o.name" :route="'/o/' + o.name" class="min-h-14">
+              <ListCell><span class="size-2 rounded-full bg-surface-red-7" aria-hidden="true" /></ListCell>
+              <ListCell class="flex-col !items-start"><span class="text-base-medium">{{ o.from_location }}</span><span class="mt-1 text-sm text-ink-gray-5">{{ o.name }} · received less than shipped</span></ListCell>
+              <ListCell><StatusBadge status="Discrepancy" /></ListCell>
+            </ListRow>
             <Empty v-if="!home.data.incoming.length && !home.data.discrepancies.length">Nothing on the way.</Empty>
-          </div>
+          </List>
         </section>
-        <div class="space-y-6 lg:col-span-2">
-          <section class="space-y-2">
-            <h2 class="text-lg-semibold">Transfers</h2>
-            <div class="card divide-y divide-outline-gray-1">
-              <router-link v-for="o in home.data.transfers_asked" :key="o.name" :to="'/o/' + o.name" class="flex items-center gap-3 px-4 py-3 hover:bg-surface-gray-1">
-                <span class="flex-1 text-base"><b>{{ o.to_location }}</b> asks you for stock</span><Button theme="blue" variant="solid" label="Review" />
-              </router-link>
-              <router-link v-for="o in home.data.transfers_mine" :key="o.name" :to="'/o/' + o.name" class="flex items-center gap-3 px-4 py-3 hover:bg-surface-gray-1">
-                <span class="flex-1 text-base">You asked <b>{{ o.from_location }}</b></span><StatusBadge :status="o.status" />
-              </router-link>
-              <Empty v-if="!home.data.transfers_asked.length && !home.data.transfers_mine.length">No open transfers.</Empty>
-            </div>
-          </section>
-          <section class="space-y-2">
-            <h2 class="text-lg-semibold">Inventory</h2>
-            <div class="card space-y-3 p-4">
-              <p class="text-p-sm text-ink-gray-6" v-if="home.data.inventory_due">{{ home.data.inventory_due.status === 'Next' ? 'Next count ' + fmtDate(home.data.inventory_due.date) : 'Count due today (' + home.data.inventory_due.status + ')' }}</p>
-              <div class="flex flex-wrap gap-2">
-                <Button route="/inventory" label="Inventory" icon-left="lucide-clipboard-list" />
-                <Button route="/transfers" label="Ask another outlet" icon-left="lucide-arrow-left-right" />
-                <Button route="/returns" label="Return" icon-left="lucide-undo-2" />
-              </div>
-            </div>
-          </section>
+
+        <!-- transfers -->
+        <section class="space-y-2">
+          <div class="flex items-center"><h2 class="flex-1 text-lg-semibold">Transfers</h2><Button variant="ghost" icon-left="lucide-arrow-left-right" label="Ask another outlet" route="/transfers" /></div>
+          <List :columns="['minmax(0,1fr)', 'auto']" class="rounded-6 border border-outline-gray-1 list-row-px-3">
+            <ListRow v-for="o in home.data.transfers_asked" :key="o.name" :route="'/o/' + o.name" class="min-h-14">
+              <ListCell class="flex-col !items-start"><span class="text-base-medium">{{ o.to_location }} asks you for stock</span><span class="mt-1 text-sm text-ink-gray-5">{{ o.name }} · {{ fmtTime(o.submitted_on) }}</span></ListCell>
+              <ListCell><Button theme="blue" variant="solid" label="Review" :route="'/o/' + o.name" /></ListCell>
+            </ListRow>
+            <ListRow v-for="o in home.data.transfers_mine" :key="o.name" :route="'/o/' + o.name" class="min-h-14">
+              <ListCell class="flex-col !items-start"><span class="text-base-medium">You asked {{ o.from_location }}</span><span class="mt-1 text-sm text-ink-gray-5">{{ o.name }} · {{ fmtTime(o.submitted_on) }}</span></ListCell>
+              <ListCell><StatusBadge :status="o.status" /></ListCell>
+            </ListRow>
+            <Empty v-if="!home.data.transfers_asked.length && !home.data.transfers_mine.length">No open transfers.</Empty>
+          </List>
+        </section>
+      </div>
+
+      <!-- charts -->
+      <div class="grid grid-cols-1 gap-3 xl:grid-cols-5">
+        <div class="h-72 xl:col-span-3">
+          <BarChart title="Received, last 7 days" :subtitle="'Value at cost, ' + cur" :data="weekRows" x="day" y="value" :format="money" />
+        </div>
+        <div class="h-72 xl:col-span-2">
+          <DonutChart title="Where stock came from" subtitle="Last 30 days, value at cost" :data="home.data.received_month" category="provider" value="value" :format="money" />
         </div>
       </div>
-    </template>
-    <LoadingText v-else-if="home.loading" />
-    <ErrorMessage v-else-if="home.error" :message="errText(home.error)" />
-  </div>
+    </div>
+    <div v-else class="grid grid-cols-2 gap-3 px-5 pt-5 lg:grid-cols-4">
+      <ErrorMessage v-if="home.error" :message="errText(home.error)" class="col-span-full" />
+      <template v-else><Skeleton v-for="i in 4" :key="i" class="h-24 rounded-6" /></template>
+    </div>
+  </template>
 </template>
 <script setup>
 import { computed } from 'vue'
-import { Button, ErrorMessage, LoadingText } from 'frappe-ui'
+import { Badge, Button, ErrorMessage, Progress, Skeleton } from 'frappe-ui'
+import { List, ListCell, ListRow } from 'frappe-ui/list'
+import { BarChart, DonutChart, NumberCard } from 'frappe-ui/charts'
 import Header from '../components/Header.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import Empty from '../components/Empty.vue'
+import ProviderToday from './ProviderToday.vue'
 import { useRead, errText, fmtDate, fmtTime } from '../api'
-import { state, providerColor } from '../state'
+import { state, isProvider, providerColor } from '../state'
 
-const home = useRead('get_home', () => ({ location_name: state.location.name }))
-const cards = computed(() => state.ctx.providers.map((p) => (home.data.cards || []).find((c) => c.provider === p.name) || { provider: p.name, list_items: 0, order: null }))
+const home = useRead('get_home', () => ({ location_name: state.location.name }), { immediate: !isProvider.value })
 const cut = computed(() => (home.data && home.data.cutoff) || {})
+const cur = computed(() => (home.data && home.data.currency ? home.data.currency + ' ' : ''))
+const money = (v) => Number(v || 0).toLocaleString('en', { maximumFractionDigits: 0 })
+const cards = computed(() => state.ctx.providers.map((p) => (home.data.cards || []).find((c) => c.provider === p.name) || { provider: p.name, list_items: 0, order: null }))
+const weekRows = computed(() => home.data.received_week.map((d) => ({ day: fmtDate(d.date).split(' ').slice(0, 2).join(' '), value: d.value })))
+const invValue = computed(() => {
+  const d = home.data.inventory_due
+  if (!d) return '-'
+  return d.status === 'Next' ? (d.date ? fmtDate(d.date) : '-') : 'Today'
+})
+const invCaption = computed(() => {
+  const d = home.data.inventory_due
+  if (!d) return ''
+  return d.status === 'Next' ? 'counts on the 15th and month end' : d.status === 'Due' ? 'count is due now' : 'today: ' + d.status.toLowerCase()
+})
 function cardHint(c) {
   const st = c.order && c.order.status
   if (st === 'Submitted') return cut.value.changes_open ? 'You can still change it until ' + cut.value.change_cutoff : 'Locked, with ' + c.provider

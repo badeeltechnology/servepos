@@ -43,6 +43,7 @@ def get_context():
 	return {
 		"user": user,
 		"desk": bool(desk),
+		"currency": frappe.get_cached_value("Company", frappe.defaults.get_global_default("company"), "default_currency") if frappe.defaults.get_global_default("company") else "",
 		"full_name": frappe.utils.get_fullname(user),
 		"is_admin": is_admin(user),
 		"is_buyer": bool(r & {"Purchase User", "Purchase Manager"}) or is_admin(user),
@@ -92,7 +93,33 @@ def get_home(location_name, for_date=None):
 		fields=["name", "from_location", "status", "submitted_on"])
 	return {"for_date": for_date, "cutoff": cutoff_state(for_date), "cards": cards, "incoming": incoming,
 		"discrepancies": disc, "transfers_asked": asked, "transfers_mine": mine,
-		"inventory_due": _inventory_due(location_name)}
+		"inventory_due": _inventory_due(location_name), **_home_figures(location_name)}
+
+
+def _home_figures(location_name):
+	"""Numbers for the Today dashboard: stock on hand and what was received lately."""
+	loc = location(location_name)
+	stock = frappe.db.sql("""select coalesce(sum(stock_value), 0), coalesce(sum(actual_qty > 0), 0)
+		from tabBin where warehouse = %s""", loc.warehouse)[0]
+	start = add_days(nowdate(), -6)
+	rows = frappe.db.sql("""select date(received_on) d, from_location p, count(*) n, coalesce(sum(received_value), 0) v
+		from `tabServePOS Stock Order` where to_location = %s and received_on >= %s
+		group by date(received_on), from_location""", (location_name, start), as_dict=True)
+	days = [str(add_days(start, i)) for i in range(7)]
+	per_day = {d: 0.0 for d in days}
+	for r in rows:
+		per_day[str(r.d)] = per_day.get(str(r.d), 0) + flt(r.v)
+	month = frappe.db.sql("""select from_location provider, count(*) orders, coalesce(sum(received_value), 0) value
+		from `tabServePOS Stock Order` where to_location = %s and received_on >= %s and status != 'Cancelled'
+		group by from_location order by value desc""", (location_name, add_days(nowdate(), -29)), as_dict=True)
+	company = frappe.get_cached_value("Warehouse", loc.warehouse, "company")
+	return {
+		"currency": frappe.get_cached_value("Company", company, "default_currency") if company else "",
+		"stock_value": flt(stock[0], 2), "items_in_stock": int(stock[1]),
+		"received_week": [{"date": d, "value": round(per_day[d], 2)} for d in days],
+		"received_week_total": round(sum(per_day.values()), 2),
+		"received_month": [{"provider": r.provider, "orders": r.orders, "value": round(flt(r.value), 2)} for r in month],
+	}
 
 
 # ---------------------------------------------------------------- ordering

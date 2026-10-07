@@ -19,7 +19,7 @@
       <TabButtons v-if="providers.length > 1" :options="providers.map((p) => ({ label: p, value: p }))" :model-value="provider" @update:model-value="go" />
       <span class="flex-1" />
       <DatePicker v-model="forDate" label="Delivery date" :min="state.ctx.today" class="w-44" />
-      <div class="space-y-1.5"><div class="text-xs text-ink-gray-5">Filled</div><div class="flex h-7 items-center rounded-4 bg-surface-gray-2 px-3 text-base num">{{ filled }} of {{ lines.length }}</div></div>
+      <Badge size="lg" variant="subtle" :theme="filled ? 'blue' : 'gray'" :label="`${filled} of ${lines.length} filled`" />
     </div>
 
     <Alert v-if="lockText" theme="gray" :title="lockText" />
