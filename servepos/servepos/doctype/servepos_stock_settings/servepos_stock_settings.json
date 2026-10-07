@@ -26,7 +26,8 @@
   "correction_window_hours",
   "show_system_qty",
   "access_section",
-  "role_access"
+  "role_access",
+  "amount_access_seeded"
  ],
  "fields": [
   {
@@ -159,8 +160,16 @@
   {
    "fieldname": "role_access",
    "fieldtype": "Table",
-   "label": "Landing page per role",
-   "options": "ServePOS Stock Role Access"
+   "label": "Landing page and access per role",
+   "options": "ServePOS Stock Role Access",
+   "description": "System Manager and ServePOS Manager always see Desk and amounts."
+  },
+  {
+   "fieldname": "amount_access_seeded",
+   "fieldtype": "Check",
+   "label": "Amount access seeded",
+   "hidden": 1,
+   "read_only": 1
   }
  ],
  "links": [],

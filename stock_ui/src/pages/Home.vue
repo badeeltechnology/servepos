@@ -10,9 +10,16 @@
     <div v-if="home.data" class="space-y-6 px-3 pb-10 pt-5 sm:px-5">
       <!-- figures -->
       <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <NumberCard title="Stock on hand" :value="home.data.stock_value" :prefix="cur" :format="money" :delta-caption="home.data.items_in_stock + ' items in stock'" />
-        <NumberCard title="Received this week" :value="home.data.received_week_total" :prefix="cur" :format="money"
-          :sparkline="{ data: home.data.received_week.map((d) => d.value), type: 'bar' }" />
+        <template v-if="money">
+          <NumberCard title="Stock on hand" :value="home.data.stock_value" :prefix="cur" :format="fmtMoney" :delta-caption="home.data.items_in_stock + ' items in stock'" />
+          <NumberCard title="Received this week" :value="home.data.received_week_total" :prefix="cur" :format="fmtMoney"
+            :sparkline="{ data: home.data.received_week.map((d) => d.value), type: 'bar' }" />
+        </template>
+        <template v-else>
+          <NumberCard title="Items in stock" :value="home.data.items_in_stock" delta-caption="items with stock in your outlet" />
+          <NumberCard title="Received this week" :value="home.data.received_week_orders" suffix=" deliveries"
+            :sparkline="{ data: home.data.received_week.map((d) => d.orders), type: 'bar' }" />
+        </template>
         <NumberCard title="To receive" :value="home.data.incoming.length" :delta-caption="home.data.discrepancies.length ? home.data.discrepancies.length + ' with a discrepancy' : 'deliveries on the way'" />
         <NumberCard title="Next inventory" :value="invValue" :delta-caption="invCaption" />
       </div>
@@ -77,13 +84,15 @@
         </section>
       </div>
 
-      <!-- charts -->
+      <!-- charts: values for managers, delivery counts for outlet staff -->
       <div class="grid grid-cols-1 gap-3 xl:grid-cols-5">
         <div class="h-72 xl:col-span-3">
-          <BarChart title="Received, last 7 days" :subtitle="'Value at cost, ' + cur" :data="weekRows" x="day" y="value" :format="money" />
+          <BarChart v-if="money" title="Received, last 7 days" :subtitle="'Value at cost, ' + cur.trim()" :data="weekRows" x="day" y="value" :format="fmtMoney" />
+          <BarChart v-else title="Deliveries received, last 7 days" :data="weekRows" x="day" y="orders" />
         </div>
         <div class="h-72 xl:col-span-2">
-          <DonutChart title="Where stock came from" subtitle="Last 30 days, value at cost" :data="home.data.received_month" category="provider" value="value" :format="money" />
+          <DonutChart v-if="money" title="Where stock came from" subtitle="Last 30 days, value at cost" :data="home.data.received_month" category="provider" value="value" :format="fmtMoney" />
+          <DonutChart v-else title="Deliveries by provider" subtitle="Last 30 days" :data="home.data.received_month" category="provider" value="orders" />
         </div>
       </div>
     </div>
@@ -108,9 +117,10 @@ import { state, isProvider, providerColor } from '../state'
 const home = useRead('get_home', () => ({ location_name: state.location.name }), { immediate: !isProvider.value })
 const cut = computed(() => (home.data && home.data.cutoff) || {})
 const cur = computed(() => (home.data && home.data.currency ? home.data.currency + ' ' : ''))
-const money = (v) => Number(v || 0).toLocaleString('en', { maximumFractionDigits: 0 })
+const money = computed(() => !!(home.data && home.data.see_amounts))
+const fmtMoney = (v) => Number(v || 0).toLocaleString('en', { maximumFractionDigits: 0 })
 const cards = computed(() => state.ctx.providers.map((p) => (home.data.cards || []).find((c) => c.provider === p.name) || { provider: p.name, list_items: 0, order: null }))
-const weekRows = computed(() => home.data.received_week.map((d) => ({ day: fmtDate(d.date).split(' ').slice(0, 2).join(' '), value: d.value })))
+const weekRows = computed(() => home.data.received_week.map((d) => ({ day: fmtDate(d.date).split(' ').slice(0, 2).join(' '), value: d.value, orders: d.orders })))
 const invValue = computed(() => {
   const d = home.data.inventory_due
   if (!d) return '-'

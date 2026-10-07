@@ -21,6 +21,16 @@ def is_admin(user=None):
 	return user == "Administrator" or bool(roles(user) & {"System Manager", "ServePOS Manager"})
 
 
+def can_see_amounts(user=None):
+	"""Prices, stock value and markup: System / ServePOS Managers always; other roles only when
+	their row in Stock Order Settings ticks 'Sees prices and values'. Outlet staff do not."""
+	user = user or frappe.session.user
+	if is_admin(user):
+		return True
+	r = roles(user)
+	return any(row.show_amounts and row.role in r for row in (settings().role_access or []))
+
+
 def implied_roles(user=None):
 	"""Roles a user holds because of warehouse User Permissions: an outlet warehouse means
 	ServePOS Outlet User, a provider warehouse means that provider's ship role. This keeps access

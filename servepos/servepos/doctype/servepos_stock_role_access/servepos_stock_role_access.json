@@ -6,7 +6,8 @@
  "field_order": [
   "role",
   "landing_page",
-  "allow_desk"
+  "allow_desk",
+  "show_amounts"
  ],
  "fields": [
   {
@@ -29,6 +30,13 @@
    "fieldtype": "Check",
    "label": "Desk allowed",
    "in_list_view": 1
+  },
+  {
+   "fieldname": "show_amounts",
+   "fieldtype": "Check",
+   "label": "Sees prices and values",
+   "in_list_view": 1,
+   "description": "Item rates, stock value and markup. Outlet staff normally do not."
   }
  ],
  "links": [],

@@ -292,6 +292,23 @@ def run(keep=0):
 		landing, _desk = access._rules(BUYER)
 		log.check(landing == "/stock" or "ServePOS Outlet User" in frappe.get_roles(BUYER),
 			"An outlet User Permission alone gives the outlet landing page", landing)
+
+		# 15. amounts: outlet staff never receive prices or values
+		as_user(OUTLET_USER)
+		ctx = api.get_context()
+		home = api.get_home(OUTLET)
+		log.check(not ctx["see_amounts"] and home["stock_value"] is None and home["received_week_total"] is None
+			and all(w["value"] is None for w in home["received_week"]) and all(m["value"] is None for m in home["received_month"]),
+			"Outlet Today carries no stock or receipt values", f"{home['items_in_stock']} items, {home['received_week_orders']} deliveries")
+		some = frappe.get_all("ServePOS Stock Order", filters={"to_location": OUTLET, "status": ["in", ["Received", "Closed", "Discrepancy"]]}, pluck="name", limit=1)
+		if some:
+			g = api.get_order(some[0])
+			flat = frappe.as_json(g)
+			log.check("markup_amount" not in g["doc"] and "received_value" not in g["doc"] and "items" not in g["doc"]
+				and "valuation_rate" not in flat, "Outlet order view carries no rates, values or markup")
+		expect_error(log, "Outlet cannot open the markup report", api.markup_report, nowdate(), nowdate())
+		as_user(STORE_USER)
+		log.check(api.get_context()["see_amounts"] and api.get_home("Store")["stock_value"] is not None, "Storekeeper sees values")
 	except Exception:
 		log.fail("Unexpected error", traceback.format_exc()[-1500:])
 	finally:
