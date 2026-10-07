@@ -1,0 +1,182 @@
+{
+ "actions": [],
+ "creation": "2026-10-07 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "location_name",
+  "location_type",
+  "warehouse",
+  "enabled",
+  "cb1",
+  "location_group",
+  "branch",
+  "pos_profile",
+  "color",
+  "provider_section",
+  "buys_from_suppliers",
+  "orders_from",
+  "markup_percent",
+  "cb2",
+  "ship_role",
+  "record_production_for_shortfall"
+ ],
+ "fields": [
+  {
+   "fieldname": "location_name",
+   "fieldtype": "Data",
+   "label": "Location Name",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "location_type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "Outlet\nProvider",
+   "default": "Outlet",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "label": "Warehouse",
+   "options": "Warehouse",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "location_group",
+   "fieldtype": "Data",
+   "label": "Group",
+   "description": "For example WBB or NAMI",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch"
+  },
+  {
+   "fieldname": "pos_profile",
+   "fieldtype": "Link",
+   "label": "POS Profile",
+   "options": "POS Profile"
+  },
+  {
+   "fieldname": "color",
+   "fieldtype": "Color",
+   "label": "Colour"
+  },
+  {
+   "fieldname": "provider_section",
+   "fieldtype": "Section Break",
+   "label": "Provider settings",
+   "depends_on": "eval:doc.location_type=='Provider'"
+  },
+  {
+   "fieldname": "buys_from_suppliers",
+   "fieldtype": "Check",
+   "label": "Buys from suppliers",
+   "description": "Shortages of this provider appear in procurement's To buy list"
+  },
+  {
+   "fieldname": "orders_from",
+   "fieldtype": "Link",
+   "label": "Orders raw materials from",
+   "options": "ServePOS Stock Location"
+  },
+  {
+   "fieldname": "markup_percent",
+   "fieldtype": "Float",
+   "label": "Markup %",
+   "description": "Added to goods this provider ships to outlets (reports, or accounts if enabled in settings)"
+  },
+  {
+   "fieldname": "cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ship_role",
+   "fieldtype": "Link",
+   "label": "Role that ships",
+   "options": "Role",
+   "description": "Users need this role plus a User Permission on the warehouse"
+  },
+  {
+   "fieldname": "record_production_for_shortfall",
+   "fieldtype": "Check",
+   "label": "Record production when stock is short",
+   "description": "If ERPNext shows less than is shipped, the missing quantity is first received into this provider as production"
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-07 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Servepos",
+ "name": "ServePOS Stock Location",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "share": 1,
+   "email": 1
+  },
+  {
+   "role": "Stock Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "share": 1,
+   "email": 1
+  },
+  {
+   "role": "ServePOS Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "share": 1,
+   "email": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "row_format": "Dynamic",
+ "autoname": "field:location_name",
+ "title_field": "location_name",
+ "show_title_field_in_link": 1,
+ "search_fields": "location_type,warehouse",
+ "quick_entry": 0
+}
