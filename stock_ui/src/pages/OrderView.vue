@@ -28,7 +28,7 @@
       <Field label="Shipped" :value="d.doc.shipped_on ? fmtTime(d.doc.shipped_on) + ' · ' + who(d.doc.shipped_by) : '-'" />
       <Field v-if="d.doc.received_on" label="Received" :value="fmtTime(d.doc.received_on) + ' · ' + who(d.doc.received_by)" />
       <Field v-if="d.doc.reason" label="Reason" :value="d.doc.reason" />
-      <Field v-if="d.doc.markup_amount" label="Markup" :value="fmt(d.doc.markup_percent, 2) + '% = ' + fmt(d.doc.markup_amount, 2)" />
+      <Field v-if="d.see_amounts && d.doc.markup_amount" label="Markup" :value="fmt(d.doc.markup_percent, 2) + '% = ' + fmt(d.doc.markup_amount, 2)" />
       <Field v-if="d.doc.note || d.doc.receive_note" label="Notes" :value="[d.doc.note, d.doc.receive_note].filter(Boolean).join(' · ')" class="col-span-2" />
     </div>
 
@@ -82,7 +82,7 @@
       <p class="flex-1 text-p-sm" :class="footer.cls">{{ footer.text }}</p>
       <TextInput v-if="mode === 'receive'" v-model="note" class="w-72" placeholder="Note for the provider (optional)" aria-label="Receive note" />
     </div>
-    <div v-if="entries.length" class="flex flex-wrap gap-3 text-sm text-ink-gray-5">
+    <div v-if="entries.length && state.ctx.desk" class="flex flex-wrap gap-3 text-sm text-ink-gray-5">
       <span>ERPNext entries:</span>
       <a v-for="e in entries" :key="e.name" :href="e.href" target="_blank" class="text-ink-blue-link underline">{{ e.label }} {{ e.name }}</a>
     </div>

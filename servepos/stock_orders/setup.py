@@ -110,12 +110,19 @@ def seed_settings():
 	if not s.role_access:
 		for role, page, desk in [
 			("ServePOS Outlet User", "/stock", 0),
-			("ServePOS CK Provider", "/stock/picking", 0),
-			("ServePOS Pastry Provider", "/stock/picking", 0),
-			("Stock Manager", "/stock/picking", 1),
+			("ServePOS CK Provider", "/stock", 0),
+			("ServePOS Pastry Provider", "/stock", 0),
+			("Stock Manager", "/stock", 1),
 			("Purchase User", "/stock/buy", 1),
 		]:
 			s.append("role_access", {"role": role, "landing_page": page, "allow_desk": desk})
+	if not s.get("amount_access_seeded"):
+		# prices and values: the Store and procurement yes, outlets and kitchens no
+		for row in s.role_access:
+			row.show_amounts = 1 if row.role in ("Stock Manager", "Purchase User", "Purchase Manager", "Accounts Manager") else 0
+			if row.landing_page == "/stock/picking":
+				row.landing_page = "/stock"  # providers now land on their Today dashboard
+		s.amount_access_seeded = 1
 	s.flags.ignore_mandatory = True
 	s.save(ignore_permissions=True)
 
@@ -274,3 +281,11 @@ def setup(seed=True, sync=True):
 	from servepos.stock_orders.access import sync_roles
 	sync_roles()
 	frappe.db.commit()
+
+
+@frappe.whitelist()
+def run():
+	"""Re-run setup from the browser (System Manager): schema, fields, roles, print formats, seeds."""
+	frappe.only_for("System Manager")
+	setup(seed=True, sync=True)
+	return "done"

@@ -13,7 +13,7 @@ from frappe.utils import add_days, cint, flt, get_datetime, getdate, now_datetim
 from servepos.stock_orders import stock
 from servepos.stock_orders.utils import (
 	all_locations, assert_can, bin_qty, can_act_for, can_receive_for, can_ship_from, cutoff_state, default_for_date,
-	factor_of, is_admin, item_info, items_of_provider, location, my_locations, roles, settings,
+	can_see_amounts, factor_of, is_admin, item_info, items_of_provider, location, my_locations, roles, settings,
 )
 
 OPEN = ("Draft", "Submitted")
@@ -43,6 +43,7 @@ def get_context():
 	return {
 		"user": user,
 		"desk": bool(desk),
+		"see_amounts": can_see_amounts(user),
 		"currency": frappe.get_cached_value("Company", frappe.defaults.get_global_default("company"), "default_currency") if frappe.defaults.get_global_default("company") else "",
 		"full_name": frappe.utils.get_fullname(user),
 		"is_admin": is_admin(user),
@@ -97,28 +98,33 @@ def get_home(location_name, for_date=None):
 
 
 def _home_figures(location_name):
-	"""Numbers for the Today dashboard: stock on hand and what was received lately."""
+	"""Numbers for the Today dashboard. Counts for everyone; stock and receipt values only for
+	users allowed to see amounts (outlet staff see quantities, never prices)."""
 	loc = location(location_name)
+	money = can_see_amounts()
 	stock = frappe.db.sql("""select coalesce(sum(stock_value), 0), coalesce(sum(actual_qty > 0), 0)
 		from tabBin where warehouse = %s""", loc.warehouse)[0]
 	start = add_days(nowdate(), -6)
-	rows = frappe.db.sql("""select date(received_on) d, from_location p, count(*) n, coalesce(sum(received_value), 0) v
+	rows = frappe.db.sql("""select date(received_on) d, count(*) n, coalesce(sum(received_value), 0) v
 		from `tabServePOS Stock Order` where to_location = %s and received_on >= %s
-		group by date(received_on), from_location""", (location_name, start), as_dict=True)
+		group by date(received_on)""", (location_name, start), as_dict=True)
+	by_day = {str(r.d): r for r in rows}
 	days = [str(add_days(start, i)) for i in range(7)]
-	per_day = {d: 0.0 for d in days}
-	for r in rows:
-		per_day[str(r.d)] = per_day.get(str(r.d), 0) + flt(r.v)
 	month = frappe.db.sql("""select from_location provider, count(*) orders, coalesce(sum(received_value), 0) value
 		from `tabServePOS Stock Order` where to_location = %s and received_on >= %s and status != 'Cancelled'
-		group by from_location order by value desc""", (location_name, add_days(nowdate(), -29)), as_dict=True)
+		group by from_location order by orders desc""", (location_name, add_days(nowdate(), -29)), as_dict=True)
+	week = [{"date": d, "orders": int(by_day[d].n) if d in by_day else 0,
+		"value": round(flt(by_day[d].v), 2) if money and d in by_day else (0 if money else None)} for d in days]
 	company = frappe.get_cached_value("Warehouse", loc.warehouse, "company")
 	return {
-		"currency": frappe.get_cached_value("Company", company, "default_currency") if company else "",
-		"stock_value": flt(stock[0], 2), "items_in_stock": int(stock[1]),
-		"received_week": [{"date": d, "value": round(per_day[d], 2)} for d in days],
-		"received_week_total": round(sum(per_day.values()), 2),
-		"received_month": [{"provider": r.provider, "orders": r.orders, "value": round(flt(r.value), 2)} for r in month],
+		"see_amounts": money,
+		"currency": (frappe.get_cached_value("Company", company, "default_currency") if company else "") if money else "",
+		"stock_value": flt(stock[0], 2) if money else None,
+		"items_in_stock": int(stock[1]),
+		"received_week": week,
+		"received_week_orders": sum(w["orders"] for w in week),
+		"received_week_total": round(sum(w["value"] or 0 for w in week), 2) if money else None,
+		"received_month": [{"provider": r.provider, "orders": r.orders, "value": round(flt(r.value), 2) if money else None} for r in month],
 	}
 
 
@@ -292,9 +298,15 @@ def get_order(name):
 			"uoms": i.uoms if i else [],
 		})
 	from_loc = location(doc.from_location)
+	d = doc.as_dict(no_child_table_fields=True)
+	d.pop("items", None)
+	if not can_see_amounts():
+		for k in ("received_value", "markup_amount", "markup_percent"):
+			d.pop(k, None)
 	return {
-		"doc": doc.as_dict(no_child_table_fields=True),
+		"doc": d,
 		"lines": lines,
+		"see_amounts": can_see_amounts(),
 		"can_ship": doc.status == "Submitted" and can_ship_from(doc.from_location),
 		"can_receive": doc.status == "Shipped" and can_receive_for(doc.to_location),
 		"can_resolve": doc.status == "Discrepancy" and can_ship_from(doc.from_location),
@@ -918,6 +930,7 @@ def correct_inventory(name, lines):
 
 @frappe.whitelist()
 def markup_report(from_date, to_date):
+	assert_can(can_see_amounts(), _("Prices and values are not shown to your role"))
 	return frappe.db.sql("""select to_location outlet, from_location provider, count(*) orders,
 			sum(received_value) received_value, max(markup_percent) markup_percent, sum(markup_amount) markup_amount
 		from `tabServePOS Stock Order`
