@@ -61,7 +61,7 @@ def all_locations():
 	return frappe.get_all(
 		"ServePOS Stock Location",
 		filters={"enabled": 1},
-		fields=["name", "location_type", "warehouse", "location_group", "color", "buys_from_suppliers",
+		fields=["name", "location_type", "warehouse", "branch", "location_group", "color", "buys_from_suppliers",
 			"orders_from", "markup_percent", "ship_role", "record_production_for_shortfall"],
 		order_by="location_type desc, location_name asc",
 	)
@@ -187,6 +187,26 @@ def items_of_provider(provider):
 	main = frappe.get_all("Item", filters={"servepos_stock_provider": provider, "disabled": 0, "is_stock_item": 1}, pluck="name")
 	extra = frappe.get_all("ServePOS Item Provider", filters={"provider": provider, "parenttype": "Item"}, pluck="parent")
 	return list(dict.fromkeys(main + extra))
+
+
+def branch_field():
+	"""Fieldname of the Branch accounting dimension, or None when the site has none."""
+	return frappe.db.get_value("Accounting Dimension", {"document_type": "Branch", "disabled": 0}, "fieldname")
+
+
+def branch_of_warehouse(warehouse):
+	"""Branch of the Stock Location that owns this warehouse (None for Goods In Transit)."""
+	if not warehouse:
+		return None
+	return frappe.db.get_value("ServePOS Stock Location", {"warehouse": warehouse}, "branch")
+
+
+def set_branch(doc, branch, field=None):
+	"""Tag a document (and any row that has the field) when the dimension exists."""
+	field = field or branch_field()
+	if not field or not branch or not frappe.get_meta(doc.doctype).has_field(field):
+		return
+	doc.set(field, branch)
 
 
 def factor_of(info, uom):

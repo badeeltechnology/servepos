@@ -192,6 +192,35 @@ def seed_item_providers():
 			frappe.db.set_value("Item", it.name, "servepos_stock_provider", prov, update_modified=False)
 
 
+def _norm(name):
+	"""Branch names on site carry invisible characters and word order differs ('WBB Pizza & Burger')."""
+	import unicodedata
+	clean = "".join(ch for ch in (name or "") if unicodedata.category(ch)[0] != "C")
+	return frozenset(w for w in re.split(r"[^a-z0-9]+", clean.lower()) if w)
+
+
+def assign_branches():
+	"""Branch accounting dimension per location: the POS Profile's branch for outlets, a branch of the
+	same name otherwise (invisible characters and word order ignored); providers get a Branch of their
+	own name when none exists. Existing values are never changed."""
+	if not frappe.db.exists("DocType", "Branch"):
+		return []
+	branches = {_norm(b): b for b in frappe.get_all("Branch", pluck="name")}
+	done = []
+	for loc in frappe.get_all("ServePOS Stock Location", fields=["name", "location_name", "location_type", "pos_profile", "branch"]):
+		if loc.branch:
+			continue
+		b = frappe.db.get_value("POS Profile", loc.pos_profile, "branch") if loc.pos_profile else None
+		b = b or branches.get(_norm(loc.location_name))
+		if not b and loc.location_type == "Provider":
+			frappe.get_doc({"doctype": "Branch", "branch": loc.location_name}).insert(ignore_permissions=True)
+			b = loc.location_name
+		if b:
+			frappe.db.set_value("ServePOS Stock Location", loc.name, "branch", b)
+			done.append((loc.name, b))
+	return done
+
+
 def history_sources():
 	"""Item -> Counter of providers it was actually requested from (Material Transfer requests)."""
 	provs = {l.warehouse: l.name for l in frappe.get_all("ServePOS Stock Location",
@@ -273,6 +302,7 @@ def setup(seed=True, sync=True):
 	seed_settings()
 	if seed:
 		seed_locations()
+		assign_branches()
 		first_time = not frappe.db.count("ServePOS Order List")
 		seed_item_providers()
 		if first_time:

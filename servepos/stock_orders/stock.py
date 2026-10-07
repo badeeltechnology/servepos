@@ -3,7 +3,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
-from servepos.stock_orders.utils import bin_qty, settings
+from servepos.stock_orders.utils import bin_qty, branch_field, branch_of_warehouse, settings
 
 
 def _company(warehouse):
@@ -22,8 +22,10 @@ def _rate_for(item_code, warehouse):
 	return r
 
 
-def make_entry(order, purpose, rows, remarks, additional_cost=None):
-	"""rows: dicts with item_code, qty (stock UOM), s_warehouse/t_warehouse, optional expense_account/basic_rate."""
+def make_entry(order, purpose, rows, remarks, additional_cost=None, branch=None):
+	"""rows: dicts with item_code, qty (stock UOM), s_warehouse/t_warehouse, optional expense_account/basic_rate.
+	Branch dimension: each row takes the branch of its real (non-transit) warehouse, so shipping is booked
+	at the giver and receiving at the receiver; `branch` is used where a row only touches transit."""
 	rows = [r for r in rows if flt(r["qty"]) > 0]
 	if not rows:
 		return None
@@ -34,6 +36,9 @@ def make_entry(order, purpose, rows, remarks, additional_cost=None):
 	se.company = _company(wh)
 	se.servepos_stock_order = order.name
 	se.remarks = remarks
+	dim = branch_field()
+	transit = settings().transit_warehouse
+	row_branches = []
 	for r in rows:
 		stock_uom = frappe.get_cached_value("Item", r["item_code"], "stock_uom")
 		row = {
@@ -53,7 +58,16 @@ def make_entry(order, purpose, rows, remarks, additional_cost=None):
 				row["allow_zero_valuation_rate"] = 1
 		if r.get("expense_account"):
 			row["expense_account"] = r["expense_account"]
+		if dim:
+			real = [w for w in (r.get("t_warehouse"), r.get("s_warehouse")) if w and w != transit]
+			b = branch_of_warehouse(real[0]) if real else None
+			b = b or branch
+			if b:
+				row[dim] = b
+				row_branches.append(b)
 		se.append("items", row)
+	if dim and (branch or row_branches):
+		se.set(dim, branch or row_branches[0])
 	if additional_cost and flt(additional_cost.get("amount")) > 0:
 		se.append("additional_costs", additional_cost)
 	se.flags.ignore_permissions = True

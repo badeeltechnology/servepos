@@ -13,7 +13,7 @@ from frappe.utils import add_days, cint, flt, get_datetime, getdate, now_datetim
 from servepos.stock_orders import stock
 from servepos.stock_orders.utils import (
 	all_locations, assert_can, bin_qty, can_act_for, can_receive_for, can_ship_from, cutoff_state, default_for_date,
-	can_see_amounts, factor_of, is_admin, item_info, items_of_provider, location, my_locations, roles, settings,
+	branch_field, can_see_amounts, factor_of, set_branch, is_admin, item_info, items_of_provider, location, my_locations, roles, settings,
 )
 
 OPEN = ("Draft", "Submitted")
@@ -408,11 +408,13 @@ def receive(name, lines, note=None):
 			frappe.throw(_("Set the markup income account in ServePOS Stock Settings"))
 		add_cost = {"expense_account": s.markup_account, "description": _("{0}% markup from {1}").format(markup, src.name),
 			"amount": doc.markup_amount}
+		if branch_field() and src.branch:
+			add_cost[branch_field()] = src.branch  # the markup is the provider's income
 	got = {k: v for k, v in got.items() if v > 0}
 	if got:
 		se = stock.make_entry(doc, "Material Transfer",
 			[{"item_code": c, "qty": q, "s_warehouse": stock.transit_wh(), "t_warehouse": dest.warehouse} for c, q in got.items()],
-			_("Received for Stock Order {0} from {1}").format(doc.name, doc.from_location), additional_cost=add_cost)
+			_("Received for Stock Order {0} from {1}").format(doc.name, doc.from_location), additional_cost=add_cost, branch=dest.branch)
 		doc.receive_entry = se.name
 	doc.received_by, doc.received_on = frappe.session.user, now_datetime()
 	doc.receive_note = note
@@ -452,7 +454,7 @@ def _apply_resolution(doc):
 	if off:
 		se = stock.make_entry(doc, "Material Issue",
 			[{"item_code": c, "qty": q, "s_warehouse": stock.transit_wh(), "expense_account": s.write_off_account} for c, q in off.items()],
-			_("Short delivery on {0} written off: {1}").format(doc.name, doc.receive_note or ""))
+			_("Short delivery on {0} written off: {1}").format(doc.name, doc.receive_note or ""), branch=src.branch)
 		doc.writeoff_entry = se.name
 	doc.status = "Closed"
 	doc.resolved_by = frappe.session.user
@@ -694,6 +696,8 @@ def create_purchase_orders(lines, schedule_date=None):
 		po.transaction_date = nowdate()
 		po.schedule_date = schedule_date or str(default_for_date())
 		po.set_warehouse = store.warehouse
+		set_branch(po, store.branch)  # bought for the Store
+		dim = branch_field()
 		for l in rows:
 			i = info[l["item_code"]]
 			uom = l.get("uom") or i.stock_uom
@@ -702,6 +706,8 @@ def create_purchase_orders(lines, schedule_date=None):
 				"servepos_stock_orders": ", ".join(l.get("orders") or [])}
 			if l.get("rate") is not None:
 				row["rate"] = flt(l["rate"])
+			if dim and store.branch:
+				row[dim] = store.branch
 			po.append("items", row)
 		po.insert()
 		made.append({"name": po.name, "supplier": sup, "items": len(rows), "total": po.grand_total})
@@ -819,6 +825,7 @@ def _reco(doc, rows, purpose_note):
 	sr.company = company
 	sr.purpose = "Stock Reconciliation"
 	sr.servepos_inventory_count = doc.name
+	set_branch(sr, loc.branch)  # counted where it stands
 	# stock is set to what was counted as of the count date and time the user entered;
 	# a count timed "just now" posts at the real current time so it lands after everything already recorded
 	if not _is_now(doc):

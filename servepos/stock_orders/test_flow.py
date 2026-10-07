@@ -67,6 +67,7 @@ def run(keep=0):
 	for u, role in TEST_ROLES.items():
 		if role not in frappe.get_roles(u):
 			frappe.get_doc("User", u).add_roles(role)
+	started = now_datetime()
 	for_date = str(add_days(nowdate(), 2))
 	tr = api.stock.transit_wh()
 	ow = frappe.db.get_value("ServePOS Stock Location", OUTLET, "warehouse")
@@ -309,6 +310,31 @@ def run(keep=0):
 		expect_error(log, "Outlet cannot open the markup report", api.markup_report, nowdate(), nowdate())
 		as_user(STORE_USER)
 		log.check(api.get_context()["see_amounts"] and api.get_home("Store")["stock_value"] is not None, "Storekeeper sees values")
+
+		# 16. Branch accounting dimension on everything Stock Orders posted in this run
+		as_user("Administrator")
+		dim = api.branch_field()
+		if dim:
+			br = {l.warehouse: l.branch for l in frappe.get_all("ServePOS Stock Location", fields=["warehouse", "branch"])}
+			transit = api.stock.transit_wh()
+			bad, checked = [], 0
+			for se in frappe.get_all("Stock Entry", filters={"servepos_stock_order": ["is", "set"], "creation": [">=", started]}, pluck="name"):
+				d = frappe.get_doc("Stock Entry", se)
+				for it in d.items:
+					real = [w for w in (it.t_warehouse, it.s_warehouse) if w and w != transit]
+					want = br.get(real[0]) if real else d.get(dim)
+					checked += 1
+					if not it.get(dim) or (want and it.get(dim) != want):
+						bad.append(f"{se} {it.item_code} {it.get(dim)} != {want}")
+				gl = frappe.get_all("GL Entry", filters={"voucher_no": se, "is_cancelled": 0}, fields=[dim])
+				if any(not g.get(dim) for g in gl):
+					bad.append(f"{se} GL without branch")
+			log.check(checked and not bad, "Every Stock Entry row and GL line carries the branch where it happened", f"{checked} rows; " + "; ".join(bad[:3]))
+			recos = frappe.get_all("Stock Reconciliation", filters={"servepos_inventory_count": ["is", "set"], "creation": [">=", started]}, fields=["name", dim])
+			log.check(recos and all(r.get(dim) for r in recos), "Inventory counts carry the outlet's branch", [r.get(dim) for r in recos])
+			pos = frappe.get_all("Purchase Order", filters={"creation": [">=", started], "docstatus": 0}, fields=["name", dim])
+			if pos:
+				log.check(all(p.get(dim) == br.get(frappe.db.get_value("ServePOS Stock Location", "Store", "warehouse")) for p in pos), "Draft POs carry the Store's branch")
 	except Exception:
 		log.fail("Unexpected error", traceback.format_exc()[-1500:])
 	finally:
