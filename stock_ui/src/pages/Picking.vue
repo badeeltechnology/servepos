@@ -6,9 +6,8 @@
   </Header>
   <div v-if="pick.data" class="space-y-4 px-3 pb-10 pt-5 sm:px-5">
     <div class="flex flex-wrap gap-2">
-      <router-link v-for="o in pick.data.orders" :key="o.name" :to="'/o/' + o.name" class="card flex items-center gap-2 px-2.5 py-1.5 text-base hover:bg-surface-gray-1">
-        {{ o.to_location }}<StatusBadge :status="o.status" /><Badge v-if="o.is_late" label="Late" theme="amber" variant="subtle" size="sm" />
-      </router-link>
+      <Button v-for="o in pick.data.orders" :key="o.name" :route="'/o/' + o.name" :label="o.to_location + ' · ' + o.status + (o.is_late ? ' · late' : '')"
+        :theme="o.is_late ? 'red' : 'gray'" :icon-left="o.status === 'Submitted' ? 'lucide-circle-dot' : 'lucide-circle-check'" />
     </div>
     <Alert v-if="pick.data.not_ordered.length" theme="amber" title="No order yet" :description="pick.data.not_ordered.join(', ')" />
     <div class="overflow-x-auto">
@@ -35,10 +34,9 @@
 </template>
 <script setup>
 import { computed, ref } from 'vue'
-import { Alert, Badge, Button, DatePicker, LoadingText } from 'frappe-ui'
+import { Alert, Button, DatePicker, LoadingText } from 'frappe-ui'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow } from 'frappe-ui/list'
 import Header from '../components/Header.vue'
-import StatusBadge from '../components/StatusBadge.vue'
 import DownloadMenu from '../components/DownloadMenu.vue'
 import Empty from '../components/Empty.vue'
 import { useRead, fmt, fmtDate } from '../api'

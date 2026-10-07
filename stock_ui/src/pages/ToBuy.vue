@@ -32,7 +32,8 @@
           <ListCell><Select v-model="r.uom" :options="r.uoms.map((u) => ({ value: u.uom, label: u.factor === 1 ? u.uom : `${u.uom} (${fmt(u.factor)})` }))" class="w-full" /></ListCell>
           <ListCell class="flex-col !items-stretch gap-0.5">
             <SupplierPick v-model="r.supplier" :suggested="r.suggested_supplier" />
-            <button v-if="r.suggested_supplier && r.supplier !== r.suggested_supplier" class="truncate text-left text-xs text-ink-blue-link hover:underline" @click="r.supplier = r.suggested_supplier">Suggested: {{ r.suggested_supplier }}{{ r.last_rate ? ` · last ${fmt(r.last_rate, 2)}/${r.last_uom}` : '' }}</button>
+            <Button v-if="r.suggested_supplier && r.supplier !== r.suggested_supplier" size="xs" variant="ghost" theme="blue" class="self-start"
+              :label="'Use ' + r.suggested_supplier + (r.last_rate ? ` · last ${fmt(r.last_rate, 2)}/${r.last_uom}` : '')" @click="r.supplier = r.suggested_supplier" />
             <span v-else-if="!r.suggested_supplier" class="text-xs text-ink-gray-4">Not bought before</span>
           </ListCell>
         </ListRow>
