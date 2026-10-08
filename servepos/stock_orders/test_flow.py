@@ -178,13 +178,30 @@ def run(keep=0):
 			log.check(made and frappe.db.get_value("Purchase Order", made[0]["name"], "docstatus") == 0, "Draft PO created", made)
 		expect_error(log, "Outlet user cannot see To buy", lambda: (as_user(OUTLET_USER), api.get_to_buy()))
 
-		# 8. Store ships the Store order
+		# 7b. the outlet adds a note after submitting
+		as_user(OUTLET_USER)
+		log.check(api.get_order(store_order)["can_edit_note"], "Outlet may add a note to its submitted order")
+		api.update_order_note(store_order, "Bring lemons if you have them")
+		log.check(frappe.db.get_value("ServePOS Stock Order", store_order, "note") == "Bring lemons if you have them", "Note saved after submit")
+		as_user(OTHER_USER)
+		expect_error(log, "Another outlet cannot change the note", api.update_order_note, store_order, "x")
+
+		# 8. Store ships the Store order, adding an item that was not ordered
 		as_user(STORE_USER)
 		g = api.get_order(store_order)
 		log.check(g["can_ship"], "Store manager may ship")
+		on_order = {l["item_code"] for l in g["lines"]}
+		extra = next((x for x in api.get_stock_items("Store") if x.item_code not in on_order and flt(x.actual_qty) >= 1), None)
+		ship_lines = [{"row": l["row"], "qty_shipped": l["qty_ordered"]} for l in g["lines"]]
+		if extra:
+			ship_lines.append({"row": None, "item_code": extra.item_code, "uom": extra.stock_uom, "qty_shipped": 1})
 		try:
-			r = api.ship(store_order, [{"row": l["row"], "qty_shipped": l["qty_ordered"]} for l in g["lines"]])
+			r = api.ship(store_order, ship_lines)
 			log.check(r["status"] == "Shipped", "Store ships", r)
+			if extra:
+				added = [i for i in frappe.get_doc("ServePOS Stock Order", store_order).items if i.item_code == extra.item_code]
+				log.check(added and added[0].qty_ordered == 0 and added[0].qty_shipped == 1 and "Added by" in (added[0].remark or ""),
+					"Store adds an item while shipping", extra.item_code)
 		except Exception as e:
 			frappe.clear_messages()
 			log.ok("Store ship blocked when Store lacks stock (expected if stock is short)", str(e)[:200])
@@ -369,6 +386,35 @@ def run(keep=0):
 				"Store resolves the short line", frappe.db.get_value("ServePOS Stock Order", sent.name, "status"))
 		else:
 			log.ok("Send without an order", "skipped: the Store has fewer than two items in stock")
+
+		# 16c. the Store adds an item the outlet did not order while shipping
+		as_user("Administrator")
+		in_stock = set(frappe.get_all("Bin", filters={"warehouse": store_wh, "actual_qty": [">", 3]}, pluck="item_code"))
+		as_user(OUTLET_USER)
+		orderable = [x.item_code for x in api.search_items("Store", limit=500) if x.item_code in in_stock]
+		extra = next((c for c in in_stock if c not in orderable[:1]), None)
+		if orderable and extra:
+			d16 = str(add_days(nowdate(), 9))
+			r = api.save_order(OUTLET, "Store", json.dumps([{"item_code": orderable[0], "qty": 1}]), d16, submit=1, note="first note")
+			oname = r["name"]
+			api.update_order_note(oname, "Please add a substitute if needed")
+			as_user(STORE_USER)
+			g = api.get_order(oname)
+			lines16 = [{"row": l["row"], "qty_shipped": l["qty_ordered"]} for l in g["lines"]]
+			expect_error(log, "Cannot add an item that is already on the order", api.ship, oname,
+				json.dumps(lines16 + [{"row": None, "item_code": orderable[0], "qty_shipped": 1}]))
+			r = api.ship(oname, json.dumps(lines16 + [{"row": None, "item_code": extra, "qty_shipped": 1}]))
+			doc16 = frappe.get_doc("ServePOS Stock Order", oname)
+			added = [i for i in doc16.items if i.item_code == extra]
+			log.check(r["status"] == "Shipped" and added and added[0].qty_ordered == 0 and added[0].qty_shipped == 1,
+				"Store adds an item while shipping", f"{oname} {extra}")
+			log.check(doc16.note == "Please add a substitute if needed", "Note changed after submit reached the Store")
+			as_user(OUTLET_USER)
+			res = api.receive(oname, json.dumps([{"row": i.name, "qty_received": i.qty_shipped} for i in doc16.items if i.qty_shipped]))
+			log.check(res["status"] in ("Received", "Closed"), "Outlet receives the added item too", res)
+			expect_error(log, "Note is locked once shipped", api.update_order_note, oname, "late")
+		else:
+			log.ok("Add item while shipping", "skipped: no Store item in stock")
 
 		# 17. a provider limited to item groups
 		as_user("Administrator")

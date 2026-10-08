@@ -6,6 +6,7 @@
     </template>
     <template v-if="d">
       <DownloadMenu kind="order" :params="{ name: d.doc.name }" label="" />
+      <Button v-if="d.can_edit_note" :label="d.doc.note ? 'Edit note' : 'Add note'" icon-left="lucide-message-square-plus" @click="editNote" />
       <Button v-if="d.can_cancel" :label="isTransfer && isGiver ? 'Decline' : 'Cancel order'" theme="red" @click="cancel" />
       <template v-if="mode === 'ship'">
         <Button label="Same as ordered" @click="setAll('ordered')" />
@@ -29,8 +30,10 @@
       <Field v-if="d.doc.received_on" label="Received" :value="fmtTime(d.doc.received_on) + ' · ' + who(d.doc.received_by)" />
       <Field v-if="d.doc.reason" label="Reason" :value="d.doc.reason" />
       <Field v-if="d.see_amounts && d.doc.markup_amount" label="Markup" :value="fmt(d.doc.markup_percent, 2) + '% = ' + fmt(d.doc.markup_amount, 2)" />
-      <Field v-if="d.doc.note || d.doc.receive_note" label="Notes" :value="[d.doc.note, d.doc.receive_note].filter(Boolean).join(' · ')" class="col-span-2" />
+      <Field v-if="d.doc.receive_note" label="Receive note" :value="d.doc.receive_note" class="col-span-2" />
     </div>
+
+    <Alert v-if="d.doc.note" theme="blue" :title="'Note from ' + (d.doc.order_type === 'Return' || isDelivery ? d.doc.from_location : d.doc.to_location)" :description="d.doc.note" />
 
     <Alert v-if="hint" :theme="hint.theme" :title="hint.text" />
 
@@ -43,10 +46,11 @@
           <ListHeaderCell class="justify-end">{{ mode === 'ship' ? 'Ship' : 'Received' }}</ListHeaderCell>
           <ListHeaderCell :class="mode === 'ship' || mode === 'resolve' ? '' : 'justify-end'">{{ mode === 'ship' ? 'Remark' : mode === 'resolve' ? 'Missing stock goes' : 'Difference' }}</ListHeaderCell>
         </ListHeader>
-        <ListRow v-for="l in shownLines" :key="l.row" class="min-h-11 py-1" :class="rowCls(l)">
+        <ListRow v-for="l in shownLines" :key="l.row || 'new-' + l.item_code" class="min-h-11 py-1" :class="rowCls(l)">
           <ListCell class="flex-col !items-start">
             <span class="flex w-full items-center gap-2"><span class="truncate text-base">{{ l.item_name }}</span>
               <Badge v-if="mode !== 'ship' && l.is_86 && d.doc.shipped_on" label="Not available" theme="amber" variant="subtle" size="sm" />
+              <Badge v-if="l.extra || (!l.qty_ordered && l.qty_shipped > 0)" :label="'Added by ' + d.doc.from_location" theme="blue" variant="subtle" size="sm" />
               <Badge v-if="mode === 'receive' && !l.is_86 && l.qty_shipped < l.qty_ordered" label="part" theme="amber" variant="subtle" size="sm" /></span>
             <span class="text-xs text-ink-gray-4 num">{{ l.item_code }}{{ l.factor !== 1 ? ` · 1 ${l.uom} = ${fmt(l.factor)} ${l.stock_uom}` : '' }}</span>
           </ListCell>
@@ -58,7 +62,8 @@
           <template v-if="mode === 'ship'">
             <ListCell class="gap-1">
               <TextInput class="qty w-full" type="number" min="0" step="any" inputmode="decimal" variant="outline" :model-value="l.v" @update:model-value="(v) => (l.v = v)" :aria-label="'Ship qty for ' + l.item_name" @keydown.enter.prevent="nextInput($event)" />
-              <Button size="sm" label="Not available" :variant="isZero(l.v) ? 'solid' : 'subtle'" :theme="isZero(l.v) ? 'red' : 'gray'" :tooltip="'We do not have it: ship 0'" @click="l.v = 0" />
+              <Button v-if="l.extra" size="sm" icon="lucide-x" variant="subtle" :tooltip="'Remove ' + l.item_name" :aria-label="'Remove ' + l.item_name" @click="lines.splice(lines.indexOf(l), 1)" />
+              <Button v-else size="sm" label="Not available" :variant="isZero(l.v) ? 'solid' : 'subtle'" :theme="isZero(l.v) ? 'red' : 'gray'" :tooltip="'We do not have it: ship 0'" @click="l.v = 0" />
             </ListCell>
             <ListCell><TextInput class="w-full" variant="outline" v-model="l.remark" :aria-label="'Remark for ' + l.item_name" placeholder="" /></ListCell>
           </template>
@@ -79,6 +84,9 @@
         </ListRow>
       </List>
     </div>
+    <div v-if="mode === 'ship'" class="flex max-w-md items-center gap-2">
+      <ItemSearch class="flex-1" method="get_stock_items" :params="(q) => ({ location_name: d.doc.from_location, txt: q })" :exclude="lines.map((l) => l.item_code)" placeholder="Add an item (substitute or extra)…" all @add="addLine" />
+    </div>
     <div class="flex flex-wrap items-center gap-3">
       <p class="flex-1 text-p-sm" :class="footer.cls">{{ footer.text }}</p>
       <TextInput v-if="mode === 'receive'" v-model="note" class="w-72" placeholder="Note for the provider (optional)" aria-label="Receive note" />
@@ -96,6 +104,7 @@ import { useRoute } from 'vue-router'
 import { Alert, Badge, Button, ErrorMessage, LoadingText, TabButtons, TextInput, dialog, toast } from 'frappe-ui'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow } from 'frappe-ui/list'
 import Header from '../components/Header.vue'
+import ItemSearch from '../components/ItemSearch.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import DownloadMenu from '../components/DownloadMenu.vue'
 import SearchInput from '../components/SearchInput.vue'
@@ -115,7 +124,7 @@ const shownLines = computed(() => lines.value.filter((l) => matches(q.value, l.i
 const view = useRead('get_order', () => ({ name: route.params.name }), {
   onSuccess: (r) => { lines.value = r.lines.map((l) => ({ ...l, v: r.can_ship ? l.qty_ordered : '', res: l.resolution || 'Back to provider', remark: l.remark || '' })) },
 })
-const shipper = useWrite('ship'), receiver = useWrite('receive'), resolver = useWrite('resolve'), canceller = useWrite('cancel_order')
+const shipper = useWrite('ship'), receiver = useWrite('receive'), resolver = useWrite('resolve'), canceller = useWrite('cancel_order'), noteSaver = useWrite('update_order_note')
 const d = computed(() => view.data)
 const isTransfer = computed(() => d.value && d.value.doc.order_type === 'Transfer')
 const isDelivery = computed(() => d.value && d.value.doc.order_type === 'Delivery')
@@ -181,9 +190,14 @@ async function run(call, params, ok) {
   try { const r = await call.submit(params); toast.success(ok(r)); view.reload() }
   catch (e) { toast.error(errText(e)) }
 }
+function addLine(r) {
+  lines.value.push({ row: null, extra: 1, item_code: r.item_code, item_name: r.item_name, uom: r.stock_uom, stock_uom: r.stock_uom, factor: 1,
+    qty_ordered: 0, qty_shipped: 0, from_stock: r.actual_qty || 0, v: '', remark: '' })
+  q.value = ''
+}
 function ship() {
   if (lines.value.some((l) => blank(l.v))) return toast.warning('Type a quantity on every line (0 if not available)')
-  const go = () => run(shipper, { name: d.value.doc.name, lines: lines.value.map((l) => ({ row: l.row, qty_shipped: Number(l.v), remark: l.remark })) },
+  const go = () => run(shipper, { name: d.value.doc.name, lines: lines.value.map((l) => ({ row: l.row || null, item_code: l.item_code, uom: l.uom, qty_shipped: Number(l.v), remark: l.remark })) },
     (r) => (r.status === 'Closed' ? `${r.name} closed, nothing sent` : `${r.name} shipped`))
   if (lines.value.every((l) => Number(l.v) === 0)) {
     dialog.confirm({ title: isTransfer.value ? 'Send nothing?' : 'Nothing available', message: isTransfer.value ? 'This declines the request.' : 'The order closes without shipping anything.', confirmLabel: 'Close it', onConfirm: go })
@@ -195,6 +209,18 @@ function receive() {
 }
 function resolve() {
   run(resolver, { name: d.value.doc.name, lines: lines.value.filter((l) => l.difference > 0).map((l) => ({ row: l.row, resolution: l.res })) }, (r) => `${r.name} resolved`)
+}
+function editNote() {
+  dialog.prompt({
+    title: 'Note for ' + d.value.doc.from_location,
+    fields: [{ name: 'note', type: 'textarea', label: 'Note', defaultValue: d.value.doc.note || '', placeholder: 'Substitutes, timing, items you forgot to list…' }],
+    confirmLabel: 'Save note',
+    onConfirm: async ({ values }) => {
+      await noteSaver.submit({ name: d.value.doc.name, note: values.note || '' }).catch((e) => { throw new Error(errText(e)) })
+      toast.success('Note saved')
+      view.reload()
+    },
+  })
 }
 function cancel() {
   const decline = isTransfer.value && isGiver.value
