@@ -52,7 +52,7 @@
    "fieldname": "order_type",
    "fieldtype": "Select",
    "label": "Type",
-   "options": "Order\nTransfer\nReturn",
+   "options": "Order\nTransfer\nReturn\nDelivery",
    "default": "Order",
    "reqd": 1,
    "in_list_view": 1,
@@ -257,7 +257,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-07 12:00:00.000000",
+ "modified": "2026-10-08 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Servepos",
  "name": "ServePOS Stock Order",

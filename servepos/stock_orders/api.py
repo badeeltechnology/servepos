@@ -197,7 +197,7 @@ def search_items(provider, txt="", limit=20):
 
 
 @frappe.whitelist()
-def save_order(location_name, provider, lines, for_date=None, submit=0):
+def save_order(location_name, provider, lines, for_date=None, submit=0, note=None):
 	assert_can(can_act_for(location_name), _("You cannot order for {0}").format(location_name))
 	prov = location(provider)
 	dest = location(location_name)
@@ -247,6 +247,8 @@ def save_order(location_name, provider, lines, for_date=None, submit=0):
 	doc.items = keep
 	for idx, row in enumerate(doc.items, 1):
 		row.idx = idx
+	if note is not None:
+		doc.note = (note or "").strip()
 	if cint(submit):
 		if not doc.items:
 			frappe.throw(_("Type at least one quantity"))
@@ -261,6 +263,20 @@ def save_order(location_name, provider, lines, for_date=None, submit=0):
 		return {"name": None, "status": "New"}
 	doc.save()
 	return {"name": doc.name, "status": doc.status, "lines": len(doc.items), "is_late": doc.get("is_late")}
+
+
+@frappe.whitelist()
+def update_order_note(name, note=None):
+	"""The requester can change the note until the order is shipped, even after the change cutoff."""
+	doc = _lock(name)
+	requester = doc.from_location if doc.order_type == "Return" else doc.to_location
+	assert_can(can_act_for(requester) or is_admin(), _("Only {0} can change the note").format(requester))
+	if doc.status not in OPEN:
+		frappe.throw(_("This order is already {0}: the note cannot change").format(doc.status.lower()))
+	doc.note = (note or "").strip()
+	doc.flags.ignore_permissions = True
+	doc.save()
+	return {"name": doc.name, "note": doc.note}
 
 
 @frappe.whitelist()
@@ -313,6 +329,7 @@ def get_order(name):
 		"can_ship": doc.status == "Submitted" and can_ship_from(doc.from_location),
 		"can_receive": doc.status == "Shipped" and can_receive_for(doc.to_location),
 		"can_resolve": doc.status == "Discrepancy" and can_ship_from(doc.from_location),
+		"can_edit_note": doc.status in OPEN and doc.order_type != "Delivery" and can_act_for(doc.from_location if doc.order_type == "Return" else doc.to_location),
 		"can_cancel": doc.status in OPEN and (can_act_for(doc.to_location if doc.order_type != "Return" else doc.from_location) or (doc.order_type == "Transfer" and can_act_for(doc.from_location))),
 		"records_production": bool(from_loc.record_production_for_shortfall),
 	}
@@ -320,13 +337,15 @@ def get_order(name):
 
 @frappe.whitelist()
 def ship(name, lines):
-	"""Provider (or giving outlet) ships: Qty Shipped per line, 0 = 86. Stock goes to transit."""
+	"""Provider (or giving outlet) ships: Qty Shipped per line, 0 = not available. Stock goes to transit."""
 	doc = _lock(name)
 	assert_can(can_ship_from(doc.from_location), _("You cannot ship for {0}").format(doc.from_location))
 	if doc.status != "Submitted":
 		frappe.throw(_("This order is {0}").format(doc.status.lower()))
-	by_row = {l["row"]: l for l in _json(lines)}
+	lines = _json(lines)
+	by_row = {l["row"]: l for l in lines if l.get("row")}
 	src = location(doc.from_location)
+	_add_shipper_items(doc, [l for l in lines if not l.get("row") and l.get("item_code")], by_row)
 	need = defaultdict(float)
 	for it in doc.items:
 		l = by_row.get(it.name)
@@ -361,13 +380,38 @@ def ship(name, lines):
 		doc.status = "Shipped"
 	else:
 		doc.status = "Closed"
-		doc.note = "\n".join(filter(None, [doc.note, _("Declined: nothing sent") if doc.order_type == "Transfer" else _("Nothing shipped: every line marked 86")]))
+		doc.note = "\n".join(filter(None, [doc.note, _("Declined: nothing sent") if doc.order_type == "Transfer" else _("Nothing shipped: no item available")]))
 	doc.shipped_by, doc.shipped_on = frappe.session.user, now_datetime()
 	if doc.order_type == "Transfer":
 		doc.approved_by = frappe.session.user
 	doc.flags.ignore_permissions = True
 	doc.save()
 	return {"name": doc.name, "status": doc.status, "ship_entry": doc.ship_entry, "production_entry": doc.production_entry}
+
+
+def _add_shipper_items(doc, extra, by_row):
+	"""Lines the shipper adds before shipping (a substitute or something the receiver forgot).
+	They carry Qty Ordered 0 and a remark, so the receiver sees they were added."""
+	extra = [l for l in extra if flt(l.get("qty_shipped")) > 0]
+	if not extra:
+		return
+	info = item_info([l["item_code"] for l in extra])
+	have = {it.item_code for it in doc.items}
+	for l in extra:
+		i = info.get(l["item_code"])
+		if not i:
+			frappe.throw(_("Unknown item {0}").format(l["item_code"]))
+		if i.name in have:
+			frappe.throw(_("{0} is already on this order: change its quantity instead").format(i.item_name))
+		uom = l.get("uom") or i.stock_uom
+		if uom not in i.factor:
+			frappe.throw(_("{0} has no UOM {1}").format(i.item_name, uom))
+		row = doc.append("items", {"item_code": i.name, "item_name": i.item_name, "uom": uom, "conversion_factor": i.factor[uom],
+			"stock_uom": i.stock_uom, "qty_ordered": 0})
+		row.name = frappe.generate_hash(length=10)
+		have.add(i.name)
+		by_row[row.name] = {"qty_shipped": l.get("qty_shipped"),
+			"remark": l.get("remark") or _("Added by {0}").format(doc.from_location)}
 
 
 @frappe.whitelist()
@@ -401,7 +445,7 @@ def receive(name, lines, note=None):
 		it.amount = qty * flt(it.conversion_factor or 1) * flt(it.valuation_rate)
 		value += it.amount
 	s = settings()
-	markup = flt(src.markup_percent) if doc.order_type == "Order" else 0
+	markup = flt(src.markup_percent) if doc.order_type in ("Order", "Delivery") else 0
 	doc.markup_percent = markup
 	doc.received_value = value
 	doc.markup_amount = flt(value * markup / 100, 2)
@@ -517,6 +561,25 @@ def request_transfer(from_location, to_location, lines, note=None):
 
 
 @frappe.whitelist()
+def send_delivery(from_location, to_location, lines, note=None):
+	"""
+	Send stock without an order: the Store, Central Kitchen or Pastry to any location, or an outlet to another
+	outlet. It ships now (stock goes to transit); the receiving side confirms what arrived, as for any delivery.
+	"""
+	assert_can(can_ship_from(from_location), _("You cannot send from {0}").format(from_location))
+	if from_location == to_location:
+		frappe.throw(_("Choose where to send"))
+	src, dest = location(from_location), location(to_location)
+	if not dest or not dest.enabled:
+		frappe.throw(_("{0} is not an active location").format(to_location))
+	if src.location_type == "Outlet" and dest.location_type != "Outlet":
+		frappe.throw(_("Send stock back to a provider with a Return"))
+	doc = _new_moving_order("Delivery", from_location, to_location, _json(lines),
+		note=note or _("Sent without an order"))
+	return ship(doc.name, [{"row": it.name, "qty_shipped": it.qty_ordered} for it in doc.items])
+
+
+@frappe.whitelist()
 def send_return(from_location, to_location, lines, reason=None, note=None):
 	"""Send stock back to a provider; it ships immediately and the provider confirms on receipt."""
 	assert_can(can_act_for(from_location), _("You cannot return for {0}").format(from_location))
@@ -542,7 +605,7 @@ def get_stock_items(location_name, txt=""):
 
 @frappe.whitelist()
 def list_orders(view, location_name=None, for_date=None):
-	"""view: to_ship | shipped | discrepancies | incoming | transfers | returns | history"""
+	"""view: to_ship | shipped | discrepancies | incoming | transfers | returns | sent | history"""
 	locs = [l.name for l in my_locations()]
 	if location_name:
 		assert_can(location_name in locs, _("Not your location"))
@@ -560,6 +623,8 @@ def list_orders(view, location_name=None, for_date=None):
 		f = {"from_location": ["in", locs], "status": "Discrepancy"}
 	elif view == "incoming":
 		f = {"to_location": ["in", locs], "status": "Shipped"}
+	elif view == "sent":
+		f = {"from_location": ["in", locs], "order_type": "Delivery"}
 	elif view == "history":
 		f = {"to_location": ["in", locs]}
 	of = None
@@ -569,7 +634,7 @@ def list_orders(view, location_name=None, for_date=None):
 	orders = frappe.get_all("ServePOS Stock Order", filters=f, or_filters=of,
 		fields=["name", "order_type", "from_location", "to_location", "status", "for_date", "submitted_on", "shipped_on",
 			"received_on", "is_late", "requested_by", "note", "reason"],
-		order_by=("modified desc" if view in ("history", "transfers", "returns") else "is_late desc, for_date asc, submitted_on asc"), limit=200)
+		order_by=("modified desc" if view in ("history", "transfers", "returns", "sent") else "is_late desc, for_date asc, submitted_on asc"), limit=200)
 	for o in orders:
 		o.lines = frappe.db.count("ServePOS Stock Order Item", {"parent": o.name})
 	return orders
@@ -944,5 +1009,5 @@ def markup_report(from_date, to_date):
 	return frappe.db.sql("""select to_location outlet, from_location provider, count(*) orders,
 			sum(received_value) received_value, max(markup_percent) markup_percent, sum(markup_amount) markup_amount
 		from `tabServePOS Stock Order`
-		where order_type='Order' and markup_percent>0 and received_on between %s and %s
+		where order_type in ('Order', 'Delivery') and markup_percent>0 and received_on between %s and %s
 		group by to_location, from_location order by to_location""", (from_date, f"{to_date} 23:59:59"), as_dict=True)

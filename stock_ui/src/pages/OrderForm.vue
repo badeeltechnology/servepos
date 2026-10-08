@@ -48,13 +48,17 @@
     <div v-if="editable" class="flex max-w-md items-center gap-2">
       <ItemSearch class="flex-1" method="search_items" :params="(q) => ({ provider, txt: q })" :exclude="lines.map((l) => l.item_code)" placeholder="Add an item not on your list…" @add="addItem" />
     </div>
+    <div v-if="form.data && (editable || noteOpen)" class="max-w-xl space-y-2">
+      <Textarea v-model="note" :label="'Note for ' + provider" :rows="2" variant="outline" placeholder="Anything the storekeeper should know: substitutes, timing, items you forgot to list…" />
+      <Button v-if="!editable" label="Save note" :loading="noteSaver.loading" @click="saveNote" />
+    </div>
     <p class="text-p-sm text-ink-gray-5">Blank lines are not ordered. Enter moves to the next line. Stock always moves in the stock UOM.</p>
   </div>
 </template>
 <script setup>
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Alert, Badge, Button, DatePicker, Dropdown, Select, TabButtons, TextInput, toast } from 'frappe-ui'
+import { Alert, Badge, Button, DatePicker, Dropdown, Select, TabButtons, TextInput, Textarea, toast } from 'frappe-ui'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow } from 'frappe-ui/list'
 import Header from '../components/Header.vue'
 import StatusBadge from '../components/StatusBadge.vue'
@@ -71,18 +75,28 @@ const forDate = ref(state.ctx.for_date)
 const cols = ['minmax(180px,1fr)', '6rem', '6rem', '7rem', '10rem']
 const lines = ref([])
 const mode = ref(0)
+const note = ref('')
 
 const form = useRead('get_order_form', () => ({ location_name: state.location.name, provider: provider.value, for_date: forDate.value }), {
-  onSuccess: (d) => { lines.value = d.lines.map((l) => ({ ...l, qty: l.qty ?? '' })) },
+  onSuccess: (d) => { lines.value = d.lines.map((l) => ({ ...l, qty: l.qty ?? '' })); note.value = (d.order && d.order.note) || '' },
 })
 const saver = useWrite('save_order')
+const noteSaver = useWrite('update_order_note')
+const noteOpen = computed(() => !!(form.data && form.data.order && ['Draft', 'Submitted'].includes(form.data.status)))
+async function saveNote() {
+  try {
+    await noteSaver.submit({ name: order.value.name, note: note.value })
+    toast.success('Note saved')
+    form.reload()
+  } catch (e) { toast.error(errText(e)) }
+}
 const order = computed(() => form.data && form.data.order)
 const editable = computed(() => !!(form.data && form.data.editable))
 const filled = computed(() => lines.value.filter((l) => Number(l.qty) > 0).length)
 const lockText = computed(() => {
   const d = form.data
   if (!d || d.editable || d.status === 'New') return ''
-  if (d.status === 'Submitted') return `Submitted. Changes closed at ${d.cutoff.change_cutoff || 'the cutoff'}; ask ${provider.value} to change it.`
+  if (d.status === 'Submitted') return `Submitted. Changes closed at ${d.cutoff.change_cutoff || 'the cutoff'}; ask ${provider.value} to change it, or add a note below.`
   return `This order is ${String(d.status).toLowerCase()}.`
 })
 const lateText = computed(() => {
@@ -106,7 +120,7 @@ function addItem(r) {
 async function save(submit) {
   mode.value = submit
   try {
-    const r = await saver.submit({ location_name: state.location.name, provider: provider.value, for_date: forDate.value, submit,
+    const r = await saver.submit({ location_name: state.location.name, provider: provider.value, for_date: forDate.value, submit, note: note.value,
       lines: lines.value.filter((l) => !blank(l.qty)).map((l) => ({ item_code: l.item_code, uom: l.uom, qty: Number(l.qty) })) })
     if (!r.name) toast.info('Nothing to save yet')
     else toast.success(submit ? `${r.name} sent to ${provider.value}${r.is_late ? ' as a late order' : ''}` : `${r.name} saved as draft`)

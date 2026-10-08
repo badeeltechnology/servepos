@@ -201,9 +201,10 @@ def _norm(name):
 
 
 def assign_branches():
-	"""Branch accounting dimension per location: the POS Profile's branch for outlets, a branch of the
-	same name otherwise (invisible characters and word order ignored); providers get a Branch of their
-	own name when none exists. Existing values are never changed."""
+	"""Branch accounting dimension per location: the POS Profile's branch for outlets, an existing branch of
+	the same name otherwise (invisible characters and word order ignored). Branches are never created: a
+	location without a matching branch stays blank until one is chosen on the Stock Location.
+	Existing values are never changed."""
 	if not frappe.db.exists("DocType", "Branch"):
 		return []
 	branches = {_norm(b): b for b in frappe.get_all("Branch", pluck="name")}
@@ -213,9 +214,6 @@ def assign_branches():
 			continue
 		b = frappe.db.get_value("POS Profile", loc.pos_profile, "branch") if loc.pos_profile else None
 		b = b or branches.get(_norm(loc.location_name))
-		if not b and loc.location_type == "Provider":
-			frappe.get_doc({"doctype": "Branch", "branch": loc.location_name}).insert(ignore_permissions=True)
-			b = loc.location_name
 		if b:
 			frappe.db.set_value("ServePOS Stock Location", loc.name, "branch", b)
 			done.append((loc.name, b))
