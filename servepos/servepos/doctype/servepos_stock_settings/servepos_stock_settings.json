@@ -1,0 +1,224 @@
+{
+ "actions": [],
+ "creation": "2026-10-07 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "order_section",
+  "change_cutoff",
+  "order_cutoff",
+  "cb1",
+  "late_order_policy",
+  "orders_per_provider_per_day",
+  "delivery_section",
+  "transit_warehouse",
+  "write_off_account",
+  "cb2",
+  "short_delivery_default",
+  "auto_close_days",
+  "markup_section",
+  "markup_mode",
+  "cb3",
+  "markup_account",
+  "inventory_section",
+  "inventory_days",
+  "cb4",
+  "correction_window_hours",
+  "show_system_qty",
+  "access_section",
+  "role_access",
+  "amount_access_seeded"
+ ],
+ "fields": [
+  {
+   "fieldname": "order_section",
+   "fieldtype": "Section Break",
+   "label": "Order window"
+  },
+  {
+   "fieldname": "change_cutoff",
+   "fieldtype": "Time",
+   "label": "Changes close at",
+   "default": "13:00:00"
+  },
+  {
+   "fieldname": "order_cutoff",
+   "fieldtype": "Time",
+   "label": "Orders close at",
+   "default": "14:00:00"
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "late_order_policy",
+   "fieldtype": "Select",
+   "label": "Orders after cutoff",
+   "options": "Provider approves\nNot allowed",
+   "default": "Provider approves"
+  },
+  {
+   "fieldname": "orders_per_provider_per_day",
+   "fieldtype": "Int",
+   "label": "Orders per provider per day",
+   "default": "1"
+  },
+  {
+   "fieldname": "delivery_section",
+   "fieldtype": "Section Break",
+   "label": "Delivery"
+  },
+  {
+   "fieldname": "transit_warehouse",
+   "fieldtype": "Link",
+   "label": "In-transit warehouse",
+   "options": "Warehouse",
+   "reqd": 1
+  },
+  {
+   "fieldname": "write_off_account",
+   "fieldtype": "Link",
+   "label": "Write-off account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "short_delivery_default",
+   "fieldtype": "Select",
+   "label": "Short delivery",
+   "options": "Provider decides\nBack to provider stock",
+   "default": "Provider decides"
+  },
+  {
+   "fieldname": "auto_close_days",
+   "fieldtype": "Int",
+   "label": "Auto-close received orders after (days)",
+   "default": "2"
+  },
+  {
+   "fieldname": "markup_section",
+   "fieldtype": "Section Break",
+   "label": "Provider markup"
+  },
+  {
+   "fieldname": "markup_mode",
+   "fieldtype": "Select",
+   "label": "Record markup in",
+   "options": "Reports only\nAccounts",
+   "default": "Reports only"
+  },
+  {
+   "fieldname": "cb3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "markup_account",
+   "fieldtype": "Link",
+   "label": "Markup income account",
+   "options": "Account",
+   "depends_on": "eval:doc.markup_mode=='Accounts'",
+   "mandatory_depends_on": "eval:doc.markup_mode=='Accounts'"
+  },
+  {
+   "fieldname": "inventory_section",
+   "fieldtype": "Section Break",
+   "label": "Inventory"
+  },
+  {
+   "fieldname": "inventory_days",
+   "fieldtype": "Data",
+   "label": "Inventory days",
+   "default": "15,end",
+   "description": "Days of the month, comma separated; 'end' = last day"
+  },
+  {
+   "fieldname": "cb4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "correction_window_hours",
+   "fieldtype": "Int",
+   "label": "Correction window (hours)",
+   "default": "24"
+  },
+  {
+   "fieldname": "show_system_qty",
+   "fieldtype": "Select",
+   "label": "Show system quantity in counts",
+   "options": "After submit\nAlways",
+   "default": "After submit"
+  },
+  {
+   "fieldname": "access_section",
+   "fieldtype": "Section Break",
+   "label": "Login and access"
+  },
+  {
+   "fieldname": "role_access",
+   "fieldtype": "Table",
+   "label": "Landing page and access per role",
+   "options": "ServePOS Stock Role Access",
+   "description": "System Manager and ServePOS Manager always see Desk and amounts."
+  },
+  {
+   "fieldname": "amount_access_seeded",
+   "fieldtype": "Check",
+   "label": "Amount access seeded",
+   "hidden": 1,
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-07 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Servepos",
+ "name": "ServePOS Stock Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "share": 1,
+   "email": 1
+  },
+  {
+   "role": "Stock Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "share": 1,
+   "email": 1
+  },
+  {
+   "role": "ServePOS Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "share": 1,
+   "email": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "row_format": "Dynamic",
+ "issingle": 1
+}

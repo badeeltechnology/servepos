@@ -35,7 +35,7 @@ add_to_apps_screen = [
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/servepos/css/servepos.css"
-# app_include_js = "/assets/servepos/js/servepos.js"
+app_include_js = "/assets/servepos/js/stock_desk_guard.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/servepos/css/servepos.css"
@@ -87,6 +87,8 @@ website_route_rules = [
 	{"from_route": "/call-waiter", "to_route": "call_waiter"},
 	{"from_route": "/store/<path:app_path>", "to_route": "store"},
 	{"from_route": "/store", "to_route": "store"},
+	{"from_route": "/stock/<path:app_path>", "to_route": "stock"},
+	{"from_route": "/stock", "to_route": "stock"},
 ]
 
 # Generators
@@ -102,6 +104,9 @@ website_route_rules = [
 # ----------
 
 # add methods and filters to jinja environment
+jinja = {
+	"methods": ["servepos.stock_orders.exports.stock_print_html"],
+}
 # jinja = {
 # 	"methods": "servepos.utils.jinja_methods",
 # 	"filters": "servepos.utils.jinja_filters"
@@ -167,13 +172,22 @@ doc_events = {
 		"before_submit": "servepos.api.stock.create_manufacture_entries_before_submit",
 		"on_submit": "servepos.api.kot.auto_generate_kot_on_submit",
 		"on_cancel": "servepos.api.stock.reverse_stock_on_cancel"
+	},
+	"User Permission": {
+		"after_insert": "servepos.stock_orders.access.on_user_permission"
 	}
 }
 
 # Scheduled Tasks
 # ---------------
 
+on_session_creation = "servepos.stock_orders.access.on_session_creation"
+extend_bootinfo = "servepos.stock_orders.access.extend_bootinfo"
+
 scheduler_events = {
+	"hourly": [
+		"servepos.stock_orders.jobs.auto_close_received"
+	],
 	"cron": {
 		"*/5 * * * *": [
 			"servepos.api.guest.expire_stale_calls"

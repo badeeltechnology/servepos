@@ -1,0 +1,314 @@
+{
+ "actions": [],
+ "creation": "2026-10-07 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "order_type",
+  "from_location",
+  "to_location",
+  "cb1",
+  "status",
+  "for_date",
+  "is_late",
+  "reason",
+  "note",
+  "items_section",
+  "items",
+  "tracking_section",
+  "requested_by",
+  "submitted_on",
+  "approved_by",
+  "shipped_by",
+  "shipped_on",
+  "cb2",
+  "received_by",
+  "received_on",
+  "resolved_by",
+  "receive_note",
+  "entries_section",
+  "production_entry",
+  "ship_entry",
+  "receive_entry",
+  "cb3",
+  "return_entry",
+  "writeoff_entry",
+  "markup_percent",
+  "received_value",
+  "markup_amount"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "STO-.YY.-.#####",
+   "default": "STO-.YY.-.#####",
+   "hidden": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "order_type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "Order\nTransfer\nReturn",
+   "default": "Order",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "from_location",
+   "fieldtype": "Link",
+   "label": "From (ships)",
+   "options": "ServePOS Stock Location",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "to_location",
+   "fieldtype": "Link",
+   "label": "To (receives)",
+   "options": "ServePOS Stock Location",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nSubmitted\nShipped\nReceived\nDiscrepancy\nClosed\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "for_date",
+   "fieldtype": "Date",
+   "label": "For date",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "is_late",
+   "fieldtype": "Check",
+   "label": "Late order",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Data",
+   "label": "Reason"
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note"
+  },
+  {
+   "fieldname": "items_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "ServePOS Stock Order Item"
+  },
+  {
+   "fieldname": "tracking_section",
+   "fieldtype": "Section Break",
+   "label": "Tracking",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "requested_by",
+   "fieldtype": "Link",
+   "label": "Requested by",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "submitted_on",
+   "fieldtype": "Datetime",
+   "label": "Submitted on",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved by",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "shipped_by",
+   "fieldtype": "Link",
+   "label": "Shipped by",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "shipped_on",
+   "fieldtype": "Datetime",
+   "label": "Shipped on",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "received_by",
+   "fieldtype": "Link",
+   "label": "Received by",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "received_on",
+   "fieldtype": "Datetime",
+   "label": "Received on",
+   "read_only": 1
+  },
+  {
+   "fieldname": "resolved_by",
+   "fieldtype": "Link",
+   "label": "Resolved by",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "receive_note",
+   "fieldtype": "Small Text",
+   "label": "Receive note",
+   "read_only": 1
+  },
+  {
+   "fieldname": "entries_section",
+   "fieldtype": "Section Break",
+   "label": "ERPNext entries",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "production_entry",
+   "fieldtype": "Link",
+   "label": "Production entry",
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ship_entry",
+   "fieldtype": "Link",
+   "label": "Ship entry",
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "receive_entry",
+   "fieldtype": "Link",
+   "label": "Receive entry",
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cb3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "return_entry",
+   "fieldtype": "Link",
+   "label": "Back-to-provider entry",
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "writeoff_entry",
+   "fieldtype": "Link",
+   "label": "Write-off entry",
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "markup_percent",
+   "fieldtype": "Float",
+   "label": "Markup %",
+   "read_only": 1
+  },
+  {
+   "fieldname": "received_value",
+   "fieldtype": "Currency",
+   "label": "Received value at cost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "markup_amount",
+   "fieldtype": "Currency",
+   "label": "Markup amount",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-07 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Servepos",
+ "name": "ServePOS Stock Order",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "share": 1,
+   "email": 1
+  },
+  {
+   "role": "Stock Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "share": 1,
+   "email": 1
+  },
+  {
+   "role": "ServePOS Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "share": 1,
+   "email": 1
+  },
+  {
+   "role": "Stock User",
+   "read": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "row_format": "Dynamic",
+ "autoname": "naming_series:",
+ "title_field": "to_location",
+ "track_changes": 1
+}

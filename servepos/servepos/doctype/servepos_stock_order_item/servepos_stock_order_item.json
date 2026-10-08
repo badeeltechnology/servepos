@@ -1,0 +1,130 @@
+{
+ "actions": [],
+ "creation": "2026-10-07 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "item_name",
+  "uom",
+  "conversion_factor",
+  "stock_uom",
+  "qty_ordered",
+  "qty_shipped",
+  "qty_received",
+  "is_86",
+  "difference",
+  "resolution",
+  "valuation_rate",
+  "amount",
+  "remark"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "label": "UOM",
+   "options": "UOM",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "conversion_factor",
+   "fieldtype": "Float",
+   "label": "Conversion factor",
+   "default": "1"
+  },
+  {
+   "fieldname": "stock_uom",
+   "fieldtype": "Link",
+   "label": "Stock UOM",
+   "options": "UOM",
+   "read_only": 1
+  },
+  {
+   "fieldname": "qty_ordered",
+   "fieldtype": "Float",
+   "label": "Qty Ordered",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "qty_shipped",
+   "fieldtype": "Float",
+   "label": "Qty Shipped",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "qty_received",
+   "fieldtype": "Float",
+   "label": "Qty Received",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "is_86",
+   "fieldtype": "Check",
+   "label": "86"
+  },
+  {
+   "fieldname": "difference",
+   "fieldtype": "Float",
+   "label": "Difference (shipped - received)",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "resolution",
+   "fieldtype": "Select",
+   "label": "Resolution",
+   "options": "\nBack to provider\nWrite off"
+  },
+  {
+   "fieldname": "valuation_rate",
+   "fieldtype": "Currency",
+   "label": "Valuation rate (stock UOM)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount received",
+   "read_only": 1
+  },
+  {
+   "fieldname": "remark",
+   "fieldtype": "Small Text",
+   "label": "Remark"
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-07 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Servepos",
+ "name": "ServePOS Stock Order Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "row_format": "Dynamic",
+ "istable": 1,
+ "editable_grid": 1
+}
