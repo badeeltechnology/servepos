@@ -9,6 +9,7 @@
       <Button v-for="o in pick.data.orders" :key="o.name" :route="'/o/' + o.name" :label="o.to_location + ' · ' + o.status + (o.is_late ? ' · late' : '')"
         :theme="o.is_late ? 'red' : 'gray'" :icon-left="o.status === 'Submitted' ? 'lucide-circle-dot' : 'lucide-circle-check'" />
     </div>
+    <SearchInput v-if="pick.data.rows.length > 8" v-model="q" placeholder="Search item" />
     <Alert v-if="pick.data.not_ordered.length" theme="amber" title="No order yet" :description="pick.data.not_ordered.join(', ')" />
     <div class="overflow-x-auto">
       <List :columns="cols" class="card list-row-px-3" :style="{ minWidth: 260 + pick.data.outlets.length * 90 + 'px' }">
@@ -18,7 +19,7 @@
           <ListHeaderCell class="justify-end">Total</ListHeaderCell><ListHeaderCell class="justify-end">In stock</ListHeaderCell>
           <ListHeaderCell v-if="makes" class="justify-end">To make</ListHeaderCell>
         </ListHeader>
-        <ListRow v-for="r in pick.data.rows" :key="r.item_code" class="min-h-10">
+        <ListRow v-for="r in pick.data.rows.filter((x) => matches(q, x.item_name, x.item_code))" :key="r.item_code" class="min-h-10">
           <ListCell class="flex-col !items-start"><span class="w-full truncate">{{ r.item_name }}</span><span class="text-xs text-ink-gray-4">{{ r.uom }}</span></ListCell>
           <ListCell v-for="o in pick.data.outlets" :key="o" class="justify-end num" :class="r.per[o] ? '' : 'text-ink-gray-3'">{{ r.per[o] ? fmt(r.per[o]) : '·' }}</ListCell>
           <ListCell class="justify-end text-base-semibold num">{{ fmt(r.total) }}</ListCell>
@@ -39,7 +40,9 @@ import { List, ListCell, ListHeader, ListHeaderCell, ListRow } from 'frappe-ui/l
 import Header from '../components/Header.vue'
 import DownloadMenu from '../components/DownloadMenu.vue'
 import Empty from '../components/Empty.vue'
-import { useRead, fmt, fmtDate } from '../api'
+import SearchInput from '../components/SearchInput.vue'
+import { useRead, fmt, fmtDate, matches } from '../api'
+const q = ref('')
 import { state } from '../state'
 const date = ref('')
 const makes = computed(() => !!state.location.record_production_for_shortfall)

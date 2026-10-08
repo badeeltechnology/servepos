@@ -1,0 +1,1 @@
+import{o as a,c as s,a as o,u as r,_ as c,b as n,d as _,s as e}from"./index-DNeFv7qd.js";const u={class:"px-5 pt-5"},d={__name:"Start",setup(p){const t=n();return a(()=>{if(!e.location)return t.replace(e.ctx&&e.ctx.is_buyer?"/buy":"/home");t.replace("/home")}),(i,l)=>(_(),s("div",u,[o(r(c))]))}};export{d as default};
