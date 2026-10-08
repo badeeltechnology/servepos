@@ -2,6 +2,7 @@
 
 Run as System Manager: /api/method/servepos.stock_orders.test_flow.run
 """
+import json
 import traceback
 
 import frappe
@@ -340,6 +341,34 @@ def run(keep=0):
 			store_branch = br.get(frappe.db.get_value("ServePOS Stock Location", "Store", "warehouse"))
 			if pos and store_branch:
 				log.check(all(p.get(dim) == store_branch for p in pos), "Draft POs carry the Store's branch")
+
+		# 16b. sending without an order: the Store sends, the outlet confirms, a short line is resolved
+		as_user("Administrator")
+		store_wh = frappe.db.get_value("ServePOS Stock Location", "Store", "warehouse")
+		items = frappe.get_all("Bin", filters={"warehouse": store_wh, "actual_qty": [">", 3]}, pluck="item_code", limit=2)
+		if len(items) == 2:
+			as_user(STORE_USER)
+			r = api.send_delivery("Store", OUTLET, json.dumps([{"item_code": items[0], "qty": 2}, {"item_code": items[1], "qty": 1}]),
+				note="test delivery")
+			sent = frappe.get_doc("ServePOS Stock Order", r["name"])
+			log.check(sent.order_type == "Delivery" and sent.status == "Shipped" and sent.ship_entry,
+				"Store sends without an order: shipped at once", f"{sent.name} {sent.order_type} {sent.status}")
+			log.check(any(o.name == sent.name for o in api.list_orders("sent", "Store")), "It is listed under Sent")
+			as_user(OUTLET_USER)
+			log.check(any(o.name == sent.name for o in api.list_orders("incoming", OUTLET)), "The outlet sees it to receive")
+			rows = {it.item_code: it.name for it in sent.items}
+			res = api.receive(sent.name, json.dumps([{"row": rows[items[0]], "qty_received": 2}, {"row": rows[items[1]], "qty_received": 0}]))
+			log.check(res["status"] == "Discrepancy", "Received one short: discrepancy for the Store", res)
+			expect_error(log, "An outlet cannot send to a provider (that is a Return)", api.send_delivery, OUTLET, "Store",
+				json.dumps([{"item_code": items[0], "qty": 1}]))
+			expect_error(log, "An outlet cannot send from the Store", api.send_delivery, "Store", OUTLET,
+				json.dumps([{"item_code": items[0], "qty": 1}]))
+			as_user(STORE_USER)
+			api.resolve(sent.name, json.dumps([{"row": rows[items[1]], "resolution": "Back to provider"}]))
+			log.check(frappe.db.get_value("ServePOS Stock Order", sent.name, "status") in ("Closed", "Received"),
+				"Store resolves the short line", frappe.db.get_value("ServePOS Stock Order", sent.name, "status"))
+		else:
+			log.ok("Send without an order", "skipped: the Store has fewer than two items in stock")
 
 		# 17. a provider limited to item groups
 		as_user("Administrator")

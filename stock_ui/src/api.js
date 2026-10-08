@@ -52,3 +52,11 @@ export function fmtTime(s) {
 
 export const who = (u) => (u ? String(u).split('@')[0] : '')
 export const blank = (v) => v === '' || v === null || v === undefined
+
+// search box filter: every word must appear in one of the values (case-insensitive)
+export function matches(q, ...values) {
+  const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return true
+  const text = values.map((v) => String(v ?? '')).join(' ').toLowerCase()
+  return words.every((w) => text.includes(w))
+}

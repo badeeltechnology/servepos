@@ -6,7 +6,8 @@
   </Header>
   <div class="space-y-4 px-3 pb-10 pt-5 sm:px-5">
     <div class="card flex flex-wrap items-center gap-2 px-3 py-2">
-      <Checkbox :model-value="allOn" @update:model-value="toggleAll" label="Tick all" />
+      <SearchInput v-model="q" placeholder="Search item, outlet or supplier" />
+      <Checkbox :model-value="allOn" @update:model-value="toggleAll" :label="q ? 'Tick all shown' : 'Tick all'" />
       <span class="text-sm text-ink-gray-5">{{ picked.length }} ticked</span>
       <span class="flex-1" />
       <span class="text-sm text-ink-gray-6">Supplier for ticked items</span>
@@ -23,7 +24,7 @@
           <ListHeaderCell /><ListHeaderCell>Item</ListHeaderCell><ListHeaderCell class="justify-end">Needed</ListHeaderCell><ListHeaderCell class="justify-end">Store has</ListHeaderCell>
           <ListHeaderCell class="justify-end">Buy qty</ListHeaderCell><ListHeaderCell>Buy UOM</ListHeaderCell><ListHeaderCell>Supplier</ListHeaderCell>
         </ListHeader>
-        <ListRow v-for="r in rows" :key="r.item_code" class="min-h-14 py-1" :class="r.on ? 'bg-surface-gray-1' : ''">
+        <ListRow v-for="r in shown" :key="r.item_code" class="min-h-14 py-1" :class="r.on ? 'bg-surface-gray-1' : ''">
           <ListCell><Checkbox v-model="r.on" :aria-label="'Tick ' + r.item_name" /></ListCell>
           <ListCell class="flex-col !items-start"><span class="w-full truncate text-base">{{ r.item_name }}</span><span class="w-full truncate text-xs text-ink-gray-5" :title="r.who.join(', ')">for {{ r.who.join(', ') }}</span></ListCell>
           <ListCell class="justify-end num">{{ fmt(r.needed) }}&nbsp;<span class="text-xs text-ink-gray-4">{{ r.stock_uom }}</span></ListCell>
@@ -51,7 +52,8 @@ import Header from '../components/Header.vue'
 import Empty from '../components/Empty.vue'
 import DownloadMenu from '../components/DownloadMenu.vue'
 import SupplierPick from '../components/SupplierPick.vue'
-import { useRead, useWrite, errText, fmt } from '../api'
+import SearchInput from '../components/SearchInput.vue'
+import { useRead, useWrite, errText, fmt, matches } from '../api'
 import { state } from '../state'
 const rows = ref([]), bulk = ref(null), made = ref([]), upTo = ref(state.ctx.for_date)
 const cols = ['2rem', 'minmax(180px,1fr)', '6rem', '6rem', '6rem', '8rem', '15rem']
@@ -60,9 +62,11 @@ const list = useRead('get_to_buy', () => ({ for_date: upTo.value }), {
 })
 const maker = useWrite('create_purchase_orders')
 const picked = computed(() => rows.value.filter((r) => r.on))
-const allOn = computed(() => rows.value.length > 0 && picked.value.length === rows.value.length)
+const q = ref('')
+const shown = computed(() => rows.value.filter((r) => matches(q.value, r.item_name, r.item_code, r.who.join(' '), r.supplier, r.suggested_supplier)))
+const allOn = computed(() => shown.value.length > 0 && shown.value.every((r) => r.on))
 const supCount = computed(() => new Set(picked.value.map((r) => r.supplier).filter(Boolean)).size)
-function toggleAll(v) { rows.value.forEach((r) => (r.on = !!v)) }
+function toggleAll(v) { shown.value.forEach((r) => (r.on = !!v)) }
 async function create() {
   const missing = picked.value.filter((r) => !r.supplier)
   if (missing.length) return toast.warning(`Choose a supplier for ${missing.map((r) => r.item_name).slice(0, 3).join(', ')}${missing.length > 3 ? '…' : ''}`)

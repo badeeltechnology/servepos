@@ -34,7 +34,7 @@ def _dt(v):
 def sheet_order(name):
 	g = api.get_order(name)
 	d = frappe._dict(g["doc"])
-	kind = {"Order": "Stock order", "Transfer": "Transfer", "Return": "Return"}[d.order_type]
+	kind = {"Order": "Stock order", "Transfer": "Transfer", "Return": "Return", "Delivery": "Delivery"}[d.order_type]
 	shipped, received = bool(d.shipped_on), bool(d.received_on)
 	cols = [("Item", "l"), ("Code", "l"), ("UOM", "l"), ("Ordered", "r"), ("Shipped", "r"), ("Received", "r"), ("Difference", "r"), ("Remark", "l")]
 	rows = []
@@ -42,7 +42,7 @@ def sheet_order(name):
 		rows.append([l["item_name"], l["item_code"], l["uom"], _n(l["qty_ordered"]),
 			_n(l["qty_shipped"]) if shipped else "", _n(l["qty_received"]) if received else "",
 			(_n(-l["difference"]) if flt(l["difference"]) else "0") if received else "",
-			" ".join(filter(None, ["86" if l["is_86"] and shipped else "", l["resolution"] or "", l["remark"] or ""]))])
+			" ".join(filter(None, [_("Not available") if l["is_86"] and shipped else "", l["resolution"] or "", l["remark"] or ""]))])
 	return {
 		"title": f"{kind} {d.name}", "subtitle": d.status,
 		"meta": [("From", d.from_location), ("To", d.to_location), ("For", format_date(d.for_date)),
