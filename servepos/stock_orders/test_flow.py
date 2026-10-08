@@ -318,23 +318,28 @@ def run(keep=0):
 			br = {l.warehouse: l.branch for l in frappe.get_all("ServePOS Stock Location", fields=["warehouse", "branch"])}
 			transit = api.stock.transit_wh()
 			bad, checked = [], 0
+			# a location without a branch (none chosen yet) leaves its rows blank; branches are never created
 			for se in frappe.get_all("Stock Entry", filters={"servepos_stock_order": ["is", "set"], "creation": [">=", started]}, pluck="name"):
 				d = frappe.get_doc("Stock Entry", se)
+				all_known = True
 				for it in d.items:
 					real = [w for w in (it.t_warehouse, it.s_warehouse) if w and w != transit]
 					want = br.get(real[0]) if real else d.get(dim)
+					all_known = all_known and bool(want)
 					checked += 1
-					if not it.get(dim) or (want and it.get(dim) != want):
+					if want and it.get(dim) != want:
 						bad.append(f"{se} {it.item_code} {it.get(dim)} != {want}")
 				gl = frappe.get_all("GL Entry", filters={"voucher_no": se, "is_cancelled": 0}, fields=[dim])
-				if any(not g.get(dim) for g in gl):
+				if all_known and any(not g.get(dim) for g in gl):
 					bad.append(f"{se} GL without branch")
-			log.check(checked and not bad, "Every Stock Entry row and GL line carries the branch where it happened", f"{checked} rows; " + "; ".join(bad[:3]))
+			log.check(checked and not bad, "Every Stock Entry row and GL line carries the branch of its location (where one is set)", f"{checked} rows; " + "; ".join(bad[:3]))
+			log.check(not frappe.db.exists("Branch", {"creation": [">=", started]}), "No Branch created by Stock Orders")
 			recos = frappe.get_all("Stock Reconciliation", filters={"servepos_inventory_count": ["is", "set"], "creation": [">=", started]}, fields=["name", dim])
 			log.check(recos and all(r.get(dim) for r in recos), "Inventory counts carry the outlet's branch", [r.get(dim) for r in recos])
 			pos = frappe.get_all("Purchase Order", filters={"creation": [">=", started], "docstatus": 0}, fields=["name", dim])
-			if pos:
-				log.check(all(p.get(dim) == br.get(frappe.db.get_value("ServePOS Stock Location", "Store", "warehouse")) for p in pos), "Draft POs carry the Store's branch")
+			store_branch = br.get(frappe.db.get_value("ServePOS Stock Location", "Store", "warehouse"))
+			if pos and store_branch:
+				log.check(all(p.get(dim) == store_branch for p in pos), "Draft POs carry the Store's branch")
 
 		# 17. a provider limited to item groups
 		as_user("Administrator")
