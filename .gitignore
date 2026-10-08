@@ -56,3 +56,6 @@ jspm_packages/
 
 # Planning documents
 SERVEPOS_PLANNING_DOCUMENT.md
+
+# ServePOS Stock Orders frontend (built into servepos/public/stock)
+stock_ui/node_modules/

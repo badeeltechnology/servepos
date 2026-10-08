@@ -1176,6 +1176,11 @@ def setup_all():
     create_kot_print_format()
     create_bill_print_format()
 
+    # Stock Orders (outlet ordering, transfers, returns, inventory, procurement)
+    print("\nSetting up Stock Orders...")
+    from servepos.stock_orders.setup import setup as setup_stock_orders
+    setup_stock_orders(sync=False)
+
     frappe.db.commit()
     print("=" * 50)
     print("ServePOS setup complete!")

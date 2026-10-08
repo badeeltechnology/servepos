@@ -1,0 +1,55 @@
+{
+ "actions": [],
+ "creation": "2026-10-07 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "role",
+  "landing_page",
+  "allow_desk",
+  "show_amounts"
+ ],
+ "fields": [
+  {
+   "fieldname": "role",
+   "fieldtype": "Link",
+   "label": "Role",
+   "options": "Role",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "landing_page",
+   "fieldtype": "Data",
+   "label": "Lands on",
+   "default": "/stock",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "allow_desk",
+   "fieldtype": "Check",
+   "label": "Desk allowed",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "show_amounts",
+   "fieldtype": "Check",
+   "label": "Sees prices and values",
+   "in_list_view": 1,
+   "description": "Item rates, stock value and markup. Outlet staff normally do not."
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-07 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Servepos",
+ "name": "ServePOS Stock Role Access",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "row_format": "Dynamic",
+ "istable": 1,
+ "editable_grid": 1
+}
