@@ -75,7 +75,7 @@ role_home_page = {
 	"ServePOS Waiter": "pos",
 	"ServePOS Kitchen": "pos",
 	"ServePOS Reporter": "pos",
-	"ServePOS Supervisor": "store",
+	"ServePOS Supervisor": "stock",
 }
 
 # Website Routes
@@ -85,10 +85,13 @@ website_route_rules = [
 	{"from_route": "/pos", "to_route": "pos"},
 	{"from_route": "/call-waiter/<path:app_path>", "to_route": "call_waiter"},
 	{"from_route": "/call-waiter", "to_route": "call_waiter"},
-	{"from_route": "/store/<path:app_path>", "to_route": "store"},
-	{"from_route": "/store", "to_route": "store"},
 	{"from_route": "/stock/<path:app_path>", "to_route": "stock"},
 	{"from_route": "/stock", "to_route": "stock"},
+]
+
+# The old /store tool was replaced by Stock Orders; keep old links working
+website_redirects = [
+	{"source": r"/store(/.*)?", "target": "/stock"},
 ]
 
 # Generators
