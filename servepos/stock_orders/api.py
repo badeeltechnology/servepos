@@ -13,7 +13,7 @@ from frappe.utils import add_days, cint, flt, get_datetime, getdate, now_datetim
 from servepos.stock_orders import stock
 from servepos.stock_orders.utils import (
 	all_locations, assert_can, bin_qty, can_act_for, can_receive_for, can_ship_from, cutoff_state, default_for_date,
-	branch_field, can_see_amounts, factor_of, set_branch, is_admin, item_info, items_of_provider, location, my_locations, roles, settings,
+	branch_field, can_see_amounts, factor_of, set_branch, supplied_by, is_admin, item_info, items_of_provider, location, my_locations, roles, settings,
 )
 
 OPEN = ("Draft", "Submitted")
@@ -169,6 +169,8 @@ def get_order_form(location_name, provider, for_date=None):
 		lines = [{"item_code": r.item_code, "uom": r.uom, "qty": None, "usual": r.usual_qty, "usual_uom": r.uom} for r in list_rows]
 	codes = [l["item_code"] for l in lines]
 	info = item_info(codes)
+	ok = supplied_by(provider, info)
+	lines = [l for l in lines if l["item_code"] in ok or l.get("row")]  # list lines outside the provider's groups are hidden
 	here = bin_qty(codes, location(location_name).warehouse)
 	lines = [_line_view(l, info, here) for l in lines if l["item_code"] in info]
 	return {
@@ -217,7 +219,8 @@ def save_order(location_name, provider, lines, for_date=None, submit=0):
 	if name and doc.status == "Submitted" and not cut["changes_open"]:
 		frappe.throw(_("Changes closed at {0}. Ask {1} to change it for you.").format(cut["change_cutoff"] or "the cutoff", provider))
 	info = item_info([l["item_code"] for l in lines])
-	wrong = [c for c in info if info[c].providers and provider not in info[c].providers]
+	ok = supplied_by(provider, info)
+	wrong = [c for c in info if c not in ok]
 	if wrong:
 		frappe.throw(_("Not supplied by {0}: {1}").format(provider, ", ".join(info[c].item_name for c in wrong)))
 	if not name:

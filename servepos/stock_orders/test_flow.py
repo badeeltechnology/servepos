@@ -335,6 +335,23 @@ def run(keep=0):
 			pos = frappe.get_all("Purchase Order", filters={"creation": [">=", started], "docstatus": 0}, fields=["name", dim])
 			if pos:
 				log.check(all(p.get(dim) == br.get(frappe.db.get_value("ServePOS Stock Location", "Store", "warehouse")) for p in pos), "Draft POs carry the Store's branch")
+
+		# 17. a provider limited to item groups
+		as_user("Administrator")
+		store = frappe.get_doc("ServePOS Stock Location", "Store")
+		store.set("item_groups", [{"item_group": "Packaging"}])
+		store.save(ignore_permissions=True)
+		as_user(OUTLET_USER)
+		found = api.search_items("Store", "")
+		groups = {frappe.db.get_value("Item", r.item_code, "item_group") for r in found}
+		log.check(found and groups == {"Packaging"}, "Store limited to Packaging: search shows packaging only", sorted(groups))
+		form = api.get_order_form(OUTLET, "Store", str(add_days(nowdate(), 7)))
+		log.check(all(frappe.db.get_value("Item", l["item_code"], "item_group") == "Packaging" for l in form["lines"]),
+			"Order form hides list items outside Packaging", f"{len(form['lines'])} lines")
+		other = frappe.get_all("Item", filters={"servepos_stock_provider": "Store", "item_group": ["!=", "Packaging"], "disabled": 0, "is_stock_item": 1}, pluck="name", limit=1)
+		if other:
+			expect_error(log, "Ordering a non-packaging item from the Store is refused", api.save_order, OUTLET, "Store",
+				[{"item_code": other[0], "qty": 1}], str(add_days(nowdate(), 7)))
 	except Exception:
 		log.fail("Unexpected error", traceback.format_exc()[-1500:])
 	finally:

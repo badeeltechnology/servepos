@@ -10,6 +10,7 @@ from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
 DOCTYPES = [
 	"servepos_stock_role_access",
+	"servepos_location_item_group",
 	"servepos_stock_location",
 	"servepos_stock_settings",
 	"servepos_order_list_item",

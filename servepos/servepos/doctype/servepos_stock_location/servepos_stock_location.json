@@ -19,7 +19,8 @@
   "markup_percent",
   "cb2",
   "ship_role",
-  "record_production_for_shortfall"
+  "record_production_for_shortfall",
+  "item_groups"
  ],
  "fields": [
   {
@@ -124,6 +125,13 @@
    "fieldtype": "Check",
    "label": "Record production when stock is short",
    "description": "If ERPNext shows less than is shipped, the missing quantity is first received into this provider as production"
+  },
+  {
+   "fieldname": "item_groups",
+   "fieldtype": "Table MultiSelect",
+   "label": "Item groups supplied",
+   "options": "ServePOS Location Item Group",
+   "description": "Only items in these groups (and their sub-groups) can be ordered from this provider. Leave empty for all of its items."
   }
  ],
  "links": [],

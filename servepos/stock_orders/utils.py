@@ -162,7 +162,7 @@ def item_info(item_codes):
 	if not item_codes:
 		return {}
 	items = frappe.get_all("Item", filters={"name": ["in", item_codes]},
-		fields=["name", "item_name", "stock_uom", "purchase_uom", "servepos_stock_provider", "valuation_rate", "is_stock_item", "disabled"])
+		fields=["name", "item_name", "item_group", "stock_uom", "purchase_uom", "servepos_stock_provider", "valuation_rate", "is_stock_item", "disabled"])
 	conv = defaultdict(dict)
 	for c in frappe.get_all("UOM Conversion Detail", filters={"parent": ["in", item_codes], "parenttype": "Item"},
 			fields=["parent", "uom", "conversion_factor"], order_by="idx"):
@@ -182,11 +182,37 @@ def item_info(item_codes):
 	return out
 
 
+def provider_groups(provider):
+	"""Item groups (sub-groups included) a provider is limited to, or None when it is not limited."""
+	chosen = frappe.get_all("ServePOS Location Item Group", filters={"parent": provider, "parenttype": "ServePOS Stock Location"}, pluck="item_group")
+	if not chosen:
+		return None
+	out = set()
+	for g in chosen:
+		lft, rgt = frappe.db.get_value("Item Group", g, ["lft", "rgt"]) or (None, None)
+		if lft is None:
+			continue
+		out.update(frappe.get_all("Item Group", filters={"lft": [">=", lft], "rgt": ["<=", rgt]}, pluck="name"))
+	return out
+
+
 def items_of_provider(provider):
-	"""Item codes a provider supplies: its default items plus items that list it under 'Also ordered from'."""
+	"""Item codes a provider supplies: its default items plus items that list it under 'Also ordered from',
+	limited to the provider's item groups when it has any."""
 	main = frappe.get_all("Item", filters={"servepos_stock_provider": provider, "disabled": 0, "is_stock_item": 1}, pluck="name")
 	extra = frappe.get_all("ServePOS Item Provider", filters={"provider": provider, "parenttype": "Item"}, pluck="parent")
-	return list(dict.fromkeys(main + extra))
+	codes = list(dict.fromkeys(main + extra))
+	groups = provider_groups(provider)
+	if groups is None or not codes:
+		return codes
+	inside = set(frappe.get_all("Item", filters={"name": ["in", codes], "item_group": ["in", list(groups)]}, pluck="name"))
+	return [c for c in codes if c in inside]
+
+
+def supplied_by(provider, info):
+	"""Which of these items (item_info results) the provider supplies."""
+	groups = provider_groups(provider)
+	return {c for c, i in info.items() if (not i.providers or provider in i.providers) and (groups is None or i.item_group in groups)}
 
 
 def branch_field():
