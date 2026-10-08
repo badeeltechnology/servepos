@@ -13,7 +13,7 @@
     <div v-if="rep.data && rep.data.length" class="h-72">
       <BarChart title="Markup by outlet" :subtitle="cur.trim()" :data="byOutlet" x="outlet" y="markup" :format="money" />
     </div>
-    <h2 class="text-lg-semibold">Provider markup by outlet</h2>
+    <div class="flex flex-wrap items-center justify-between gap-2"><h2 class="text-lg-semibold">Provider markup by outlet</h2><SearchInput v-model="q" placeholder="Search outlet or provider" /></div>
     <p class="text-p-sm text-ink-gray-6">Value received from each provider at cost, and the markup on it ({{ state.ctx.settings.markup_mode === 'Accounts' ? 'posted to accounts on receipt' : 'reported only, not posted' }}).</p>
     <div class="overflow-x-auto">
       <List :columns="cols" class="card min-w-[640px] list-row-px-3">
@@ -21,7 +21,7 @@
           <ListHeaderCell>Outlet</ListHeaderCell><ListHeaderCell>Provider</ListHeaderCell><ListHeaderCell class="justify-end">Orders</ListHeaderCell>
           <ListHeaderCell class="justify-end">Received at cost</ListHeaderCell><ListHeaderCell class="justify-end">Markup %</ListHeaderCell><ListHeaderCell class="justify-end">Markup</ListHeaderCell>
         </ListHeader>
-        <ListRow v-for="r in rep.data || []" :key="r.outlet + r.provider" class="min-h-10">
+        <ListRow v-for="r in (rep.data || []).filter((x) => matches(q, x.outlet, x.provider))" :key="r.outlet + r.provider" class="min-h-10">
           <ListCell>{{ r.outlet }}</ListCell><ListCell class="text-ink-gray-6">{{ r.provider }}</ListCell><ListCell class="justify-end num">{{ r.orders }}</ListCell>
           <ListCell class="justify-end num">{{ fmt(r.received_value, 2) }}</ListCell><ListCell class="justify-end text-ink-gray-6 num">{{ fmt(r.markup_percent, 2) }}</ListCell><ListCell class="justify-end text-base-medium num">{{ fmt(r.markup_amount, 2) }}</ListCell>
         </ListRow>
@@ -42,7 +42,9 @@ import { BarChart, NumberCard } from 'frappe-ui/charts'
 import Header from '../components/Header.vue'
 import Empty from '../components/Empty.vue'
 import DownloadMenu from '../components/DownloadMenu.vue'
-import { useRead, fmt } from '../api'
+import SearchInput from '../components/SearchInput.vue'
+import { useRead, fmt, matches } from '../api'
+const q = ref('')
 import { state } from '../state'
 const t = state.ctx.today
 const range = ref([t.slice(0, 8) + '01', t])

@@ -84,6 +84,7 @@ const nav = computed(() => {
       { route: '/order', label: 'New order', icon: 'lucide-square-plus' },
       { route: '/list/incoming', label: 'Receive', icon: 'lucide-inbox' },
       { route: '/transfers', label: 'Transfers', icon: 'lucide-arrow-left-right' },
+      { route: '/send', label: 'Send stock', icon: 'lucide-send' },
       { route: '/returns', label: 'Returns', icon: 'lucide-undo-2' },
       { route: '/inventory', label: 'Inventory', icon: 'lucide-clipboard-list' },
       { route: '/list/history', label: 'Order history', icon: 'lucide-history' },
@@ -95,6 +96,7 @@ const nav = computed(() => {
       out.push(
         { route: '/picking', label: 'Picking sheet', icon: 'lucide-table-2' },
         { route: '/list/to_ship', label: 'To ship', icon: 'lucide-truck' },
+        { route: '/send', label: 'Send stock', icon: 'lucide-send' },
         { route: '/list/discrepancies', label: 'Discrepancies', icon: 'lucide-triangle-alert' },
       )
     }
