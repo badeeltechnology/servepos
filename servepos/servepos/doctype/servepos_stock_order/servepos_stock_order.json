@@ -12,6 +12,7 @@
   "status",
   "for_date",
   "is_late",
+  "is_emergency",
   "reason",
   "note",
   "items_section",
@@ -102,6 +103,16 @@
    "label": "Late order",
    "read_only": 1,
    "in_list_view": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_emergency",
+   "fieldtype": "Check",
+   "in_list_view": 0,
+   "in_standard_filter": 1,
+   "label": "Emergency",
+   "read_only": 1,
+   "description": "Placed outside the daily cutoffs; shipped separately from the day's order"
   },
   {
    "fieldname": "reason",
@@ -257,7 +268,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-08 15:00:00.000000",
+ "modified": "2026-10-10 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Servepos",
  "name": "ServePOS Stock Order",
