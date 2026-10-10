@@ -410,8 +410,12 @@ def run(keep=0):
 				"Store adds an item while shipping", f"{oname} {extra}")
 			log.check(doc16.note == "Please add a substitute if needed", "Note changed after submit reached the Store")
 			as_user(OUTLET_USER)
-			res = api.receive(oname, json.dumps([{"row": i.name, "qty_received": i.qty_shipped} for i in doc16.items if i.qty_shipped]))
+			first = orderable[0]
+			res = api.receive(oname, json.dumps([{"row": i.name, "qty_received": i.qty_shipped + (1 if i.item_code == first else 0)}
+				for i in doc16.items if i.qty_shipped]))
 			log.check(res["status"] in ("Received", "Closed"), "Outlet receives the added item too", res)
+			over = frappe.get_all("Stock Entry Detail", filters={"parent": res["receive_entry"], "item_code": first, "s_warehouse": store_wh}, fields=["qty"])
+			log.check(over and flt(over[0].qty) > 0, "One more arrived than shipped: the extra comes from the Store's stock", over)
 			expect_error(log, "Note is locked once shipped", api.update_order_note, oname, "late")
 		else:
 			log.ok("Add item while shipping", "skipped: no Store item in stock")
