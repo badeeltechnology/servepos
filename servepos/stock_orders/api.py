@@ -72,7 +72,7 @@ def get_home(location_name, for_date=None):
 	lists = frappe.get_all("ServePOS Order List", filters={"location": location_name, "enabled": 1}, fields=["name", "provider"])
 	counts = {l.name: frappe.db.count("ServePOS Order List Item", {"parent": l.name}) for l in lists}
 	orders = frappe.get_all("ServePOS Stock Order",
-		filters={"to_location": location_name, "order_type": "Order", "for_date": for_date, "status": ["!=", "Cancelled"]},
+		filters={"to_location": location_name, "order_type": "Order", "is_emergency": 0, "for_date": for_date, "status": ["!=", "Cancelled"]},
 		fields=["name", "from_location", "status", "submitted_on", "modified"])
 	by_prov = {o.from_location: o for o in orders}
 	cards = []
@@ -150,7 +150,7 @@ def get_order_form(location_name, provider, for_date=None):
 	assert_can(can_act_for(location_name), _("You cannot order for {0}").format(location_name))
 	for_date = for_date or str(default_for_date())
 	order_name = frappe.db.get_value("ServePOS Stock Order",
-		{"to_location": location_name, "from_location": provider, "order_type": "Order", "for_date": for_date,
+		{"to_location": location_name, "from_location": provider, "order_type": "Order", "is_emergency": 0, "for_date": for_date,
 		 "status": ["!=", "Cancelled"]}, "name")
 	lst = frappe.db.get_value("ServePOS Order List", {"location": location_name, "provider": provider}, "name")
 	list_rows = frappe.get_all("ServePOS Order List Item", filters={"parent": lst}, fields=["item_code", "uom", "usual_qty"], order_by="idx") if lst else []
@@ -211,7 +211,7 @@ def save_order(location_name, provider, lines, for_date=None, submit=0, note=Non
 	lines = [l for l in _json(lines) if l.get("item_code")]
 	cut = cutoff_state(for_date)
 	name = frappe.db.get_value("ServePOS Stock Order",
-		{"to_location": location_name, "from_location": provider, "order_type": "Order", "for_date": for_date,
+		{"to_location": location_name, "from_location": provider, "order_type": "Order", "is_emergency": 0, "for_date": for_date,
 		 "status": ["!=", "Cancelled"]}, "name")
 	doc = _lock(name) if name else frappe.new_doc("ServePOS Stock Order")
 	if name and doc.status not in OPEN:
@@ -560,6 +560,31 @@ def _new_moving_order(order_type, from_loc, to_loc, lines, note=None, reason=Non
 
 
 @frappe.whitelist()
+def place_emergency_order(location_name, provider, lines, reason=None, note=None):
+	"""An order outside the daily cutoffs (orders closed, or today's order already shipped).
+	It is a separate order for today, flagged Emergency, listed first for the provider."""
+	assert_can(can_act_for(location_name), _("You cannot order for {0}").format(location_name))
+	if not (reason or "").strip():
+		frappe.throw(_("Say why this is an emergency"))
+	prov, dest = location(provider), location(location_name)
+	if not prov or prov.location_type != "Provider":
+		frappe.throw(_("{0} is not a provider").format(provider))
+	if dest.location_type == "Provider" and dest.orders_from and dest.orders_from != provider:
+		frappe.throw(_("{0} orders from {1}").format(location_name, dest.orders_from))
+	lines = [l for l in _json(lines) if l.get("item_code") and flt(l.get("qty")) > 0]
+	info = item_info([l["item_code"] for l in lines])
+	ok = supplied_by(provider, info)
+	wrong = [c for c in info if c not in ok]
+	if wrong:
+		frappe.throw(_("Not supplied by {0}: {1}").format(provider, ", ".join(info[c].item_name for c in wrong)))
+	doc = _new_moving_order("Order", provider, location_name, lines, note=note, reason=reason.strip())
+	doc.is_emergency = 1
+	doc.flags.ignore_permissions = True
+	doc.save()
+	return {"name": doc.name, "status": doc.status}
+
+
+@frappe.whitelist()
 def request_transfer(from_location, to_location, lines, note=None):
 	"""to_location (the outlet in need) asks from_location (another outlet) for stock."""
 	assert_can(can_act_for(to_location), _("You cannot ask for {0}").format(to_location))
@@ -644,8 +669,8 @@ def list_orders(view, location_name=None, for_date=None):
 		of = {"from_location": ["in", locs], "to_location": ["in", locs]}
 	orders = frappe.get_all("ServePOS Stock Order", filters=f, or_filters=of,
 		fields=["name", "order_type", "from_location", "to_location", "status", "for_date", "submitted_on", "shipped_on",
-			"received_on", "is_late", "requested_by", "note", "reason"],
-		order_by=("modified desc" if view in ("history", "transfers", "returns", "sent") else "is_late desc, for_date asc, submitted_on asc"), limit=200)
+			"received_on", "is_late", "is_emergency", "requested_by", "note", "reason"],
+		order_by=("modified desc" if view in ("history", "transfers", "returns", "sent") else "is_emergency desc, is_late desc, for_date asc, submitted_on asc"), limit=200)
 	for o in orders:
 		o.lines = frappe.db.count("ServePOS Stock Order Item", {"parent": o.name})
 	return orders
@@ -656,11 +681,11 @@ def get_picking(provider, for_date=None):
 	assert_can(can_act_for(provider), _("Not your location"))
 	if not for_date:
 		# the earliest day that still has orders waiting to ship, otherwise tomorrow
-		waiting = frappe.get_all("ServePOS Stock Order", filters={"from_location": provider, "order_type": "Order",
+		waiting = frappe.get_all("ServePOS Stock Order", filters={"from_location": provider, "order_type": "Order", "is_emergency": 0,
 			"status": "Submitted", "for_date": [">=", nowdate()]}, pluck="for_date", order_by="for_date asc", limit=1)
 		for_date = str(waiting[0]) if waiting else str(default_for_date())
 	orders = frappe.get_all("ServePOS Stock Order",
-		filters={"from_location": provider, "order_type": "Order", "for_date": for_date, "status": ["in", ["Submitted", "Shipped", "Received", "Discrepancy", "Closed"]]},
+		filters={"from_location": provider, "order_type": "Order", "is_emergency": 0, "for_date": for_date, "status": ["in", ["Submitted", "Shipped", "Received", "Discrepancy", "Closed"]]},
 		fields=["name", "to_location", "status", "is_late"])
 	if not orders:
 		return {"for_date": for_date, "outlets": [], "rows": [], "orders": [], "not_ordered": _not_ordered(provider, for_date, [])}

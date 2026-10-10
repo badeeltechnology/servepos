@@ -2,6 +2,7 @@
   <Header :title="title" back="/">
     <template #status>
       <StatusBadge v-if="d" :status="d.doc.status" />
+      <Badge v-if="d && d.doc.is_emergency" label="Emergency" theme="red" variant="subtle" />
       <Badge v-if="d && d.doc.is_late" label="Late" theme="amber" variant="subtle" />
     </template>
     <template v-if="d">
@@ -150,6 +151,7 @@ const hint = computed(() => {
   const t = d.value.doc
   if (mode.value === 'ship' && isTransfer.value) return { theme: 'blue', text: `${t.to_location} asks for these items. Type what you can give (0 for none) and approve. Stock leaves now and reaches them when they confirm.` }
   if (mode.value === 'ship' && d.value.records_production) return { theme: 'gray', text: `If ${t.from_location} has less than you ship, the difference is recorded as produced today before it leaves.` }
+  if (mode.value === 'ship' && t.is_emergency) return { theme: 'red', text: `Emergency order from ${t.to_location}${t.reason ? ': ' + t.reason : ''}. Ship it on its own, not with the day's order.` }
   if (mode.value === 'ship' && t.is_late) return { theme: 'amber', text: 'Late order: shipping it approves it. Cancel it if you cannot take it.' }
   if (mode.value === 'resolve') return { theme: 'red', text: `${t.to_location} received less than you shipped. For each short line choose: back into your stock, or write off as a loss.` }
   if (t.status === 'Submitted' && !d.value.can_ship) return { theme: 'gray', text: `Waiting for ${t.from_location} to ${isTransfer.value ? 'approve' : 'ship'}.` }
