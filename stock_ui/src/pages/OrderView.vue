@@ -140,6 +140,7 @@ const signed = (n) => (n === 0 ? '0' : (n > 0 ? '+' : '') + fmt(n))
 const liveDiff = (l) => (blank(l.v) || !(l.qty_shipped > 0) ? null : Number(l.v) - l.qty_shipped)
 const rowCls = (l) => {
   if (mode.value === 'receive' && liveDiff(l) !== null && liveDiff(l) < 0) return 'bg-surface-red-1'
+  if (mode.value === 'receive' && liveDiff(l) !== null && liveDiff(l) > 0) return 'bg-surface-amber-1'
   if (mode.value === 'resolve' && l.difference > 0) return 'bg-surface-red-1'
   if (mode.value === 'ship' && isZero(l.v)) return 'text-ink-gray-5'
   return ''
@@ -162,7 +163,10 @@ const footer = computed(() => {
     const left = lines.value.filter((l) => l.qty_shipped > 0 && blank(l.v)).length
     const short = lines.value.filter((l) => liveDiff(l) !== null && liveDiff(l) < 0).length
     if (left) return { cls: 'text-ink-gray-6', text: `${left} line${left > 1 ? 's' : ''} still to check.${short ? ` ${short} short so far.` : ''}` }
-    if (short) return { cls: 'text-ink-red-6', text: `${short} line${short > 1 ? 's' : ''} short. On confirm, ${d.value.doc.from_location} decides: back to its stock or written off.` }
+    const over = lines.value.filter((l) => liveDiff(l) !== null && liveDiff(l) > 0).length
+    const overText = over ? ` ${over} line${over > 1 ? 's' : ''} with more than shipped: the extra is taken from ${d.value.doc.from_location}'s stock.` : ''
+    if (short) return { cls: 'text-ink-red-6', text: `${short} line${short > 1 ? 's' : ''} short. On confirm, ${d.value.doc.from_location} decides: back to its stock or written off.${overText}` }
+    if (over) return { cls: 'text-ink-amber-6', text: overText.trim() }
     return { cls: 'text-ink-gray-6', text: `Everything matches. On confirm, stock moves into ${d.value.doc.to_location}.` }
   }
   if (mode.value === 'ship') {
@@ -204,8 +208,16 @@ function ship() {
   } else go()
 }
 function receive() {
-  run(receiver, { name: d.value.doc.name, note: note.value, lines: lines.value.filter((l) => l.qty_shipped > 0).map((l) => ({ row: l.row, qty_received: blank(l.v) ? null : Number(l.v) })) },
+  const over = lines.value.filter((l) => liveDiff(l) !== null && liveDiff(l) > 0)
+  const go = () => run(receiver, { name: d.value.doc.name, note: note.value, lines: lines.value.filter((l) => l.qty_shipped > 0).map((l) => ({ row: l.row, qty_received: blank(l.v) ? null : Number(l.v) })) },
     (r) => (r.status === 'Discrepancy' ? `${r.name}: ${r.short_lines} short line(s) sent to ${d.value.doc.from_location}` : `${r.name} received`))
+  if (!over.length) return go()
+  dialog.confirm({
+    title: 'More arrived than shipped?',
+    message: over.map((l) => `${l.item_name}: ${fmt(Number(l.v))} received, ${fmt(l.qty_shipped)} shipped`).join('\n') + `\n\nThe extra is taken from ${d.value.doc.from_location}'s stock and added to yours.`,
+    confirmLabel: 'Confirm received',
+    onConfirm: go,
+  })
 }
 function resolve() {
   run(resolver, { name: d.value.doc.name, lines: lines.value.filter((l) => l.difference > 0).map((l) => ({ row: l.row, resolution: l.res })) }, (r) => `${r.name} resolved`)

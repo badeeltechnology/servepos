@@ -423,6 +423,7 @@ def receive(name, lines, note=None):
 	by_row = {l["row"]: l for l in _json(lines)}
 	dest, src = location(doc.to_location), location(doc.from_location)
 	got = defaultdict(float)
+	more = defaultdict(float)  # arrived above what was shipped: comes straight from the provider's stock
 	short_lines = 0
 	value = 0
 	for it in doc.items:
@@ -435,13 +436,16 @@ def receive(name, lines, note=None):
 		qty = flt(l["qty_received"])
 		if qty < 0:
 			frappe.throw(_("Quantity cannot be negative"))
-		if qty > flt(it.qty_shipped) + 1e-9:
-			frappe.throw(_("{0}: received {1} is more than the {2} shipped").format(it.item_name, qty, it.qty_shipped))
 		it.qty_received = qty
 		it.difference = flt(it.qty_shipped) - qty
 		if it.difference > 1e-9:
 			short_lines += 1
-		got[it.item_code] += qty * flt(it.conversion_factor or 1)
+		factor = flt(it.conversion_factor or 1)
+		extra = max(qty - flt(it.qty_shipped), 0)
+		got[it.item_code] += (qty - extra) * factor
+		if extra > 1e-9:
+			more[it.item_code] += extra * factor
+			it.remark = "\n".join(filter(None, [it.remark, _("{0} more arrived than shipped").format(flt(extra, 3))]))
 		it.amount = qty * flt(it.conversion_factor or 1) * flt(it.valuation_rate)
 		value += it.amount
 	s = settings()
@@ -458,9 +462,16 @@ def receive(name, lines, note=None):
 		if branch_field() and src.branch:
 			add_cost[branch_field()] = src.branch  # the markup is the provider's income
 	got = {k: v for k, v in got.items() if v > 0}
-	if got:
+	if more:
+		short = stock.check_available(src.warehouse, dict(more))
+		if short:
+			names = item_info([x[0] for x in short])
+			frappe.throw(_("More arrived than {0} shipped, but {0} has no stock to cover it: {1}. Ask {0} to check, or type what was shipped.").format(
+				src.name, "; ".join(f"{names[c].item_name}: has {flt(a, 3)}, extra {flt(q, 3)} {names[c].stock_uom}" for c, a, q in short)))
+	if got or more:
 		se = stock.make_entry(doc, "Material Transfer",
-			[{"item_code": c, "qty": q, "s_warehouse": stock.transit_wh(), "t_warehouse": dest.warehouse} for c, q in got.items()],
+			[{"item_code": c, "qty": q, "s_warehouse": stock.transit_wh(), "t_warehouse": dest.warehouse} for c, q in got.items()]
+			+ [{"item_code": c, "qty": q, "s_warehouse": src.warehouse, "t_warehouse": dest.warehouse} for c, q in more.items()],
 			_("Received for Stock Order {0} from {1}").format(doc.name, doc.from_location), additional_cost=add_cost, branch=dest.branch)
 		doc.receive_entry = se.name
 	doc.received_by, doc.received_on = frappe.session.user, now_datetime()
