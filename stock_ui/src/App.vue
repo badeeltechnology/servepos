@@ -82,6 +82,7 @@ const nav = computed(() => {
     out.push(
       { route: '/home', label: 'Today', icon: 'lucide-house' },
       { route: '/order', label: 'New order', icon: 'lucide-square-plus' },
+      { route: '/emergency', label: 'Emergency order', icon: 'lucide-siren' },
       { route: '/list/incoming', label: 'Receive', icon: 'lucide-inbox' },
       { route: '/transfers', label: 'Transfers', icon: 'lucide-arrow-left-right' },
       { route: '/send', label: 'Send stock', icon: 'lucide-send' },

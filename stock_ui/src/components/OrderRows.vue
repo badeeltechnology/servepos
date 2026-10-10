@@ -9,7 +9,7 @@
       <ListCell class="flex-col !items-start"><span class="w-full truncate text-base">{{ party(o) }}</span><span class="text-sm text-ink-gray-5 md:hidden">{{ o.name }} · {{ o.lines }} lines</span></ListCell>
       <ListCell class="hidden text-ink-gray-6 md:flex">{{ fmtDate(o.for_date) }}</ListCell>
       <ListCell class="hidden text-ink-gray-6 md:flex">{{ fmtTime(o[timeField]) }}</ListCell>
-      <ListCell class="gap-1"><StatusBadge :status="o.status" /><Badge v-if="o.is_late" label="Late" theme="amber" variant="subtle" size="sm" /></ListCell>
+      <ListCell class="gap-1"><StatusBadge :status="o.status" /><Badge v-if="o.is_emergency" label="Emergency" theme="red" variant="subtle" size="sm" /><Badge v-if="o.is_late" label="Late" theme="amber" variant="subtle" size="sm" /></ListCell>
     </ListRow>
     <Empty v-if="!rows.length">{{ empty }}</Empty>
     <Empty v-else-if="!shown.length">Nothing matches "{{ q }}".</Empty>
