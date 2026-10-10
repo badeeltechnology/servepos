@@ -420,6 +420,22 @@ def run(keep=0):
 		else:
 			log.ok("Add item while shipping", "skipped: no Store item in stock")
 
+		# 16d. emergency order outside the cutoffs
+		if orderable:
+			as_user(OUTLET_USER)
+			emg_lines = json.dumps([{"item_code": orderable[0], "qty": 1}])
+			expect_error(log, "Emergency order needs a reason", api.place_emergency_order, OUTLET, "Store", emg_lines)
+			r = api.place_emergency_order(OUTLET, "Store", emg_lines, reason="Ran out before lunch")
+			emg = frappe.get_doc("ServePOS Stock Order", r["name"])
+			log.check(emg.is_emergency and emg.status == "Submitted" and str(emg.for_date) == nowdate(), "Emergency order placed for today", emg.name)
+			form = api.get_order_form(OUTLET, "Store", nowdate())
+			log.check(not form["order"] or form["order"]["name"] != emg.name, "The emergency order stays apart from the day's order")
+			as_user(STORE_USER)
+			first_ship = api.list_orders("to_ship", "Store")
+			log.check(first_ship and first_ship[0].name == emg.name, "Emergency order is first on To ship")
+			as_user(OUTLET_USER)
+			api.cancel_order(emg.name, "test cleanup")
+
 		# 17. a provider limited to item groups
 		as_user("Administrator")
 		store = frappe.get_doc("ServePOS Stock Location", "Store")

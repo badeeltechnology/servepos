@@ -6,7 +6,7 @@
       <router-link v-if="order" :to="'/o/' + order.name" class="text-base text-ink-gray-5 underline hover:text-ink-gray-8">{{ order.name }}</router-link>
     </template>
     <template v-if="editable">
-      <Dropdown :options="[{ label: 'Fill usual quantities', icon: 'lucide-wand-sparkles', onClick: fillUsual }, { label: 'Clear quantities', icon: 'lucide-eraser', onClick: clearAll }]">
+      <Dropdown :options="[{ label: 'Fill usual quantities', icon: 'lucide-wand-sparkles', onClick: fillUsual }, { label: 'Clear quantities', icon: 'lucide-eraser', onClick: clearAll }, { label: 'Emergency order', icon: 'lucide-siren', onClick: emergency }]">
         <Button icon="lucide-ellipsis" aria-label="More actions" />
       </Dropdown>
       <Button label="Save draft" :loading="saver.loading && mode === 0" @click="save(0)" />
@@ -22,7 +22,7 @@
       <Badge size="lg" variant="subtle" :theme="filled ? 'blue' : 'gray'" :label="`${filled} of ${lines.length} filled`" />
     </div>
 
-    <Alert v-if="lockText" theme="gray" :title="lockText" />
+    <Alert v-if="lockText" theme="gray" :title="lockText" description="Need something now? Send an emergency order: it goes to the provider straight away, outside the cutoffs." :primary-action="{ label: 'Emergency order', onClick: emergency }" />
     <Alert v-else-if="lateText" theme="amber" :title="lateText" />
 
     <div class="overflow-x-auto">
@@ -106,6 +106,7 @@ const lateText = computed(() => {
 })
 const factorOf = (l) => (l.uoms.find((u) => u.uom === l.uom) || { factor: 1 }).factor
 
+function emergency() { router.push('/emergency/' + encodeURIComponent(provider.value)) }
 function go(p) { router.replace('/order/' + encodeURIComponent(p)) }
 function clearAll() { lines.value.forEach((l) => (l.qty = '')) }
 function fillUsual() { lines.value.forEach((l) => { if (l.usual) { l.qty = l.usual; l.uom = l.usual_uom || l.uom } }) }
