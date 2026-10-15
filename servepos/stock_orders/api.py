@@ -861,7 +861,7 @@ def get_inventory(location_name, count_date=None):
 		codes = []
 		for l in frappe.get_all("ServePOS Order List", filters={"location": location_name}, pluck="name"):
 			codes += frappe.get_all("ServePOS Order List Item", filters={"parent": l}, pluck="item_code", order_by="idx")
-		codes += frappe.get_all("Bin", filters={"warehouse": loc.warehouse, "actual_qty": ["!=", 0]}, pluck="item_code")
+		codes += frappe.get_all("Bin", filters={"warehouse": loc.warehouse}, pluck="item_code", order_by="item_code")  # everything this location ever held
 		seen, ordered = set(), []
 		for c in codes:
 			if c not in seen:
@@ -890,6 +890,19 @@ def get_inventory(location_name, count_date=None):
 	return {"name": name, "status": status, "count_date": count_date, "count_time": count_time, "lines": lines, "show_system": show,
 		"can_correct": can_correct, "reconciliation": doc.reconciliation if doc else None,
 		"correction": doc.correction_reconciliation if doc else None, "days": _inventory_days(count_date)}
+
+
+@frappe.whitelist()
+def search_count_items(location_name, txt=""):
+	"""Any stock item, for adding a line to a count (an item this location never received through the system)."""
+	assert_can(can_act_for(location_name), _("Not your location"))
+	or_filters = {"item_name": ["like", f"%{txt}%"], "item_code": ["like", f"%{txt}%"]} if txt else None
+	codes = frappe.get_all("Item", filters={"disabled": 0, "is_stock_item": 1, "has_variants": 0}, or_filters=or_filters,
+		pluck="name", limit=30, order_by="item_name asc")
+	info = item_info(codes)
+	have = bin_qty(codes, location(location_name).warehouse)
+	return [{"item_code": c, "item_name": info[c].item_name, "stock_uom": info[c].stock_uom, "provider": info[c].servepos_stock_provider,
+		"uoms": info[c].uoms, "actual_qty": flt(have[c].actual_qty) if c in have else 0} for c in codes if c in info]
 
 
 @frappe.whitelist()
