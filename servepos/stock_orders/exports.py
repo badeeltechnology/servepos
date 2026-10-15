@@ -232,4 +232,10 @@ def import_counts(location_name, count_date=None):
 			out.append({"item_code": str(r[ci]).strip(), "counted": flt(v), "uom": (r[ui] if ui is not None and len(r) > ui else None)})
 		except Exception:
 			bad.append(str(r[ci]))
+	# details for items that are not on the screen yet, so they can be added to the count
+	info = item_info([l["item_code"] for l in out])
+	for l in out:
+		i = info.get(l["item_code"])
+		if i and i.is_stock_item and not i.disabled:
+			l.update({"item_name": i.item_name, "stock_uom": i.stock_uom, "provider": i.servepos_stock_provider, "uoms": i.uoms})
 	return {"lines": out, "skipped": bad}

@@ -20,6 +20,8 @@
       <DatePicker v-model="date" label="Count date" :max="state.ctx.today" class="w-40" />
       <TimePicker v-model="time" label="Count time" class="w-32" :disabled="!timeEditable" />
       <TextInput v-model="q" label="Find" placeholder="Item name or code" class="w-56" />
+      <div v-if="editable" class="w-72"><span class="mb-1.5 block text-xs text-ink-gray-5">Add an item not listed</span>
+        <ItemSearch method="search_count_items" :params="(t) => ({ location_name: state.location.name, txt: t })" :exclude="lines.map((l) => l.item_code)" placeholder="Search any item…" @add="addLine" /></div>
       <TabButtons :options="['All', 'Not counted', 'Counted'].map((v) => ({ label: v, value: v }))" v-model="show" />
       <span class="flex-1" />
       <Badge size="lg" :theme="counted && counted === lines.length ? 'green' : 'gray'" variant="subtle" :label="`${counted} of ${lines.length} counted`" />
@@ -45,11 +47,12 @@
           <ListCell class="justify-end text-ink-gray-6 num">{{ inv.data.show_system && l.system !== undefined ? fmt(l.system) : '' }}</ListCell>
           <ListCell class="justify-end text-base-medium num" :class="diffOf(l) < 0 ? 'text-ink-red-6' : diffOf(l) > 0 ? 'text-ink-amber-6' : 'text-ink-gray-5'">{{ inv.data.show_system && diffOf(l) !== null ? (diffOf(l) > 0 ? '+' : '') + fmt(diffOf(l)) : '' }}</ListCell>
         </ListRow>
-        <Empty v-if="!visible.length">No items match.</Empty>
+        <Empty v-if="!visible.length">No items match{{ q ? ` "${q}". Add it with Add an item not listed.` : '.' }}</Empty>
       </List>
     </div>
+
     <LoadingText v-else-if="inv.loading" />
-    <p class="text-p-sm text-ink-gray-5">Type what is on the shelf. Leave a line blank if you did not count it; blank lines keep their system quantity. Enter moves to the next line.</p>
+    <p class="text-p-sm text-ink-gray-5">Items this location never held are not listed: add them with Add an item not listed and type what you have. Type what is on the shelf. Leave a line blank if you did not count it; blank lines keep their system quantity. Enter moves to the next line.</p>
 
     <section v-if="past.data && past.data.length" class="space-y-2 pt-4">
       <h2 class="text-lg-semibold">Past counts</h2>
@@ -71,6 +74,7 @@ import Header from '../components/Header.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import Empty from '../components/Empty.vue'
 import DownloadMenu from '../components/DownloadMenu.vue'
+import ItemSearch from '../components/ItemSearch.vue'
 import { useRead, useWrite, errText, fmt, fmtDate, blank } from '../api'
 import { state } from '../state'
 
@@ -132,9 +136,15 @@ async function importFile(e) {
     if (!res.ok) throw new Error(JSON.parse(JSON.parse(j._server_messages || '["{}"]')[0]).message || 'Could not read the file')
     const byCode = Object.fromEntries(j.message.lines.map((l) => [l.item_code, l]))
     let n = 0
-    lines.value.forEach((l) => { const x = byCode[l.item_code]; if (x) { l.v = x.counted; if (x.uom && l.uoms.some((u) => u.uom === x.uom)) l.uom = x.uom; n++ } })
-    const unknown = j.message.lines.length - n
-    toast.success(`${n} counts filled in from the sheet${unknown ? `, ${unknown} not on this list` : ''}. Check them and submit.`)
+    lines.value.forEach((l) => { const x = byCode[l.item_code]; if (x) { l.v = x.counted; if (x.uom && l.uoms.some((u) => u.uom === x.uom)) l.uom = x.uom; delete byCode[l.item_code]; n++ } })
+    let added = 0, unknown = 0
+    Object.values(byCode).forEach((x) => {
+      if (!x.item_name) return unknown++
+      const l = newLine(x, x.counted)
+      if (x.uom && l.uoms.some((u) => u.uom === x.uom)) l.uom = x.uom
+      lines.value.push(l); added++
+    })
+    toast.success(`${n} counts filled in from the sheet${added ? `, ${added} new items added` : ''}${unknown ? `, ${unknown} codes not found` : ''}. Check them and submit.`)
   } catch (err) { toast.error(errText(err)) }
 }
 watch(() => lines.value.map((l) => l.v + '|' + l.uom).join(), (a, b) => { if (b !== undefined && inv.data && inv.data.status === 'Counting') dirty.value = true })
@@ -148,6 +158,15 @@ const timer = setInterval(async () => {
   } catch (e) { dirty.value = true }
 }, 45000)
 onBeforeUnmount(() => clearInterval(timer))
+function newLine(r, counted = '') {
+  return { item_code: r.item_code, item_name: r.item_name, provider: r.provider || '', uom: r.stock_uom, factor: 1, stock_uom: r.stock_uom,
+    uoms: r.uoms && r.uoms.length ? r.uoms : [{ uom: r.stock_uom, factor: 1 }], counted: null, system: inv.data.show_system ? r.actual_qty || 0 : undefined, v: counted, added: 1 }
+}
+function addLine(r) {
+  lines.value.unshift(newLine(r))
+  q.value = ''; show.value = 'All'
+  setTimeout(() => { const first = document.querySelector('.qty input:not(:disabled)'); if (first) first.focus() }, 50)
+}
 function cancelCorrect() { lines.value.forEach((l) => (l.v = l.counted ?? '')); correcting.value = false }
 function askSubmit() {
   if (!counted.value) return toast.warning('Count at least one item')

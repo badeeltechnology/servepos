@@ -246,8 +246,16 @@ def run(keep=0):
 		inv = api.get_inventory(OUTLET, count_date=cday)
 		log.check(len(inv["lines"]) > 0 and not inv["show_system"], "Inventory loads blank, system qty hidden", f"{len(inv['lines'])} lines")
 		counts = [{"item_code": l["item_code"], "uom": l["uom"], "counted": (5 if i < 3 else None)} for i, l in enumerate(inv["lines"])]
+		on_sheet = {l["item_code"] for l in inv["lines"]}
+		new_item = next((x for x in api.search_count_items(OUTLET, "") if x["item_code"] not in on_sheet), None)
+		log.check(new_item, "An item not on the count sheet can be found to add", new_item and new_item["item_code"])
+		if new_item:
+			counts.append({"item_code": new_item["item_code"], "uom": new_item["stock_uom"], "counted": 4})
 		r = api.save_inventory(OUTLET, counts, count_date=cday, count_time="23:00", submit=1)
 		log.check(r["status"] == "Submitted" and r["reconciliation"], "Count submitted as Stock Reconciliation", r)
+		if new_item:
+			from erpnext.stock.utils import get_stock_balance as _bal
+			log.check(abs(flt(_bal(new_item["item_code"], ow, cday, "23:00:00")) - 4) < 1e-6, "Added item is set to what was counted", new_item["item_code"])
 		c0 = inv["lines"][0]["item_code"]
 		from erpnext.stock.utils import get_stock_balance
 		bal = flt(get_stock_balance(c0, ow, cday, "23:00:00"))
