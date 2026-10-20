@@ -86,7 +86,7 @@
       </List>
     </div>
     <div v-if="mode === 'ship'" class="flex max-w-md items-center gap-2">
-      <ItemSearch class="flex-1" method="get_stock_items" :params="(q) => ({ location_name: d.doc.from_location, txt: q })" :exclude="lines.map((l) => l.item_code)" placeholder="Add an item (substitute or extra)…" all @add="addLine" />
+      <ItemSearch class="flex-1" :method="fromProvider ? 'search_items' : 'get_stock_items'" :params="(t) => (fromProvider ? { provider: d.doc.from_location, txt: t } : { location_name: d.doc.from_location, txt: t })" :exclude="lines.map((l) => l.item_code)" placeholder="Add an item (substitute or extra)…" all @add="addLine" />
     </div>
     <div class="flex flex-wrap items-center gap-3">
       <p class="flex-1 text-p-sm" :class="footer.cls">{{ footer.text }}</p>
@@ -129,6 +129,7 @@ const shipper = useWrite('ship'), receiver = useWrite('receive'), resolver = use
 const d = computed(() => view.data)
 const isTransfer = computed(() => d.value && d.value.doc.order_type === 'Transfer')
 const isDelivery = computed(() => d.value && d.value.doc.order_type === 'Delivery')
+const fromProvider = computed(() => d.value && state.ctx.providers.some((p) => p.name === d.value.doc.from_location))
 const isGiver = computed(() => d.value && state.location && state.location.name === d.value.doc.from_location)
 const mode = computed(() => (!d.value ? '' : d.value.can_ship ? 'ship' : d.value.can_receive ? 'receive' : d.value.can_resolve ? 'resolve' : 'view'))
 const title = computed(() => {
@@ -150,8 +151,8 @@ const hint = computed(() => {
   if (!d.value) return null
   const t = d.value.doc
   if (mode.value === 'ship' && isTransfer.value) return { theme: 'blue', text: `${t.to_location} asks for these items. Type what you can give (0 for none) and approve. Stock leaves now and reaches them when they confirm.` }
-  if (mode.value === 'ship' && d.value.records_production) return { theme: 'gray', text: `If ${t.from_location} has less than you ship, the difference is recorded as produced today before it leaves.` }
   if (mode.value === 'ship' && t.is_emergency) return { theme: 'red', text: `Emergency order from ${t.to_location}${t.reason ? ': ' + t.reason : ''}. Ship it on its own, not with the day's order.` }
+  if (mode.value === 'ship' && d.value.records_production) return { theme: 'gray', text: `If ${t.from_location} has less than you ship, the difference is recorded as produced today before it leaves.` }
   if (mode.value === 'ship' && t.is_late) return { theme: 'amber', text: 'Late order: shipping it approves it. Cancel it if you cannot take it.' }
   if (mode.value === 'resolve') return { theme: 'red', text: `${t.to_location} received less than you shipped. For each short line choose: back into your stock, or write off as a loss.` }
   if (t.status === 'Submitted' && !d.value.can_ship) return { theme: 'gray', text: `Waiting for ${t.from_location} to ${isTransfer.value ? 'approve' : 'ship'}.` }

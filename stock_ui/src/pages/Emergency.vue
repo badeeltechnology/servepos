@@ -8,7 +8,7 @@
         Emergency and listed first on their To ship screen. You confirm what arrives as usual.
       </p>
       <TabButtons v-if="providers.length > 1" :options="providers.map((p) => ({ label: p, value: p }))" v-model="provider" />
-      <LineEditor v-if="provider" v-model="lines" :location="provider" :key="provider" :placeholder="'Search what ' + provider + ' has…'" have-label="They have" empty="Search above and add what you need now." />
+      <LineEditor v-if="provider" v-model="lines" :location="provider" :key="provider" supplied :placeholder="'Search what ' + provider + ' supplies…'" have-label="They have" empty="Search above and add what you need now." />
       <TextInput v-if="provider" v-model="reason" placeholder="Why is it urgent? For example: ran out of croissants before lunch" aria-label="Reason" />
       <TextInput v-if="provider" v-model="note" placeholder="Note for the provider (optional)" aria-label="Note" />
       <Button variant="solid" theme="red" :disabled="!ready" :loading="sender.loading" :label="'Send emergency order' + (provider ? ' to ' + provider : '')" @click="send" />
