@@ -12,7 +12,9 @@
     "phone",
     "is_active",
     "servepos_visible_profiles",
-    "fcm_token"
+    "fcm_token",
+    "mobile_section",
+    "user"
   ],
   "fields": [
     {
@@ -66,10 +68,23 @@
       "label": "FCM Token",
       "read_only": 1,
       "description": "Firebase Cloud Messaging device token for push notifications. Set automatically by the waiter app."
+    },
+    {
+      "fieldname": "mobile_section",
+      "fieldtype": "Section Break",
+      "label": "Mobile App Login"
+    },
+    {
+      "fieldname": "user",
+      "fieldtype": "Link",
+      "label": "User",
+      "options": "User",
+      "search_index": 1,
+      "description": "ERPNext user this waiter logs in with on the Waiter App (needs the ServePOS Waiter role)."
     }
   ],
   "links": [],
-  "modified": "2026-04-04 23:00:00.000000",
+  "modified": "2026-10-20 23:00:00.000000",
   "modified_by": "Administrator",
   "module": "Servepos",
   "name": "ServePOS Waiter",

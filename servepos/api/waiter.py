@@ -3,6 +3,7 @@ ServePOS Waiter API
 Handles waiter order creation and management from the mobile app
 """
 import frappe
+from servepos.api.mobile.security import legacy_api_guard
 from frappe import _
 from frappe.utils import now_datetime, flt, cint
 import json
@@ -13,7 +14,13 @@ import json
 
 @frappe.whitelist()
 def verify_waiter_pin(waiter_name, pin):
-    """Verify waiter PIN and return waiter info"""
+    """Verify waiter PIN and return waiter info
+
+    Deprecated: old waiter app (shared API key, waiter name sent by the phone).
+    Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
+    disable_legacy_waiter_api is ticked.
+    """
+    legacy_api_guard()
     waiter = frappe.get_doc("ServePOS Waiter", waiter_name)
     if not waiter or not waiter.is_active:
         return {"success": False, "error": "Waiter not found or inactive"}
@@ -31,7 +38,13 @@ def verify_waiter_pin(waiter_name, pin):
 
 @frappe.whitelist()
 def create_order(waiter_name=None, order_type="Dine In", table=None, room=None, guests=1, notes=None, items=None, pos_profile=None, branch=None):
-    """Create a waiter order from the mobile app"""
+    """Create a waiter order from the mobile app
+
+    Deprecated: old waiter app (shared API key, waiter name sent by the phone).
+    Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
+    disable_legacy_waiter_api is ticked.
+    """
+    legacy_api_guard()
     if not items:
         frappe.throw(_("Items are required"))
 
@@ -109,7 +122,13 @@ def create_order(waiter_name=None, order_type="Dine In", table=None, room=None, 
 def get_my_orders(waiter_name=None, status_filter=None, days=1):
     """Get waiter's orders by name.
     `days` limits results to orders created within the last N days (default: 1 = today).
-    Pass days=0 to disable the date filter."""
+    Pass days=0 to disable the date filter.
+
+    Deprecated: old waiter app (shared API key, waiter name sent by the phone).
+    Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
+    disable_legacy_waiter_api is ticked.
+    """
+    legacy_api_guard()
     filters = {}
     if waiter_name:
         filters["waiter_name"] = waiter_name
@@ -161,7 +180,13 @@ def update_order_status(order_name, status):
 
 @frappe.whitelist()
 def add_items_to_order(order_name, items):
-    """Add items to an existing waiter order (amendment)"""
+    """Add items to an existing waiter order (amendment)
+
+    Deprecated: old waiter app (shared API key, waiter name sent by the phone).
+    Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
+    disable_legacy_waiter_api is ticked.
+    """
+    legacy_api_guard()
     if isinstance(items, str):
         items = json.loads(items)
 

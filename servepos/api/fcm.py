@@ -73,7 +73,17 @@ def send_push_to_waiters(pos_profile, call_doc):
     Args:
         pos_profile: POS Profile name (restaurant)
         call_doc: ServePOS Waiter Call document dict with table, name, guest_name
+
+    Also notifies phones logged in through the new waiter app (device sessions,
+    servepos.api.mobile.push); the legacy ServePOS Waiter.fcm_token path below is
+    kept for old app versions.
     """
+    try:
+        from servepos.api.mobile.push import enqueue_waiter_call
+        enqueue_waiter_call(call_doc.get("name"), pos_profile, call_doc.get("table"), call_doc.get("guest_name"))
+    except Exception:
+        frappe.log_error(title="ServePOS push: waiter_call")
+
     result = _get_access_token()
     if not result:
         return
@@ -173,7 +183,15 @@ def send_push_to_waiters(pos_profile, call_doc):
 
 
 def send_call_accepted_push(call_name, accepted_by, pos_profile):
-    """Notify other waiters that a call has been accepted (so they can dismiss it)."""
+    """Notify other waiters that a call has been accepted (so they can dismiss it).
+    Legacy path (old waiter app); new app phones get `call_taken` too."""
+    try:
+        from servepos.api.mobile.push import enqueue_call_taken
+        table = frappe.db.get_value("ServePOS Waiter Call", call_name, "table")
+        enqueue_call_taken(call_name, accepted_by, pos_profile, table)
+    except Exception:
+        frappe.log_error(title="ServePOS push: call_taken")
+
     result = _get_access_token()
     if not result:
         return

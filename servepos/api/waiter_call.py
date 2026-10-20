@@ -3,6 +3,7 @@ ServePOS Waiter Call API
 Authenticated endpoints for waiters to accept and attend guest calls.
 """
 import frappe
+from servepos.api.mobile.security import legacy_api_guard
 from frappe import _
 from frappe.utils import now_datetime
 
@@ -10,7 +11,13 @@ from frappe.utils import now_datetime
 @frappe.whitelist()
 def get_active_calls(pos_profile=None):
     """Get all Pending and Accepted calls, optionally filtered by POS Profile.
-    Used by the waiter app Calls tab."""
+    Used by the waiter app Calls tab.
+
+    Deprecated: old waiter app (shared API key, waiter name sent by the phone).
+    Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
+    disable_legacy_waiter_api is ticked.
+    """
+    legacy_api_guard()
     filters = {"status": ["in", ["Pending", "Accepted"]]}
     if pos_profile:
         filters["pos_profile"] = pos_profile
@@ -55,7 +62,13 @@ def get_active_calls(pos_profile=None):
 @frappe.whitelist()
 def accept_waiter_call(call_name, waiter_name):
     """Atomic accept — first waiter wins.
-    Uses a conditional update to prevent race conditions."""
+    Uses a conditional update to prevent race conditions.
+
+    Deprecated: old waiter app (shared API key, waiter name sent by the phone).
+    Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
+    disable_legacy_waiter_api is ticked.
+    """
+    legacy_api_guard()
     if not call_name or not waiter_name:
         frappe.throw(_("Call name and waiter name are required"))
 
@@ -135,7 +148,13 @@ def accept_waiter_call(call_name, waiter_name):
 
 @frappe.whitelist()
 def mark_call_attended(call_name, waiter_name):
-    """Mark that the waiter has met the guest at the seat."""
+    """Mark that the waiter has met the guest at the seat.
+
+    Deprecated: old waiter app (shared API key, waiter name sent by the phone).
+    Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
+    disable_legacy_waiter_api is ticked.
+    """
+    legacy_api_guard()
     if not call_name or not waiter_name:
         frappe.throw(_("Call name and waiter name are required"))
 
@@ -172,7 +191,13 @@ def mark_call_attended(call_name, waiter_name):
 
 @frappe.whitelist()
 def register_fcm_token(waiter_name, fcm_token):
-    """Store or update the FCM device token for push notifications."""
+    """Store or update the FCM device token for push notifications.
+
+    Deprecated: old waiter app (shared API key, waiter name sent by the phone).
+    Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
+    disable_legacy_waiter_api is ticked.
+    """
+    legacy_api_guard()
     if not waiter_name or not fcm_token:
         frappe.throw(_("Waiter name and FCM token are required"))
 
@@ -187,7 +212,13 @@ def register_fcm_token(waiter_name, fcm_token):
 
 @frappe.whitelist()
 def get_my_active_calls(waiter_name):
-    """Get calls accepted by this waiter that are still active (Accepted status)."""
+    """Get calls accepted by this waiter that are still active (Accepted status).
+
+    Deprecated: old waiter app (shared API key, waiter name sent by the phone).
+    Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
+    disable_legacy_waiter_api is ticked.
+    """
+    legacy_api_guard()
     if not waiter_name:
         frappe.throw(_("Waiter name is required"))
 
@@ -226,7 +257,13 @@ def get_my_active_calls(waiter_name):
 
 @frappe.whitelist()
 def get_call_history(waiter_name=None, pos_profile=None, days=1):
-    """Get recent call history for reporting / waiter's past calls."""
+    """Get recent call history for reporting / waiter's past calls.
+
+    Deprecated: old waiter app (shared API key, waiter name sent by the phone).
+    Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
+    disable_legacy_waiter_api is ticked.
+    """
+    legacy_api_guard()
     filters = {"status": ["in", ["Attended", "Expired", "Cancelled"]]}
 
     if waiter_name:
