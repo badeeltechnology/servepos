@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-2">
-    <ItemSearch class="w-full max-w-md" method="get_stock_items" :params="(q) => ({ location_name: location, txt: q })" :exclude="modelValue.map((l) => l.item_code)" :placeholder="placeholder" all @add="add" :key="location" />
+    <ItemSearch class="w-full max-w-md" :method="supplied ? 'search_items' : 'get_stock_items'" :params="(t) => (supplied ? { provider: location, txt: t } : { location_name: location, txt: t })" :exclude="modelValue.map((l) => l.item_code)" :placeholder="placeholder" all @add="add" :key="location" />
     <SearchInput v-if="modelValue.length > 6" v-model="q" placeholder="Find in the list" />
     <List v-if="modelValue.length" :columns="['minmax(160px,1fr)', '6rem', '7rem', '4rem', '2rem']" class="card list-row-px-3">
       <ListHeader><ListHeaderCell>Item</ListHeaderCell><ListHeaderCell class="justify-end">{{ haveLabel }}</ListHeaderCell><ListHeaderCell class="justify-end">Qty</ListHeaderCell><ListHeaderCell>UOM</ListHeaderCell><ListHeaderCell /></ListHeader>
@@ -24,6 +24,6 @@ import ItemSearch from './ItemSearch.vue'
 import Empty from './Empty.vue'
 import { fmt, matches } from '../api'
 const q = ref('')
-const props = defineProps({ modelValue: Array, location: String, placeholder: String, haveLabel: { type: String, default: 'In stock' }, empty: String })
+const props = defineProps({ modelValue: Array, location: String, placeholder: String, haveLabel: { type: String, default: 'In stock' }, empty: String, supplied: Boolean })
 function add(r) { props.modelValue.push({ item_code: r.item_code, item_name: r.item_name, uom: r.stock_uom, have: r.actual_qty, qty: '' }) }
 </script>

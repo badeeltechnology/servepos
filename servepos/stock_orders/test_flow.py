@@ -95,11 +95,19 @@ def run(keep=0):
 		log.check(r["status"] == "Submitted", "Submit CK order", r)
 		expect_error(log, "Store item rejected on a CK order", api.save_order, OUTLET, CK, lines + [{"item_code": "RM-F&V-004", "qty": 1}], for_date)
 		# 3. Store order with a converted UOM
-		r = api.save_order(OUTLET, "Store", [{"item_code": "RM-F&V-001", "qty": 1, "uom": "Box x 10kg"}, {"item_code": "RM-F&V-004", "qty": 3}], for_date, submit=1)
+		# an item with a second UOM (whatever the site's data has)
+		conv = frappe.db.sql("""select d.parent, d.uom, d.conversion_factor from `tabUOM Conversion Detail` d
+			join tabItem i on i.name = d.parent where d.parenttype = 'Item' and d.uom != i.stock_uom and d.conversion_factor > 1
+			and i.servepos_stock_provider = 'Store' and i.disabled = 0 limit 1""", as_dict=True)
+		store_lines = [{"item_code": "RM-F&V-004", "qty": 3}]
+		if conv:
+			store_lines.insert(0, {"item_code": conv[0].parent, "qty": 1, "uom": conv[0].uom})
+		r = api.save_order(OUTLET, "Store", store_lines, for_date, submit=1)
 		store_order = r["name"]
 		so = frappe.get_doc("ServePOS Stock Order", store_order)
-		lettuce = [i for i in so.items if i.item_code == "RM-F&V-001"][0]
-		log.check(lettuce.conversion_factor == 10, "Box x 10kg converts to 10 Kg", f"factor {lettuce.conversion_factor}")
+		if conv:
+			row = [i for i in so.items if i.item_code == conv[0].parent][0]
+			log.check(abs(row.conversion_factor - conv[0].conversion_factor) < 1e-9, f"{conv[0].uom} converts to {conv[0].conversion_factor} stock units", f"factor {row.conversion_factor}")
 		expect_error(log, "Outlet user cannot ship", api.ship, ck_order, [])
 
 		# 4. CK ships: one line less, one 86
@@ -429,6 +437,15 @@ def run(keep=0):
 			log.ok("Add item while shipping", "skipped: no Store item in stock")
 
 		# 16d. emergency order outside the cutoffs
+		as_user(OUTLET_USER)
+		ck_all = api.search_items(CK, limit=500)
+		no_stock = [x for x in ck_all if not flt(x.actual_qty)]
+		log.check(len(ck_all) >= len(api.get_stock_items(CK)) and (not no_stock or no_stock[0].item_code),
+			"Emergency search lists everything the provider supplies, also items out of stock", f"{len(ck_all)} items, {len(no_stock)} with no stock")
+		if no_stock:
+			r = api.place_emergency_order(OUTLET, CK, json.dumps([{"item_code": no_stock[0].item_code, "qty": 2}]), reason="test: out of stock item")
+			log.check(frappe.db.get_value("ServePOS Stock Order", r["name"], "is_emergency"), "Emergency order for an item the kitchen has no stock of", no_stock[0].item_code)
+			api.cancel_order(r["name"], "test cleanup")
 		if orderable:
 			as_user(OUTLET_USER)
 			emg_lines = json.dumps([{"item_code": orderable[0], "qty": 1}])

@@ -193,6 +193,11 @@ def search_items(provider, txt="", limit=20):
 	or_filters = {"item_name": ["like", f"%{txt}%"], "item_code": ["like", f"%{txt}%"]} if txt else None
 	rows = frappe.get_all("Item", filters=cond, or_filters=or_filters, fields=["name as item_code", "item_name", "stock_uom"],
 		limit=cint(limit), order_by="item_name asc")
+	prov = location(provider)
+	if rows and prov and prov.warehouse:
+		have = bin_qty([r.item_code for r in rows], prov.warehouse)
+		for r in rows:
+			r.actual_qty = flt(have[r.item_code].actual_qty) if r.item_code in have else 0
 	return rows
 
 
