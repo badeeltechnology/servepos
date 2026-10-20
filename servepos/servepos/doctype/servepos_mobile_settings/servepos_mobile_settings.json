@@ -1,0 +1,106 @@
+{
+ "actions": [],
+ "creation": "2026-10-20 23:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "auth_section",
+  "session_days",
+  "max_session_days",
+  "column_break_1",
+  "disable_legacy_waiter_api",
+  "orders_section",
+  "allow_cancel_pending",
+  "column_break_2",
+  "order_start_time",
+  "order_end_time"
+ ],
+ "fields": [
+  {
+   "fieldname": "auth_section",
+   "fieldtype": "Section Break",
+   "label": "Waiter App login"
+  },
+  {
+   "fieldname": "session_days",
+   "fieldtype": "Int",
+   "label": "Stay logged in for (days since last use)",
+   "default": "30",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "max_session_days",
+   "fieldtype": "Int",
+   "label": "Force a new password login after (days)",
+   "default": "180",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "disable_legacy_waiter_api",
+   "fieldtype": "Check",
+   "label": "Disable old waiter app API",
+   "default": "0",
+   "description": "Old waiter app versions (shared API key, waiter name sent by the phone) are refused. The desktop POS is not affected."
+  },
+  {
+   "fieldname": "orders_section",
+   "fieldtype": "Section Break",
+   "label": "Ordering"
+  },
+  {
+   "fieldname": "allow_cancel_pending",
+   "fieldtype": "Check",
+   "label": "Waiters may cancel their own pending orders",
+   "default": "1"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "order_start_time",
+   "fieldtype": "Time",
+   "label": "Waiter orders open at",
+   "description": "Leave empty for no limit"
+  },
+  {
+   "fieldname": "order_end_time",
+   "fieldtype": "Time",
+   "label": "Waiter orders close at"
+  }
+ ],
+ "links": [],
+ "issingle": 1,
+ "modified": "2026-10-20 23:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Servepos",
+ "name": "ServePOS Mobile Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "print": 1,
+   "share": 1,
+   "email": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "print": 1,
+   "share": 1,
+   "email": 1,
+   "role": "ServePOS Manager"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "row_format": "Dynamic",
+ "track_changes": 1
+}

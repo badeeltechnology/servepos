@@ -26,7 +26,10 @@
     "pos_order_id",
     "is_guest_order",
     "guest_token",
-    "payment_status"
+    "payment_status",
+    "client_request_id",
+    "parent_order",
+    "round_no"
   ],
   "fields": [
     {
@@ -174,10 +177,37 @@
       "read_only": 1,
       "in_list_view": 1,
       "description": "Online payment status for guest orders"
+    },
+    {
+      "fieldname": "client_request_id",
+      "fieldtype": "Data",
+      "label": "Client Request ID",
+      "read_only": 1,
+      "unique": 1,
+      "no_copy": 1,
+      "description": "Idempotency key sent by the waiter app"
+    },
+    {
+      "fieldname": "parent_order",
+      "fieldtype": "Link",
+      "label": "Round Of",
+      "options": "ServePOS Waiter Order",
+      "read_only": 1,
+      "search_index": 1,
+      "no_copy": 1,
+      "description": "Set when this order is an extra round added to an earlier order"
+    },
+    {
+      "fieldname": "round_no",
+      "fieldtype": "Int",
+      "label": "Round",
+      "read_only": 1,
+      "default": "1",
+      "no_copy": 1
     }
   ],
   "links": [],
-  "modified": "2026-04-04 22:00:00.000000",
+  "modified": "2026-10-20 23:00:00.000000",
   "modified_by": "Administrator",
   "module": "Servepos",
   "name": "ServePOS Waiter Order",
