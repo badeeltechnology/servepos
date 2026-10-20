@@ -758,6 +758,33 @@ def run():
 		frappe.db.set_single_value(security.SETTINGS, "disable_legacy_waiter_api", 0)
 		frappe.clear_document_cache(security.SETTINGS, security.SETTINGS)
 
+		# ---- 10b. per-outlet rollout: old and new app side by side ----------
+		has_mode = frappe.get_meta("POS Profile").has_field(security.APP_MODE_FIELD)
+		log.check(has_mode, "POS Profile has the Waiter App (old/new) field", "")
+		if has_mode:
+			frappe.db.set_value("POS Profile", profile, security.APP_MODE_FIELD, security.APP_MODE_BOTH)
+			try:
+				legacy.get_my_orders(wa)
+				ok = True
+			except Exception as e:
+				ok = repr(e)
+			log.check(ok is True, "Old app still works at an outlet on 'Old and new app'", str(ok))
+			frappe.db.set_value("POS Profile", profile, security.APP_MODE_FIELD, security.APP_MODE_NEW_ONLY)
+			expect_error(
+				log,
+				"Old app refused at an outlet switched to 'New app only'",
+				frappe.PermissionError,
+				legacy.get_my_orders,
+				wa,
+			)
+			try:
+				waiter.my_orders(profile, "mine", 1)
+				ok = True
+			except Exception as e:
+				ok = repr(e)
+			log.check(ok is True, "New app keeps working at a 'New app only' outlet", str(ok))
+			frappe.db.set_value("POS Profile", profile, security.APP_MODE_FIELD, security.APP_MODE_BOTH)
+
 		# ---- 11. push register + logout ------------------------------------
 		push.register("fcm-test-token-123", "android")
 		log.check(

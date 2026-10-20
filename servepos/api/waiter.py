@@ -20,7 +20,7 @@ def verify_waiter_pin(waiter_name, pin):
     Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
     disable_legacy_waiter_api is ticked.
     """
-    legacy_api_guard()
+    legacy_api_guard(waiter_name=waiter_name)
     waiter = frappe.get_doc("ServePOS Waiter", waiter_name)
     if not waiter or not waiter.is_active:
         return {"success": False, "error": "Waiter not found or inactive"}
@@ -44,7 +44,7 @@ def create_order(waiter_name=None, order_type="Dine In", table=None, room=None, 
     Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
     disable_legacy_waiter_api is ticked.
     """
-    legacy_api_guard()
+    legacy_api_guard(pos_profile=pos_profile, waiter_name=waiter_name)
     if not items:
         frappe.throw(_("Items are required"))
 
@@ -128,7 +128,7 @@ def get_my_orders(waiter_name=None, status_filter=None, days=1):
     Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
     disable_legacy_waiter_api is ticked.
     """
-    legacy_api_guard()
+    legacy_api_guard(waiter_name=waiter_name)
     filters = {}
     if waiter_name:
         filters["waiter_name"] = waiter_name
@@ -186,7 +186,7 @@ def add_items_to_order(order_name, items):
     Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
     disable_legacy_waiter_api is ticked.
     """
-    legacy_api_guard()
+    legacy_api_guard(order_name=order_name)
     if isinstance(items, str):
         items = json.loads(items)
 

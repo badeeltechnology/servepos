@@ -17,7 +17,7 @@ def get_active_calls(pos_profile=None):
     Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
     disable_legacy_waiter_api is ticked.
     """
-    legacy_api_guard()
+    legacy_api_guard(pos_profile=pos_profile)
     filters = {"status": ["in", ["Pending", "Accepted"]]}
     if pos_profile:
         filters["pos_profile"] = pos_profile
@@ -68,7 +68,7 @@ def accept_waiter_call(call_name, waiter_name):
     Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
     disable_legacy_waiter_api is ticked.
     """
-    legacy_api_guard()
+    legacy_api_guard(call_name=call_name)
     if not call_name or not waiter_name:
         frappe.throw(_("Call name and waiter name are required"))
 
@@ -154,7 +154,7 @@ def mark_call_attended(call_name, waiter_name):
     Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
     disable_legacy_waiter_api is ticked.
     """
-    legacy_api_guard()
+    legacy_api_guard(call_name=call_name)
     if not call_name or not waiter_name:
         frappe.throw(_("Call name and waiter name are required"))
 
@@ -197,7 +197,7 @@ def register_fcm_token(waiter_name, fcm_token):
     Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
     disable_legacy_waiter_api is ticked.
     """
-    legacy_api_guard()
+    legacy_api_guard(waiter_name=waiter_name)
     if not waiter_name or not fcm_token:
         frappe.throw(_("Waiter name and FCM token are required"))
 
@@ -218,7 +218,7 @@ def get_my_active_calls(waiter_name):
     Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
     disable_legacy_waiter_api is ticked.
     """
-    legacy_api_guard()
+    legacy_api_guard(waiter_name=waiter_name)
     if not waiter_name:
         frappe.throw(_("Waiter name is required"))
 
@@ -263,7 +263,7 @@ def get_call_history(waiter_name=None, pos_profile=None, days=1):
     Use servepos.api.mobile.* instead. Refused when ServePOS Mobile Settings >
     disable_legacy_waiter_api is ticked.
     """
-    legacy_api_guard()
+    legacy_api_guard(pos_profile=pos_profile, waiter_name=waiter_name)
     filters = {"status": ["in", ["Attended", "Expired", "Cancelled"]]}
 
     if waiter_name:

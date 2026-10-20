@@ -55,13 +55,56 @@ def get_settings():
 	return out
 
 
-def legacy_api_guard():
-	"""Call at the top of the old (shared-key) waiter-app endpoints."""
-	if cint(get_settings().disable_legacy_waiter_api):
-		frappe.throw(
-			_("This version of the waiter app is no longer supported. Please update the app."),
-			frappe.PermissionError,
+APP_MODE_FIELD = "servepos_waiter_app"
+APP_MODE_BOTH = "Old and new app"
+APP_MODE_NEW_ONLY = "New app only"
+
+
+def profile_allows_legacy(pos_profile):
+	"""False when the outlet (POS Profile) is switched to the new app only."""
+	if not pos_profile:
+		return True
+	try:
+		mode = frappe.db.get_value("POS Profile", pos_profile, APP_MODE_FIELD)
+	except Exception:
+		return True  # field not migrated yet
+	return (mode or APP_MODE_BOTH) != APP_MODE_NEW_ONLY
+
+
+def _legacy_profiles(pos_profile=None, waiter_name=None, order_name=None, call_name=None):
+	if pos_profile:
+		return [pos_profile]
+	if order_name:
+		return [frappe.db.get_value("ServePOS Waiter Order", order_name, "pos_profile")]
+	if call_name:
+		return [frappe.db.get_value("ServePOS Waiter Call", call_name, "pos_profile")]
+	if waiter_name:
+		waiter = frappe.db.get_value(
+			"ServePOS Waiter",
+			waiter_name,
+			["name", "branch", "servepos_visible_profiles"],
+			as_dict=True,
 		)
+		if waiter:
+			return [p.name for p in waiter_profiles(waiter)]
+	return []
+
+
+def legacy_api_guard(pos_profile=None, waiter_name=None, order_name=None, call_name=None):
+	"""Call at the top of the old (shared-key) waiter-app endpoints.
+
+	Outlets move to the new app one at a time: each POS Profile has
+	"Waiter App" = "Old and new app" (default) or "New app only". The old app is
+	refused for an outlet set to "New app only"; for a waiter, only when every
+	outlet they serve is "New app only". The global switch in ServePOS Mobile
+	Settings refuses the old app everywhere (use it once all outlets moved).
+	"""
+	msg = _("This version of the waiter app is no longer supported. Please update the app.")
+	if cint(get_settings().disable_legacy_waiter_api):
+		frappe.throw(msg, frappe.PermissionError)
+	profiles = [p for p in _legacy_profiles(pos_profile, waiter_name, order_name, call_name) if p]
+	if profiles and not any(profile_allows_legacy(p) for p in profiles):
+		frappe.throw(msg, frappe.PermissionError)
 
 
 # --------------------------------------------------------------------------- #
