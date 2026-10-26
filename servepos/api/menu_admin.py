@@ -525,3 +525,95 @@ def list_item_codes(item_groups=None, item_group=None, search=None):
 	if search:
 		filters.append(["item_name", "like", f"%{search}%"])
 	return [r.name for r in frappe.get_all("Item", filters=filters, fields=["name"], order_by="item_name asc", limit=0)]
+
+
+# ---- pinned favourites (the till's Popular tab) -----------------------------
+
+PINNED_FIELD = "servepos_pinned_items"
+
+
+def _pinned_rows(codes, on_outlet=None):
+	if not codes:
+		return []
+	data = {
+		r.name: r
+		for r in frappe.get_all(
+			"Item", filters={"name": ["in", codes]}, fields=["name", "item_name", "item_group", "standard_rate"], limit=0
+		)
+	}
+	out = []
+	for c in codes:
+		r = data.get(c)
+		if not r:
+			continue
+		row = {"item_code": c, "item_name": r.item_name, "item_group": r.item_group, "rate": r.standard_rate or 0}
+		if on_outlet is not None:
+			row["on_outlet"] = c in on_outlet
+		out.append(row)
+	return out
+
+
+def _save_pinned(pos_profile, codes):
+	if len(codes) > registry.MAX_PINNED_ITEMS:
+		frappe.throw(_("At most {0} pinned items per outlet").format(registry.MAX_PINNED_ITEMS))
+	# set_value bumps POS Profile.modified so tills re-read the pins on their next sync
+	frappe.db.set_value("POS Profile", pos_profile, PINNED_FIELD, json.dumps(codes))
+	frappe.clear_document_cache("POS Profile", pos_profile)
+	return _pinned_rows(codes, _visible_items(pos_profile))
+
+
+def _check_pinnable(pos_profile, codes):
+	visible = _visible_items(pos_profile)
+	bad = [c for c in codes if c not in visible]
+	if bad:
+		frappe.throw(
+			_("Not on the {0} menu, add them to the outlet first: {1}").format(pos_profile, ", ".join(bad[:10]))
+		)
+
+
+def _pin_profile(pos_profile):
+	_assert_manager()
+	if not pos_profile:
+		frappe.throw(_("Pick an outlet"))
+	_check_profiles([pos_profile])
+	if not registry._has_field("POS Profile", PINNED_FIELD):
+		frappe.throw(_("Pinned items field is missing, run bench migrate"))
+
+
+@frappe.whitelist()
+def get_pinned(pos_profile):
+	"""Pinned favourites of an outlet in order: [{item_code, item_name, item_group, rate, on_outlet}].
+	on_outlet=False marks a pin the till hides because the item left the outlet menu."""
+	_pin_profile(pos_profile)
+	return _pinned_rows(registry._get_pinned_codes(pos_profile), _visible_items(pos_profile))
+
+
+@frappe.whitelist(methods=["POST"])
+def set_pinned(pos_profile, items):
+	"""Replace the outlet's pinned list (ordered item codes, deduped, max 24, all on the outlet menu)."""
+	_pin_profile(pos_profile)
+	codes = _as_list(items, "items")
+	if len(codes) > registry.MAX_PINNED_ITEMS:
+		frappe.throw(_("At most {0} pinned items per outlet").format(registry.MAX_PINNED_ITEMS))
+	_check_pinnable(pos_profile, codes)
+	return _save_pinned(pos_profile, codes)
+
+
+@frappe.whitelist(methods=["POST"])
+def pin_items(pos_profile, items, mode="add"):
+	"""mode=add appends items not yet pinned (keeps the current order); mode=remove unpins them."""
+	_pin_profile(pos_profile)
+	if mode not in ("add", "remove"):
+		frappe.throw(_("mode must be add or remove"))
+	codes = _as_list(items, "items")
+	if not codes:
+		frappe.throw(_("Select at least one item"))
+	current = registry._get_pinned_codes(pos_profile)
+	if mode == "add":
+		new = [c for c in codes if c not in current]
+		_check_pinnable(pos_profile, new)
+		result = current + new
+	else:
+		drop = set(codes)
+		result = [c for c in current if c not in drop]
+	return _save_pinned(pos_profile, result)

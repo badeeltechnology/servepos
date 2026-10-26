@@ -5,3 +5,4 @@
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
 servepos.patches.setup_mobile_waiter_api
+servepos.patches.add_pinned_items_field
