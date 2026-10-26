@@ -1,9 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   useFrappeGetDocList,
   useFrappeUpdateDoc,
+  useFrappePostCall,
 } from "frappe-react-sdk";
-import { Eye, EyeOff, Search, Ban, Globe } from "lucide-react";
+import { Eye, EyeOff, Search, Ban, Globe, Copy } from "lucide-react";
+import { ConfirmDialog, CopyMenuDialog, MENU_ADMIN } from "@/components/menu/OutletDialogs";
+import { toast } from "@/hooks/use-toast";
+import { errorText } from "@/pages/WaiterAppLogin";
 
 /**
  * Item Visibility (matrix view)
@@ -12,27 +16,27 @@ import { Eye, EyeOff, Search, Ban, Globe } from "lucide-react";
  *  - Global availability (emergency 86)
  *  - Disabled toggle (hide from all channels)
  *  - Website toggle (show on online store)
- *  - Per-POS-Profile toggles (legacy servepos_visible_profiles)
+ *  - Per-POS-Profile toggles
  *
- * Rules for per-profile toggles:
- *  - show  -> add profile name to whitelist
- *  - hide  -> if empty (visible everywhere), expand to all OTHER profile
- *             names before removing; otherwise just remove
- *  - whitelist covering every profile normalizes back to empty ("")
+ * Per-profile cells read and write the ServePOS Item Availability rows through
+ * servepos.api.menu_admin (the same data the item dialog and the tills use).
+ * Items still on the old comma list are converted on their first change, keeping
+ * the outlets they already had.
  */
+type Cell = { pos: boolean; web: boolean };
+type Pending =
+  | { kind: "column"; profile: string; show: boolean }
+  | { kind: "website"; show: boolean };
 export default function ItemVisibility() {
   const [search, setSearch] = useState("");
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
 
   const { data: allProfiles } = useFrappeGetDocList("POS Profile", {
     fields: ["name", "branch"],
+    filters: [["disabled", "=", 0]],
     limit: 100,
     orderBy: { field: "name", order: "asc" },
   });
-  const profileNames = useMemo(
-    () => (allProfiles || []).map((p) => p.name),
-    [allProfiles],
-  );
 
   // Group profiles by branch for visual grouping
   const branchGroups = useMemo(() => {
@@ -82,52 +86,62 @@ export default function ItemVisibility() {
 
   const { updateDoc } = useFrappeUpdateDoc();
 
-  // --- Helpers ---------------------------------------------------------
+  // --- Visibility matrix (server computes it the way tills read it) ----
 
-  function parseList(raw: string | undefined | null): string[] {
-    if (!raw) return [];
-    return String(raw).split(",").map((s) => s.trim()).filter(Boolean);
+  const { call: fetchMatrix } = useFrappePostCall(`${MENU_ADMIN}.get_visibility_matrix`);
+  const { call: setItemOutlets } = useFrappePostCall(`${MENU_ADMIN}.set_item_outlets`);
+  const [matrix, setMatrix] = useState<Record<string, Record<string, Cell>>>({});
+  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [showCopy, setShowCopy] = useState(false);
+  const itemKey = (items || []).map((i) => i.name).join("|");
+
+  const loadMatrix = useCallback(async () => {
+    const codes = (items || []).map((i) => i.name);
+    if (!codes.length) { setMatrix({}); return; }
+    try {
+      const res: any = await fetchMatrix({ items: JSON.stringify(codes) });
+      setMatrix(res?.message || {});
+    } catch (e: any) {
+      toast({ title: "Could not load outlet visibility", description: errorText(e), variant: "destructive" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemKey]);
+
+  useEffect(() => { loadMatrix(); }, [loadMatrix]);
+
+  function refreshAll() {
+    refresh();
+    loadMatrix();
   }
 
   function isVisibleOn(item: any, profileName: string): boolean {
     if (item.servepos_is_available === 0) return false;
-    const list = parseList(item.servepos_visible_profiles);
-    if (list.length === 0) return true;
-    return list.includes(profileName);
+    return !!matrix[item.name]?.[profileName]?.pos;
   }
 
-  function nextWhitelist(
-    currentRaw: string | undefined | null,
-    profileName: string,
-    action: "show" | "hide",
-  ): string {
-    let list = parseList(currentRaw);
-    if (list.length === 0) {
-      list = [...profileNames];
-    }
-    if (action === "hide") {
-      list = list.filter((n) => n !== profileName);
-    } else if (!list.includes(profileName)) {
-      list.push(profileName);
-    }
-    const ordered = profileNames.filter((n) => list.includes(n));
-    return ordered.join(",");
+  function fail(err: any) {
+    toast({ title: "Failed to update", description: errorText(err), variant: "destructive" });
+  }
+
+  async function setOutlet(codes: string[], profileName: string, show: boolean) {
+    const res: any = await setItemOutlets({
+      items: JSON.stringify(codes),
+      pos_profiles: JSON.stringify([profileName]),
+      show_on_pos: 1,
+      show_on_website: null,
+      mode: show ? "add" : "remove",
+    });
+    return res?.message || {};
   }
 
   async function toggleCell(item: any, profileName: string) {
     if (item.servepos_is_available === 0 || item.servepos_is_disabled === 1) return;
     const currentlyVisible = isVisibleOn(item, profileName);
-    const next = nextWhitelist(
-      item.servepos_visible_profiles,
-      profileName,
-      currentlyVisible ? "hide" : "show",
-    );
     try {
-      await updateDoc("Item", item.name, { servepos_visible_profiles: next });
-      refresh();
-    } catch (err: any) {
-      alert(err.message || "Failed to update");
-    }
+      await setOutlet([item.name], profileName, !currentlyVisible);
+      refreshAll();
+    } catch (err: any) { fail(err); }
   }
 
   async function toggleGlobal(item: any) {
@@ -135,10 +149,8 @@ export default function ItemVisibility() {
       await updateDoc("Item", item.name, {
         servepos_is_available: item.servepos_is_available === 0 ? 1 : 0,
       });
-      refresh();
-    } catch (err: any) {
-      alert(err.message || "Failed to update");
-    }
+      refreshAll();
+    } catch (err: any) { fail(err); }
   }
 
   async function toggleDisabled(item: any) {
@@ -146,10 +158,8 @@ export default function ItemVisibility() {
       await updateDoc("Item", item.name, {
         servepos_is_disabled: item.servepos_is_disabled === 1 ? 0 : 1,
       });
-      refresh();
-    } catch (err: any) {
-      alert(err.message || "Failed to update");
-    }
+      refreshAll();
+    } catch (err: any) { fail(err); }
   }
 
   async function toggleWebsite(item: any) {
@@ -158,34 +168,48 @@ export default function ItemVisibility() {
       await updateDoc("Item", item.name, {
         servepos_show_on_website: item.servepos_show_on_website === 1 ? 0 : 1,
       });
-      refresh();
+      refreshAll();
+    } catch (err: any) { fail(err); }
+  }
+
+  function columnTargets(profileName: string, show: boolean) {
+    return (items || []).filter((item) =>
+      item.servepos_is_available !== 0 && item.servepos_is_disabled !== 1 &&
+      isVisibleOn(item, profileName) !== show);
+  }
+
+  async function runPending() {
+    if (!pending || !items) return;
+    setBusy(true);
+    try {
+      if (pending.kind === "column") {
+        const codes = columnTargets(pending.profile, pending.show).map((i) => i.name);
+        const r = codes.length ? await setOutlet(codes, pending.profile, pending.show) : { updated: 0 };
+        toast({
+          title: pending.show ? `Shown on ${pending.profile}` : `Hidden from ${pending.profile}`,
+          description: `${r.updated || 0} items updated. Tills pick it up on their next sync.`,
+        });
+      } else {
+        const show = pending.show;
+        const todo = items.filter((item) => item.servepos_is_disabled !== 1 && (item.servepos_show_on_website === 1) !== show);
+        await Promise.all(todo.map((item) => updateDoc("Item", item.name, { servepos_show_on_website: show ? 1 : 0 })));
+        toast({ title: show ? "Website on" : "Website off", description: `${todo.length} items updated.` });
+      }
+      refreshAll();
     } catch (err: any) {
-      alert(err.message || "Failed to update");
+      fail(err);
+    } finally {
+      setBusy(false);
+      setPending(null);
     }
   }
 
-  async function bulkToggleColumn(profileName: string, show: boolean) {
-    if (!items) return;
-    if (!confirm(show ? `Show all filtered items on ${profileName}?` : `Hide all filtered items from ${profileName}?`)) return;
-    for (const item of items) {
-      if (item.servepos_is_available === 0 || item.servepos_is_disabled === 1) continue;
-      const currentlyVisible = isVisibleOn(item, profileName);
-      if (currentlyVisible === show) continue;
-      const next = nextWhitelist(item.servepos_visible_profiles, profileName, show ? "show" : "hide");
-      try { await updateDoc("Item", item.name, { servepos_visible_profiles: next }); } catch {}
-    }
-    refresh();
+  function bulkToggleColumn(profileName: string, show: boolean) {
+    setPending({ kind: "column", profile: profileName, show });
   }
 
-  async function bulkToggleWebsite(show: boolean) {
-    if (!items) return;
-    if (!confirm(show ? "Enable all filtered items on website?" : "Disable all filtered items from website?")) return;
-    for (const item of items) {
-      if (item.servepos_is_disabled === 1) continue;
-      if ((item.servepos_show_on_website === 1) === show) continue;
-      try { await updateDoc("Item", item.name, { servepos_show_on_website: show ? 1 : 0 }); } catch {}
-    }
-    refresh();
+  function bulkToggleWebsite(show: boolean) {
+    setPending({ kind: "website", show });
   }
 
   // --- Render ----------------------------------------------------------
@@ -194,12 +218,35 @@ export default function ItemVisibility() {
 
   return (
     <div className="p-6">
-      <div className="mb-4">
-        <h1 className="text-xl font-bold text-gray-800">Item Visibility</h1>
-        <p className="text-sm text-gray-500">
-          Control item visibility per POS Profile and online store. Disabled items are hidden everywhere.
-        </p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">Item Visibility</h1>
+          <p className="text-sm text-gray-500">
+            Control item visibility per POS Profile and online store. Disabled items are hidden everywhere.
+          </p>
+        </div>
+        <button onClick={() => setShowCopy(true)}
+          className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50">
+          <Copy className="h-3.5 w-3.5" /> Copy menu from another outlet
+        </button>
       </div>
+
+      {pending && (
+        <ConfirmDialog
+          title={pending.kind === "column"
+            ? (pending.show ? `Show on ${pending.profile}` : `Hide from ${pending.profile}`)
+            : (pending.show ? "Show on website" : "Hide from website")}
+          message={pending.kind === "column"
+            ? `${columnTargets(pending.profile, pending.show).length} of the ${items?.length || 0} filtered items will be ${pending.show ? "shown on" : "hidden from"} ${pending.profile}. Other outlets are not changed.`
+            : `${pending.show ? "Enable" : "Disable"} the website flag on all ${items?.length || 0} filtered items?`}
+          confirmLabel={pending.kind === "column" ? (pending.show ? "Show" : "Hide") : "Apply"}
+          danger={!pending.show}
+          busy={busy}
+          onConfirm={runPending}
+          onClose={() => setPending(null)}
+        />
+      )}
+      {showCopy && <CopyMenuDialog onClose={() => setShowCopy(false)} onDone={refreshAll} />}
 
       {/* Search */}
       <div className="mb-3">

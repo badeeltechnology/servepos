@@ -1,7 +1,11 @@
-import { useState, useCallback, useRef } from "react";
-import { useFrappeGetDocList, useFrappeGetCall, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc } from "frappe-react-sdk";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useFrappeGetDocList, useFrappeGetDocCount, useFrappeGetCall, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc, useFrappePostCall } from "frappe-react-sdk";
 import { useProfile } from "@/App";
-import { Plus, Search, Edit3, Trash2, X, FolderPlus, ImagePlus, Ban, GripVertical, ArrowUpDown, CheckSquare, Square, Eye, EyeOff, FolderInput } from "lucide-react";
+import { Plus, Search, Edit3, Trash2, X, FolderPlus, ImagePlus, Ban, GripVertical, ArrowUpDown, CheckSquare, Square, Eye, EyeOff, FolderInput, Store, Copy, MinusSquare, Pin, PinOff } from "lucide-react";
+import { PinnedDialog, MAX_PINNED } from "@/components/menu/PinnedDialog";
+import { OutletDialog, CopyMenuDialog, MENU_ADMIN } from "@/components/menu/OutletDialogs";
+import { toast } from "@/hooks/use-toast";
+import { errorText } from "@/pages/WaiterAppLogin";
 
 interface AvailabilityRow {
   branch: string;
@@ -21,7 +25,15 @@ export default function MenuManagement() {
     description: "", servepos_item_name_ar: "", servepos_description_ar: "",
     servepos_visible_profiles: "", servepos_is_disabled: 0, servepos_show_on_website: 0,
   });
-  const [availability, setAvailability] = useState<AvailabilityRow[]>([]);
+  const [availability, _setAvailability] = useState<AvailabilityRow[]>([]);
+  // Items without availability rows use the old outlet list; the dialog shows what they
+  // show today and only writes rows when the outlets are actually changed.
+  const availFromLegacy = useRef(false);
+  const availTouched = useRef(false);
+  const setAvailability = (rows: AvailabilityRow[], touched = true) => {
+    if (touched) availTouched.current = true;
+    _setAvailability(rows);
+  };
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -56,6 +68,9 @@ export default function MenuManagement() {
       "servepos_is_disabled", "servepos_show_on_website"],
     filters: adminItemFilters, limit: 200, orderBy: { field: "item_name", order: "asc" },
   }, isAdminView ? undefined : null);
+
+  const { data: adminTotal } = useFrappeGetDocCount("Item", adminItemFilters, false,
+    isAdminView ? JSON.stringify(["menu_item_count", adminItemFilters]) : null);
 
   // --- Registry-backed path ---
   const { data: registryGroupsResp } = useFrappeGetCall(
@@ -194,16 +209,81 @@ export default function MenuManagement() {
     });
   }
 
+  const filteredCount = displayItems?.length || 0;
+  const allFilteredSelected = filteredCount > 0 && displayItems.every((i: any) => selectedItems.has(i.name));
+  // Admin view lists at most 200 items; the rest can still be selected through the server.
+  const matchingTotal = isAdminView ? Math.max(adminTotal || 0, filteredCount) : filteredCount;
+  const [outletDialog, setOutletDialog] = useState<null | "add" | "remove">(null);
+  const [showCopyMenu, setShowCopyMenu] = useState(false);
+  const [selectingAll, setSelectingAll] = useState(false);
+  const { call: listItemCodes } = useFrappePostCall(`${MENU_ADMIN}.list_item_codes`);
+  const { call: setItemOutlets } = useFrappePostCall(`${MENU_ADMIN}.set_item_outlets`);
+
+  // --- Pinned favourites (till Popular tab) of the selected outlet ---
+  const [showPinned, setShowPinned] = useState(false);
+  const { data: pinnedResp, mutate: refreshPinned } = useFrappeGetCall<{ message: { item_code: string }[] }>(
+    `${MENU_ADMIN}.get_pinned`,
+    activeProfile ? { pos_profile: activeProfile } : undefined,
+    activeProfile ? `menu-pinned-${activeProfile}` : null,
+  );
+  const pinnedCodes = (pinnedResp?.message || []).map((r) => r.item_code);
+  const pinnedSet = new Set(pinnedCodes);
+  const { call: pinItems } = useFrappePostCall(`${MENU_ADMIN}.pin_items`);
+
+  async function bulkPin(mode: "add" | "remove") {
+    if (!activeProfile) return;
+    const picked = Array.from(selectedItems);
+    if (mode === "add") {
+      const fresh = picked.filter((c) => !pinnedSet.has(c));
+      if (pinnedCodes.length + fresh.length > MAX_PINNED) {
+        toast({
+          title: `At most ${MAX_PINNED} pinned items`,
+          description: `${pinnedCodes.length} already pinned on ${activeProfile}; ${fresh.length} more would go over the limit.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    setBulkActionLoading(true);
+    try {
+      const res: any = await pinItems({ pos_profile: activeProfile, items: JSON.stringify(picked), mode });
+      const n = (res?.message || []).length;
+      toast({
+        title: mode === "add" ? "Pinned to Popular" : "Unpinned",
+        description: `${n} pinned on ${activeProfile}`,
+      });
+      refreshPinned();
+      clearSelection();
+    } catch (err: any) {
+      toast({ title: mode === "add" ? "Could not pin items" : "Could not unpin items", description: errorText(err), variant: "destructive" });
+    } finally { setBulkActionLoading(false); }
+  }
+
   function toggleSelectAll() {
     if (!displayItems) return;
-    if (selectedItems.size === displayItems.length) {
+    if (allFilteredSelected) {
       setSelectedItems(new Set());
     } else {
       setSelectedItems(new Set(displayItems.map((i: any) => i.name)));
     }
   }
 
+  async function selectAllMatching() {
+    setSelectingAll(true);
+    try {
+      const res: any = await listItemCodes({
+        item_groups: JSON.stringify(adminGroupNames),
+        item_group: activeGroup || "",
+        search: search || "",
+      });
+      setSelectedItems(new Set((res?.message as string[]) || []));
+    } catch (e: any) {
+      toast({ title: "Could not select items", description: errorText(e), variant: "destructive" });
+    } finally { setSelectingAll(false); }
+  }
+
   function clearSelection() { setSelectedItems(new Set()); }
+  useEffect(() => { setSelectedItems(new Set()); }, [activeGroup, search, profile]);
 
   async function bulkToggleDisabled(disable: boolean) {
     setBulkActionLoading(true);
@@ -222,39 +302,23 @@ export default function MenuManagement() {
   async function bulkToggleWebVisibility(show: boolean) {
     setBulkActionLoading(true);
     try {
-      // For each selected item, fetch current availability rows and toggle web for the active profile
-      for (const itemName of selectedItems) {
-        if (activeProfile) {
-          // Fetch current availability
-          const res = await fetch(`/api/resource/Item/${encodeURIComponent(itemName)}?fields=["name","servepos_availability"]`);
-          const data = await res.json();
-          const rows: AvailabilityRow[] = (data.data?.servepos_availability || []).map((r: any) => ({
-            branch: r.branch || "", pos_profile: r.pos_profile || "",
-            show_on_pos: r.show_on_pos ?? 0, show_on_website: r.show_on_website ?? 0,
-          }));
-          const existing = rows.find((r) => r.pos_profile === activeProfile);
-          let updatedRows: AvailabilityRow[];
-          if (existing) {
-            updatedRows = rows.map((r) =>
-              r.pos_profile === activeProfile ? { ...r, show_on_website: show ? 1 : 0 } : r
-            );
-            // Remove row if both POS and Web are off
-            updatedRows = updatedRows.filter((r) => r.show_on_pos || r.show_on_website);
-          } else if (show) {
-            const profileBranch = posProfiles?.find((p) => p.name === activeProfile)?.branch || "";
-            updatedRows = [...rows, { branch: profileBranch, pos_profile: activeProfile, show_on_pos: 0, show_on_website: 1 }];
-          } else {
-            updatedRows = rows;
-          }
-          await updateDoc("Item", itemName, { servepos_availability: updatedRows });
-        } else {
-          // Admin view: toggle legacy field
-          await updateDoc("Item", itemName, { servepos_show_on_website: show ? 1 : 0 });
-        }
+      if (activeProfile) {
+        // One server call: website flag of the active outlet for every selected item.
+        await setItemOutlets({
+          items: JSON.stringify(Array.from(selectedItems)),
+          pos_profiles: JSON.stringify([activeProfile]),
+          show_on_pos: null,
+          show_on_website: 1,
+          mode: show ? "add" : "remove",
+        });
+      } else {
+        // Admin view: toggle legacy field
+        await Promise.all(Array.from(selectedItems).map((name) =>
+          updateDoc("Item", name, { servepos_show_on_website: show ? 1 : 0 })));
       }
       clearSelection();
       refreshItems();
-    } catch (err: any) { alert(err.message || "Failed to update items"); }
+    } catch (err: any) { toast({ title: "Failed to update items", description: errorText(err), variant: "destructive" }); }
     finally { setBulkActionLoading(false); }
   }
 
@@ -274,7 +338,9 @@ export default function MenuManagement() {
   }
 
   // POS Profiles + Branches
-  const { data: posProfiles } = useFrappeGetDocList("POS Profile", { fields: ["name", "branch"], limit: 50 });
+  const { data: posProfiles } = useFrappeGetDocList("POS Profile", { fields: ["name", "branch"], limit: 200 });
+  const posProfilesRef = useRef<any[] | undefined>(undefined);
+  posProfilesRef.current = posProfiles;
 
   // Modifier groups
   const { data: allModifierGroups } = useFrappeGetDocList("ServePOS Modifier Group", {
@@ -301,15 +367,32 @@ export default function MenuManagement() {
     try {
       const res = await fetch(`/api/resource/Item/${encodeURIComponent(itemName)}?fields=["name","servepos_availability"]`);
       const data = await res.json();
+      availTouched.current = false;
+      availFromLegacy.current = false;
       if (data.data?.servepos_availability?.length) {
         setAvailability(data.data.servepos_availability.map((r: any) => ({
           branch: r.branch || "", pos_profile: r.pos_profile || "",
           show_on_pos: r.show_on_pos ?? 1, show_on_website: r.show_on_website ?? 0,
-        })));
+        })), false);
       } else {
-        setAvailability([]);
+        // No rows yet: show what the old outlet list gives today (same rule as the tills).
+        availFromLegacy.current = true;
+        const mres = await fetch(`/api/method/${MENU_ADMIN}.get_visibility_matrix`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Frappe-CSRF-Token": (window as any).csrf_token || "" },
+          body: JSON.stringify({ items: JSON.stringify([itemName]) }),
+        });
+        const cells = ((await mres.json()).message || {})[itemName] || {};
+        const rows: AvailabilityRow[] = [];
+        for (const [p, v] of Object.entries<any>(cells)) {
+          if (v.pos || v.web) {
+            const branch = posProfilesRef.current?.find((x: any) => x.name === p)?.branch || "";
+            rows.push({ branch, pos_profile: p, show_on_pos: v.pos ? 1 : 0, show_on_website: v.web ? 1 : 0 });
+          }
+        }
+        setAvailability(rows, false);
       }
-    } catch { setAvailability([]); }
+    } catch { setAvailability([], false); }
   }, []);
 
   const { createDoc } = useFrappeCreateDoc();
@@ -349,7 +432,9 @@ export default function MenuManagement() {
     setEditingItem(null);
     setShowForm(false);
     setItemModifiers([]);
-    setAvailability([]);
+    setAvailability([], false);
+    availTouched.current = false;
+    availFromLegacy.current = false;
     setImageFile(null);
     setImagePreview(null);
   }
@@ -367,8 +452,15 @@ export default function MenuManagement() {
           servepos_modifier_groups: itemModifiers,
           servepos_is_disabled: formData.servepos_is_disabled,
           servepos_show_on_website: formData.servepos_show_on_website,
-          servepos_availability: availability,
         };
+        // Only write outlet rows when they were changed (or the item already uses rows).
+        // No rows at all means "use the old outlet list" (empty = every outlet), so an item
+        // switched off everywhere keeps one row with both flags off.
+        if (availTouched.current || !availFromLegacy.current) {
+          updateData.servepos_availability = availability.length
+            ? availability
+            : [{ branch: "", pos_profile: "", show_on_pos: 0, show_on_website: 0 }];
+        }
         await updateDoc("Item", editingItem, updateData);
         if (imageFile) {
           const imageUrl = await uploadImage(editingItem);
@@ -433,6 +525,18 @@ export default function MenuManagement() {
               <ArrowUpDown className="h-3.5 w-3.5" /> Sort categories
             </button>
           )}
+          {activeProfile && (
+            <button onClick={() => setShowPinned(true)}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50"
+              title="Items shown first on this outlet's Popular tab">
+              <Pin className="h-3.5 w-3.5" /> Pinned favourites{pinnedCodes.length ? ` (${pinnedCodes.length})` : ""}
+            </button>
+          )}
+          <button onClick={() => setShowCopyMenu(true)}
+            className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50"
+            title="Show the same items on another outlet">
+            <Copy className="h-3.5 w-3.5" /> Copy menu from another outlet
+          </button>
           <button onClick={() => setShowCategoryForm(true)}
             className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50">
             <FolderPlus className="h-3.5 w-3.5" /> Add category
@@ -537,6 +641,20 @@ export default function MenuManagement() {
         </div>
       )}
 
+      {/* Selection summary */}
+      {!sortMode && selectedItems.size > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md bg-gray-50 px-3 py-2 text-[12px] text-gray-600">
+          <span><b className="text-gray-900">{selectedItems.size}</b> selected of {filteredCount} {filteredCount === 1 ? "item" : "items"} shown{matchingTotal > filteredCount ? ` (${matchingTotal} match the filter)` : ""}</span>
+          {matchingTotal > filteredCount && selectedItems.size < matchingTotal && (
+            <button onClick={selectAllMatching} disabled={selectingAll}
+              className="font-medium text-blue-600 hover:text-blue-700 disabled:opacity-40">
+              {selectingAll ? "Selecting..." : `Select all ${matchingTotal} matching`}
+            </button>
+          )}
+          <button onClick={clearSelection} className="font-medium text-gray-500 hover:text-gray-800">Clear</button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <table className="w-full">
@@ -545,10 +663,12 @@ export default function MenuManagement() {
               {sortMode && <th className="px-2 py-2.5 w-8"></th>}
               {!sortMode && (
                 <th className="pl-4 pr-1 py-2.5 w-8">
-                  <button onClick={toggleSelectAll} className="text-gray-400 hover:text-gray-600">
-                    {displayItems && selectedItems.size === displayItems.length && displayItems.length > 0
+                  <button onClick={toggleSelectAll} className="text-gray-400 hover:text-gray-600" title={allFilteredSelected ? "Clear selection" : `Select all ${filteredCount} filtered items`}>
+                    {allFilteredSelected
                       ? <CheckSquare className="h-4 w-4 text-gray-900" />
-                      : <Square className="h-4 w-4" />}
+                      : selectedItems.size > 0
+                        ? <MinusSquare className="h-4 w-4 text-gray-900" />
+                        : <Square className="h-4 w-4" />}
                   </button>
                 </th>
               )}
@@ -593,7 +713,10 @@ export default function MenuManagement() {
                         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-[13px] font-bold text-gray-400">{item.item_name?.charAt(0)}</div>
                       )}
                       <div className="min-w-0">
-                        <p className={`text-[13px] font-medium truncate ${isDisabled ? "text-gray-400 line-through" : "text-gray-900"}`}>{item.item_name}</p>
+                        <p className={`flex items-center gap-1 text-[13px] font-medium truncate ${isDisabled ? "text-gray-400 line-through" : "text-gray-900"}`}>
+                          {pinnedSet.has(item.name) && <span title={`Pinned #${pinnedCodes.indexOf(item.name) + 1} on ${activeProfile}`}><Pin className="h-3 w-3 flex-shrink-0 fill-amber-400 text-amber-500" /></span>}
+                          <span className="truncate">{item.item_name}</span>
+                        </p>
                         {item.servepos_item_name_ar && <p className="text-[11px] text-gray-400 truncate" dir="rtl">{item.servepos_item_name_ar}</p>}
                       </div>
                     </div>
@@ -672,9 +795,29 @@ export default function MenuManagement() {
       {/* Bulk Action Bar */}
       {bulkMode && (
         <div className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-center pb-6 pointer-events-none">
-          <div className="pointer-events-auto flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-5 py-3 shadow-xl">
+          <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white px-5 py-3 shadow-xl">
             <span className="text-[13px] font-semibold text-gray-900">{selectedItems.size} selected</span>
             <div className="h-5 w-px bg-gray-200" />
+            <button onClick={() => setOutletDialog("add")} disabled={bulkActionLoading}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-900 hover:bg-gray-50 disabled:opacity-40">
+              <Store className="h-3.5 w-3.5" /> Add to outlet...
+            </button>
+            <button onClick={() => setOutletDialog("remove")} disabled={bulkActionLoading}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-40">
+              <Store className="h-3.5 w-3.5" /> Remove from outlet...
+            </button>
+            {activeProfile && (
+              <>
+                <button onClick={() => bulkPin("add")} disabled={bulkActionLoading}
+                  className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-40">
+                  <Pin className="h-3.5 w-3.5" /> Pin to Popular
+                </button>
+                <button onClick={() => bulkPin("remove")} disabled={bulkActionLoading || !Array.from(selectedItems).some((c) => pinnedSet.has(c))}
+                  className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40">
+                  <PinOff className="h-3.5 w-3.5" /> Unpin
+                </button>
+              </>
+            )}
             <button onClick={() => setShowBulkCategoryPicker(true)} disabled={bulkActionLoading}
               className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
               <FolderInput className="h-3.5 w-3.5" /> Move to category
@@ -702,6 +845,19 @@ export default function MenuManagement() {
             </button>
           </div>
         </div>
+      )}
+
+      {outletDialog && (
+        <OutletDialog mode={outletDialog} items={Array.from(selectedItems)}
+          onClose={() => setOutletDialog(null)}
+          onDone={() => { clearSelection(); refreshItems(); }} />
+      )}
+      {showPinned && activeProfile && (
+        <PinnedDialog profile={activeProfile} onClose={() => setShowPinned(false)}
+          onSaved={(rows) => refreshPinned({ message: rows } as any, { revalidate: true })} />
+      )}
+      {showCopyMenu && (
+        <CopyMenuDialog defaultTarget={activeProfile} onClose={() => setShowCopyMenu(false)} onDone={refreshItems} />
       )}
 
       {/* Bulk Category Picker Modal */}
