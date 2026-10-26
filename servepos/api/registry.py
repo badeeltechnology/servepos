@@ -246,6 +246,42 @@ def get_active_item_codes(pos_profile):
     return [r["name"] for r in get_items(pos_profile)]
 
 
+MAX_PINNED_ITEMS = 24
+
+
+def _get_pinned_codes(pos_profile):
+    """Stored pinned item codes for a POS Profile (servepos_pinned_items JSON), in order."""
+    import json as _json
+    if not _has_field("POS Profile", "servepos_pinned_items"):
+        return []
+    raw = frappe.db.get_value("POS Profile", pos_profile, "servepos_pinned_items")
+    try:
+        data = _json.loads(raw) if raw else []
+    except Exception:
+        return []
+    if not isinstance(data, list):
+        return []
+    out, seen = [], set()
+    for v in data:
+        v = str(v or "").strip()
+        if v and v not in seen:
+            seen.add(v)
+            out.append(v)
+    return out
+
+
+@frappe.whitelist()
+def get_pinned_items(pos_profile):
+    """Pinned favourite item codes for the outlet, in display order, keeping only items
+    the outlet can sell right now (see get_active_item_codes). At most 24."""
+    _assert_profile(pos_profile)
+    pinned = _get_pinned_codes(pos_profile)
+    if not pinned:
+        return []
+    active = set(get_active_item_codes(pos_profile))
+    return [c for c in pinned if c in active][:MAX_PINNED_ITEMS]
+
+
 def _get_menu_item_order(pos_profile):
     """Return the parsed menu item order dict for a POS Profile, or empty dict.
     Structure: { "_category_order": ["Cat1", "Cat2"], "Cat1": ["ITEM-1", "ITEM-2"], ... }"""
