@@ -3,6 +3,29 @@ from frappe.model.document import Document
 
 
 class ServePOSWaiter(Document):
+	def validate(self):
+		if self.user:
+			other = frappe.db.get_value(
+				"ServePOS Waiter", {"user": self.user, "name": ["!=", self.name or ""]}, "name"
+			)
+			if other:
+				frappe.throw(frappe._("User {0} is already linked to waiter {1}").format(self.user, other))
+			if "ServePOS Waiter" not in frappe.get_roles(self.user):
+				frappe.msgprint(
+					frappe._("User {0} does not have the ServePOS Waiter role yet; the waiter app login will be refused until it is added.").format(self.user),
+					indicator="orange",
+					alert=True,
+				)
+
+	def on_update(self):
+		# deactivating a waiter or changing the linked user logs the old phones out
+		before = self.get_doc_before_save()
+		if before and ((before.is_active and not self.is_active) or (before.user and before.user != self.user)):
+			from servepos.api.mobile import security
+
+			for n in frappe.get_all(security.DEVICE_SESSION, filters={"waiter": self.name, "revoked": 0}, pluck="name"):
+				security.revoke(n, "Waiter deactivated or user changed")
+
 	def before_insert(self):
 		"""
 		Auto-fill `branch` from the creating user's POS Profile when not

@@ -1,0 +1,184 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-10-20 23:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "waiter",
+  "device_name",
+  "platform",
+  "app_version",
+  "device_id",
+  "column_break_1",
+  "created_on",
+  "last_seen",
+  "expires_on",
+  "last_ip",
+  "revoked_section",
+  "revoked",
+  "revoked_reason",
+  "secret_section",
+  "token_hash",
+  "fcm_token"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "waiter",
+   "fieldtype": "Link",
+   "label": "Waiter",
+   "options": "ServePOS Waiter",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "device_name",
+   "fieldtype": "Data",
+   "label": "Device Name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "platform",
+   "fieldtype": "Data",
+   "label": "Platform",
+   "read_only": 1
+  },
+  {
+   "fieldname": "app_version",
+   "fieldtype": "Data",
+   "label": "App Version",
+   "read_only": 1
+  },
+  {
+   "fieldname": "device_id",
+   "fieldtype": "Data",
+   "label": "Device ID",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "created_on",
+   "fieldtype": "Datetime",
+   "label": "Logged In On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_seen",
+   "fieldtype": "Datetime",
+   "label": "Last Seen",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "expires_on",
+   "fieldtype": "Datetime",
+   "label": "Expires On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_ip",
+   "fieldtype": "Data",
+   "label": "Last IP",
+   "read_only": 1
+  },
+  {
+   "fieldname": "revoked_section",
+   "fieldtype": "Section Break",
+   "label": "Revoke"
+  },
+  {
+   "fieldname": "revoked",
+   "fieldtype": "Check",
+   "label": "Revoked",
+   "default": "0",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Tick to log this phone out on its next request."
+  },
+  {
+   "fieldname": "revoked_reason",
+   "fieldtype": "Data",
+   "label": "Revoked Reason"
+  },
+  {
+   "fieldname": "secret_section",
+   "fieldtype": "Section Break",
+   "label": "Internal",
+   "collapsible": 1,
+   "permlevel": 1
+  },
+  {
+   "fieldname": "token_hash",
+   "fieldtype": "Data",
+   "label": "Token Hash",
+   "read_only": 1,
+   "unique": 1,
+   "hidden": 1,
+   "permlevel": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "fcm_token",
+   "fieldtype": "Small Text",
+   "label": "Push Token",
+   "read_only": 1,
+   "permlevel": 1,
+   "no_copy": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-20 23:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Servepos",
+ "name": "ServePOS Device Session",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "System Manager",
+   "permlevel": 1,
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "ServePOS Waiter",
+   "read": 1,
+   "if_owner": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "row_format": "Dynamic",
+ "title_field": "device_name",
+ "show_title_field_in_link": 0,
+ "track_changes": 0,
+ "in_create": 1,
+ "description": "Waiter App devices. One row per phone login; tick Revoked to log a phone out."
+}
