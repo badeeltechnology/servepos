@@ -77,6 +77,20 @@ def _user_payload(user, waiter):
 	}
 
 
+def resolve_login_name(usr):
+	"""Map what the waiter typed (email, User name or plain username) to the User name.
+
+	Waiter logins created from the /pos admin have a placeholder email, so the waiter
+	types the username. This works without System Settings > allow_login_using_user_name.
+	"""
+	if frappe.db.exists("User", usr):
+		return usr
+	name = frappe.db.get_value("User", {"username": usr}, "name")
+	if not name and usr != usr.lower():
+		name = frappe.db.get_value("User", {"username": usr.lower()}, "name")
+	return name or usr
+
+
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def login(usr=None, pwd=None, device_id=None, device_name=None, platform=None, app_version=None):
 	"""Password login from the waiter app. Returns a device token (shown once)."""
@@ -99,7 +113,7 @@ def login(usr=None, pwd=None, device_id=None, device_name=None, platform=None, a
 
 	# Frappe's own lockout (System Settings > allow_consecutive_login_attempts)
 	ip_tracker = get_login_attempt_tracker(ip) if ip else None
-	found = User.find_by_credentials(usr, pwd)
+	found = User.find_by_credentials(resolve_login_name(usr), pwd)
 	if not found:
 		ip_tracker and ip_tracker.add_failure_attempt()
 		_fail("Invalid login credentials", usr)
