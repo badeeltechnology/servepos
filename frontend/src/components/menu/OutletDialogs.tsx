@@ -18,14 +18,14 @@ export function useOutletProfiles() {
   return data || [];
 }
 
-const primaryBtn =
+export const primaryBtn =
   "rounded-md bg-gray-900 px-4 py-2 text-[13px] font-medium text-white hover:bg-gray-800 disabled:opacity-40";
-const secondaryBtn =
+export const secondaryBtn =
   "rounded-md border border-gray-200 px-4 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40";
-const dangerBtn =
+export const dangerBtn =
   "rounded-md bg-red-600 px-4 py-2 text-[13px] font-medium text-white hover:bg-red-700 disabled:opacity-40";
 
-function Shell({
+export function Shell({
   title,
   subtitle,
   icon,
