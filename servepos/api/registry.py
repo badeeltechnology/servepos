@@ -238,6 +238,14 @@ def get_items(pos_profile, item_group=None, search=None, limit=0, modified_after
     return _apply_profile_sort_order(result, pos_profile)
 
 
+@frappe.whitelist()
+def get_active_item_codes(pos_profile):
+    """Item codes the given POS Profile may sell right now (enabled, available and visible).
+    The till uses this to remove items that were disabled, deleted or hidden after it synced them,
+    which the incremental get_items(modified_after=...) cannot report."""
+    return [r["name"] for r in get_items(pos_profile)]
+
+
 def _get_menu_item_order(pos_profile):
     """Return the parsed menu item order dict for a POS Profile, or empty dict.
     Structure: { "_category_order": ["Cat1", "Cat2"], "Cat1": ["ITEM-1", "ITEM-2"], ... }"""
