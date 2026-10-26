@@ -15,6 +15,7 @@ import {
   Search,
   Users,
 } from "lucide-react";
+import { AppLoginCell, AppLoginDialog, useAppLoginOverview } from "./WaiterAppLogin";
 
 /**
  * Waiters
@@ -34,6 +35,8 @@ export default function Waiters() {
   const [waiterName, setWaiterName] = useState("");
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
+  const [loginWaiter, setLoginWaiter] = useState<any | null>(null);
+  const { logins, refresh: refreshLogins } = useAppLoginOverview();
 
   // All POS Profiles — columns of the matrix.
   const { data: allProfiles } = useFrappeGetDocList("POS Profile", {
@@ -310,6 +313,9 @@ export default function Waiters() {
               <th className="min-w-[90px] px-3 py-3 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500">
                 Active
               </th>
+              <th className="min-w-[190px] px-3 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                App login
+              </th>
               {(allProfiles || []).map((p) => (
                 <th
                   key={p.name}
@@ -330,7 +336,7 @@ export default function Waiters() {
             {waiters?.length === 0 && (
               <tr>
                 <td
-                  colSpan={3 + (allProfiles?.length || 0)}
+                  colSpan={4 + (allProfiles?.length || 0)}
                   className="py-12 text-center text-gray-400"
                 >
                   <Users className="mx-auto mb-2 h-8 w-8 text-gray-300" />
@@ -380,6 +386,15 @@ export default function Waiters() {
                     </button>
                   </td>
 
+                  {/* Waiter App login */}
+                  <td className="px-3 py-2.5">
+                    <AppLoginCell
+                      waiter={waiter}
+                      login={logins[waiter.name]}
+                      onOpen={() => setLoginWaiter(waiter)}
+                    />
+                  </td>
+
                   {/* Per-profile toggles */}
                   {(allProfiles || []).map((p) => {
                     const visible = isVisibleOn(waiter, p.name);
@@ -427,7 +442,19 @@ export default function Waiters() {
         </table>
       </div>
 
+      {loginWaiter && (
+        <AppLoginDialog
+          waiter={loginWaiter}
+          onClose={() => setLoginWaiter(null)}
+          onChanged={() => refreshLogins()}
+        />
+      )}
+
       <p className="mt-3 text-[11px] text-gray-400">
+        <b>App login</b> is the username and password a waiter uses in the Waiter App. Create it here; no
+        email or Desk user setup is needed.
+      </p>
+      <p className="mt-1 text-[11px] text-gray-400">
         A waiter with a <b>branch</b> set is locked to POS Profiles of that branch; per-profile toggles are disabled for mismatched profiles.
         Clear the branch to assign a waiter across multiple branches.
       </p>

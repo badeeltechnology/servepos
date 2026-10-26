@@ -179,8 +179,14 @@ doc_events = {
 	},
 	"User Permission": {
 		"after_insert": "servepos.stock_orders.access.on_user_permission"
+	},
+	"ServePOS Waiter Order": {
+		"on_update": "servepos.api.mobile.push.on_waiter_order_update"
 	}
 }
+
+# Waiter App (Mobile API v2): `Authorization: Bearer spw_...` device tokens
+auth_hooks = ["servepos.api.mobile.security.validate_bearer"]
 
 # Scheduled Tasks
 # ---------------

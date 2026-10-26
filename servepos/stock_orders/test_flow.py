@@ -295,8 +295,15 @@ def run(keep=0):
 
 		# 13. an item supplied by two providers
 		as_user("Administrator")
-		store_item = next(c for c in frappe.get_all("Item", filters={"servepos_stock_provider": "Store", "disabled": 0, "is_stock_item": 1}, pluck="name", limit=50)
-			if not frappe.db.exists("ServePOS Item Provider", {"parent": c}))
+		from servepos.stock_orders.utils import provider_groups
+		ck_groups = provider_groups(CK)
+		store_items = [c for c in frappe.get_all("Item", filters={"servepos_stock_provider": "Store", "disabled": 0, "is_stock_item": 1},
+				fields=["name", "item_group"], limit=500)
+			if not frappe.db.exists("ServePOS Item Provider", {"parent": c.name})]
+		inside = [c for c in store_items if ck_groups is None or c.item_group in ck_groups]
+		store_item = (inside or store_items)[0].name
+		if not inside:  # CK is limited to item groups none of the Store items are in: move one inside (rolled back)
+			frappe.db.set_value("Item", store_item, "item_group", sorted(ck_groups)[0])
 		frappe.get_doc({"doctype": "ServePOS Item Provider", "provider": CK, "parent": store_item, "parenttype": "Item",
 			"parentfield": "servepos_also_from", "idx": 1}).db_insert()
 		as_user(OUTLET_USER)
@@ -457,7 +464,12 @@ def run(keep=0):
 			log.check(not form["order"] or form["order"]["name"] != emg.name, "The emergency order stays apart from the day's order")
 			as_user(STORE_USER)
 			first_ship = api.list_orders("to_ship", "Store")
-			log.check(first_ship and first_ship[0].name == emg.name, "Emergency order is first on To ship")
+			lead = []
+			for o in first_ship:
+				if not o.is_emergency:
+					break
+				lead.append(o.name)
+			log.check(emg.name in lead, "Emergency orders come first on To ship", f"{len(lead)} emergency on top")
 			as_user(OUTLET_USER)
 			api.cancel_order(emg.name, "test cleanup")
 
