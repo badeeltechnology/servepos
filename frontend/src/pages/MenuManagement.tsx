@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useFrappeGetDocList, useFrappeGetDocCount, useFrappeGetCall, useFrappeCreateDoc, useFrappeUpdateDoc, useFrappeDeleteDoc, useFrappePostCall } from "frappe-react-sdk";
 import { useProfile } from "@/App";
-import { Plus, Search, Edit3, Trash2, X, FolderPlus, ImagePlus, Ban, GripVertical, ArrowUpDown, CheckSquare, Square, Eye, EyeOff, FolderInput, Store, Copy, MinusSquare } from "lucide-react";
+import { Plus, Search, Edit3, Trash2, X, FolderPlus, ImagePlus, Ban, GripVertical, ArrowUpDown, CheckSquare, Square, Eye, EyeOff, FolderInput, Store, Copy, MinusSquare, Pin, PinOff } from "lucide-react";
+import { PinnedDialog, MAX_PINNED } from "@/components/menu/PinnedDialog";
 import { OutletDialog, CopyMenuDialog, MENU_ADMIN } from "@/components/menu/OutletDialogs";
 import { toast } from "@/hooks/use-toast";
 import { errorText } from "@/pages/WaiterAppLogin";
@@ -217,6 +218,46 @@ export default function MenuManagement() {
   const [selectingAll, setSelectingAll] = useState(false);
   const { call: listItemCodes } = useFrappePostCall(`${MENU_ADMIN}.list_item_codes`);
   const { call: setItemOutlets } = useFrappePostCall(`${MENU_ADMIN}.set_item_outlets`);
+
+  // --- Pinned favourites (till Popular tab) of the selected outlet ---
+  const [showPinned, setShowPinned] = useState(false);
+  const { data: pinnedResp, mutate: refreshPinned } = useFrappeGetCall<{ message: { item_code: string }[] }>(
+    `${MENU_ADMIN}.get_pinned`,
+    activeProfile ? { pos_profile: activeProfile } : undefined,
+    activeProfile ? `menu-pinned-${activeProfile}` : null,
+  );
+  const pinnedCodes = (pinnedResp?.message || []).map((r) => r.item_code);
+  const pinnedSet = new Set(pinnedCodes);
+  const { call: pinItems } = useFrappePostCall(`${MENU_ADMIN}.pin_items`);
+
+  async function bulkPin(mode: "add" | "remove") {
+    if (!activeProfile) return;
+    const picked = Array.from(selectedItems);
+    if (mode === "add") {
+      const fresh = picked.filter((c) => !pinnedSet.has(c));
+      if (pinnedCodes.length + fresh.length > MAX_PINNED) {
+        toast({
+          title: `At most ${MAX_PINNED} pinned items`,
+          description: `${pinnedCodes.length} already pinned on ${activeProfile}; ${fresh.length} more would go over the limit.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    setBulkActionLoading(true);
+    try {
+      const res: any = await pinItems({ pos_profile: activeProfile, items: JSON.stringify(picked), mode });
+      const n = (res?.message || []).length;
+      toast({
+        title: mode === "add" ? "Pinned to Popular" : "Unpinned",
+        description: `${n} pinned on ${activeProfile}`,
+      });
+      refreshPinned();
+      clearSelection();
+    } catch (err: any) {
+      toast({ title: mode === "add" ? "Could not pin items" : "Could not unpin items", description: errorText(err), variant: "destructive" });
+    } finally { setBulkActionLoading(false); }
+  }
 
   function toggleSelectAll() {
     if (!displayItems) return;
@@ -484,6 +525,13 @@ export default function MenuManagement() {
               <ArrowUpDown className="h-3.5 w-3.5" /> Sort categories
             </button>
           )}
+          {activeProfile && (
+            <button onClick={() => setShowPinned(true)}
+              className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50"
+              title="Items shown first on this outlet's Popular tab">
+              <Pin className="h-3.5 w-3.5" /> Pinned favourites{pinnedCodes.length ? ` (${pinnedCodes.length})` : ""}
+            </button>
+          )}
           <button onClick={() => setShowCopyMenu(true)}
             className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-2 text-[13px] font-medium text-gray-600 hover:bg-gray-50"
             title="Show the same items on another outlet">
@@ -665,7 +713,10 @@ export default function MenuManagement() {
                         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-[13px] font-bold text-gray-400">{item.item_name?.charAt(0)}</div>
                       )}
                       <div className="min-w-0">
-                        <p className={`text-[13px] font-medium truncate ${isDisabled ? "text-gray-400 line-through" : "text-gray-900"}`}>{item.item_name}</p>
+                        <p className={`flex items-center gap-1 text-[13px] font-medium truncate ${isDisabled ? "text-gray-400 line-through" : "text-gray-900"}`}>
+                          {pinnedSet.has(item.name) && <span title={`Pinned #${pinnedCodes.indexOf(item.name) + 1} on ${activeProfile}`}><Pin className="h-3 w-3 flex-shrink-0 fill-amber-400 text-amber-500" /></span>}
+                          <span className="truncate">{item.item_name}</span>
+                        </p>
                         {item.servepos_item_name_ar && <p className="text-[11px] text-gray-400 truncate" dir="rtl">{item.servepos_item_name_ar}</p>}
                       </div>
                     </div>
@@ -755,6 +806,18 @@ export default function MenuManagement() {
               className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-40">
               <Store className="h-3.5 w-3.5" /> Remove from outlet...
             </button>
+            {activeProfile && (
+              <>
+                <button onClick={() => bulkPin("add")} disabled={bulkActionLoading}
+                  className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-40">
+                  <Pin className="h-3.5 w-3.5" /> Pin to Popular
+                </button>
+                <button onClick={() => bulkPin("remove")} disabled={bulkActionLoading || !Array.from(selectedItems).some((c) => pinnedSet.has(c))}
+                  className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40">
+                  <PinOff className="h-3.5 w-3.5" /> Unpin
+                </button>
+              </>
+            )}
             <button onClick={() => setShowBulkCategoryPicker(true)} disabled={bulkActionLoading}
               className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
               <FolderInput className="h-3.5 w-3.5" /> Move to category
@@ -788,6 +851,10 @@ export default function MenuManagement() {
         <OutletDialog mode={outletDialog} items={Array.from(selectedItems)}
           onClose={() => setOutletDialog(null)}
           onDone={() => { clearSelection(); refreshItems(); }} />
+      )}
+      {showPinned && activeProfile && (
+        <PinnedDialog profile={activeProfile} onClose={() => setShowPinned(false)}
+          onSaved={(rows) => refreshPinned({ message: rows } as any, { revalidate: true })} />
       )}
       {showCopyMenu && (
         <CopyMenuDialog defaultTarget={activeProfile} onClose={() => setShowCopyMenu(false)} onDone={refreshItems} />
