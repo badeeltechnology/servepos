@@ -886,9 +886,13 @@ def get_inventory(location_name, count_date=None):
 		for l in lines:
 			l.pop("system", None)
 			l.pop("difference", None)
+	info_all = item_info([l["item_code"] for l in lines])
 	for l in lines:
-		i = item_info([l["item_code"]]).get(l["item_code"])
+		i = info_all.get(l["item_code"])
 		l["uoms"] = i.uoms if i else []
+		l["item_group"] = (i.item_group if i else None) or "Other"
+	# item group wise, the same order as the printed count sheet
+	lines.sort(key=lambda l: ((l["item_group"] or "").lower(), (l["item_name"] or "").lower()))
 	can_correct = bool(doc and doc.status == "Submitted" and doc.submitted_on and
 		time_diff_in_hours(now_datetime(), doc.submitted_on) <= flt(s.correction_window_hours or 24))
 	count_time = _count_time(doc) if doc and doc.get("count_time") else None
@@ -907,7 +911,7 @@ def search_count_items(location_name, txt=""):
 	info = item_info(codes)
 	have = bin_qty(codes, location(location_name).warehouse)
 	return [{"item_code": c, "item_name": info[c].item_name, "stock_uom": info[c].stock_uom, "provider": info[c].servepos_stock_provider,
-		"uoms": info[c].uoms, "actual_qty": flt(have[c].actual_qty) if c in have else 0} for c in codes if c in info]
+		"item_group": info[c].item_group or "Other", "uoms": info[c].uoms, "actual_qty": flt(have[c].actual_qty) if c in have else 0} for c in codes if c in info]
 
 
 @frappe.whitelist()

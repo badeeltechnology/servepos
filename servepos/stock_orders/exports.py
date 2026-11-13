@@ -61,10 +61,20 @@ def sheet_count(location_name, count_date=None):
 	if filled and inv["show_system"]:
 		cols += [("System", "r"), ("Difference", "r")]
 	rows, last = [], None
-	for l in sorted(inv["lines"], key=lambda x: ((x.get("provider") or "zz"), x["item_name"])):
-		if (l.get("provider") or "Other") != last:
-			last = l.get("provider") or "Other"
+	for l in sorted(inv["lines"], key=lambda x: ((x.get("item_group") or "Other").lower(), (x["item_name"] or "").lower())):
+		if (l.get("item_group") or "Other") != last:
+			last = l.get("item_group") or "Other"
 			rows.append({"group": last})
+		uoms = l.get("uoms") or []
+		if not filled and len(uoms) > 1:
+			# one line per UOM, biggest first: they write 3 next to Bag and 4 next to Kg, the upload adds them up
+			first = True
+			for u in sorted(uoms, key=lambda u: -flt(u["factor"])):
+				label = u["uom"] if flt(u["factor"]) == 1 else f'{u["uom"]} ({_n(u["factor"])} {l["stock_uom"]})'
+				mine = l.get("counted") is not None and u["uom"] == l["uom"]
+				rows.append([l["item_name"] if first else "", l["item_code"], label, _n(l["counted"]) if mine else None])
+				first = False
+			continue
 		row = [l["item_name"], l["item_code"], l["uom"], _n(l.get("counted")) if l.get("counted") is not None else ("" if filled else None)]
 		if filled and inv["show_system"]:
 			row += [_n(l.get("system")), _n(l.get("difference")) if l.get("counted") is not None else ""]
@@ -75,6 +85,7 @@ def sheet_count(location_name, count_date=None):
 		"meta": [("Location", location_name), ("Count date", when), ("Status", inv["status"]), ("Reconciliation", inv.get("reconciliation") or "")],
 		"columns": cols, "rows": rows, "signatures": ["Counted by", "Checked by", ""],
 		"filename": f"Count {location_name} {inv['count_date']}",
+		"xlsx_groups": True,
 		"import_hint": not filled,
 	}
 
@@ -160,13 +171,33 @@ def render_xlsx(sheet):
 	from frappe.utils.xlsxutils import make_xlsx
 	data = [[sheet["title"]], [k + ": " + (v or "-") for k, v in (sheet.get("meta") or [])], []]
 	data.append([c for c, _a in sheet["columns"]])
+	group_rows = []
 	for row in sheet["rows"]:
 		if isinstance(row, dict):
-			continue  # Excel keeps one flat table so it can be filtered and imported back
+			# group headings only where the sheet asks for them (the count sheet); the import skips rows without a code
+			if sheet.get("xlsx_groups"):
+				group_rows.append(len(data) + 1)
+				data.append([row["group"]])
+			continue
 		data.append(["" if v is None else _num(v) for v in row])
 	if sheet.get("totals"):
 		data.append([_num(v) for v in sheet["totals"]])
-	return make_xlsx(data, sheet["title"][:31].replace(":", "")).getvalue()
+	out = make_xlsx(data, sheet["title"][:31].replace(":", "")).getvalue()
+	if not group_rows:
+		return out
+	from io import BytesIO
+	from openpyxl import load_workbook
+	from openpyxl.styles import Font, PatternFill
+	wb = load_workbook(BytesIO(out))
+	ws = wb.active
+	fill = PatternFill("solid", fgColor="EEEEEE")
+	for r in group_rows:
+		for c in range(1, len(sheet["columns"]) + 1):
+			ws.cell(row=r, column=c).fill = fill
+		ws.cell(row=r, column=1).font = Font(bold=True)
+	buf = BytesIO()
+	wb.save(buf)
+	return buf.getvalue()
 
 
 def _num(v):
@@ -229,13 +260,29 @@ def import_counts(location_name, count_date=None):
 		if v in (None, ""):
 			continue
 		try:
-			out.append({"item_code": str(r[ci]).strip(), "counted": flt(v), "uom": (r[ui] if ui is not None and len(r) > ui else None)})
+			uom = str(r[ui]).split(" (")[0].strip() if ui is not None and len(r) > ui and r[ui] else None
+			out.append({"item_code": str(r[ci]).strip(), "counted": flt(v), "uom": uom})
 		except Exception:
 			bad.append(str(r[ci]))
-	# details for items that are not on the screen yet, so they can be added to the count
+	# an item counted in more than one UOM (3 Bag + 4 Kg) comes back as one line with its parts
 	info = item_info([l["item_code"] for l in out])
+	merged = {}
 	for l in out:
 		i = info.get(l["item_code"])
+		if l["item_code"] not in merged:
+			merged[l["item_code"]] = {"item_code": l["item_code"], "parts": []}
+		uom = l["uom"] if i and l["uom"] in (i.factor or {}) else (i.stock_uom if i else l["uom"])
+		merged[l["item_code"]]["parts"].append({"uom": uom, "counted": l["counted"]})
+	out = list(merged.values())
+	for l in out:
+		i = info.get(l["item_code"])
+		if len(l["parts"]) == 1:
+			l.update(l["parts"][0])
+		elif i:
+			l.update({"uom": i.stock_uom, "counted": sum(flt(p["counted"]) * flt(i.factor.get(p["uom"]) or 1) for p in l["parts"])})
+		else:
+			l.update(l["parts"][-1])
 		if i and i.is_stock_item and not i.disabled:
-			l.update({"item_name": i.item_name, "stock_uom": i.stock_uom, "provider": i.servepos_stock_provider, "uoms": i.uoms})
+			l.update({"item_name": i.item_name, "stock_uom": i.stock_uom, "provider": i.servepos_stock_provider,
+				"item_group": i.item_group or "Other", "uoms": i.uoms})
 	return {"lines": out, "skipped": bad}
