@@ -65,16 +65,6 @@ def sheet_count(location_name, count_date=None):
 		if (l.get("item_group") or "Other") != last:
 			last = l.get("item_group") or "Other"
 			rows.append({"group": last})
-		uoms = l.get("uoms") or []
-		if not filled and len(uoms) > 1:
-			# one line per UOM, biggest first: they write 3 next to Bag and 4 next to Kg, the upload adds them up
-			first = True
-			for u in sorted(uoms, key=lambda u: -flt(u["factor"])):
-				label = u["uom"] if flt(u["factor"]) == 1 else f'{u["uom"]} ({_n(u["factor"])} {l["stock_uom"]})'
-				mine = l.get("counted") is not None and u["uom"] == l["uom"]
-				rows.append([l["item_name"] if first else "", l["item_code"], label, _n(l["counted"]) if mine else None])
-				first = False
-			continue
 		row = [l["item_name"], l["item_code"], l["uom"], _n(l.get("counted")) if l.get("counted") is not None else ("" if filled else None)]
 		if filled and inv["show_system"]:
 			row += [_n(l.get("system")), _n(l.get("difference")) if l.get("counted") is not None else ""]

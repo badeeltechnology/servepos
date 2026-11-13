@@ -44,18 +44,9 @@
           <ListRow v-for="l in g.lines" :key="l.item_code" :data-code="l.item_code" class="min-h-11 py-1" :class="l.is_corrected ? 'bg-surface-blue-1' : ''">
             <ListCell class="flex-col !items-start"><span class="w-full truncate text-base">{{ l.item_name }}</span><span class="text-xs text-ink-gray-4 num">{{ l.item_code }}{{ l.is_corrected ? ' · was ' + fmt(l.original) : '' }}</span></ListCell>
             <ListCell class="text-sm text-ink-gray-5">{{ l.provider }}</ListCell>
+            <ListCell><TextInput class="qty w-full" type="number" min="0" step="any" inputmode="decimal" variant="outline" :model-value="l.v" @update:model-value="(v) => (l.v = v)" :disabled="!editable" :aria-label="'Counted ' + l.item_name" @keydown.enter.prevent="nextInput($event)" /></ListCell>
             <ListCell>
-              <div v-if="multi(l)" class="w-full space-y-1 py-1">
-                <div v-for="u in bigFirst(l)" :key="u.uom" class="flex items-center gap-2">
-                  <TextInput class="qty w-24 shrink-0" type="number" min="0" step="any" inputmode="decimal" variant="outline" :model-value="l.parts[u.uom]" @update:model-value="(v) => setPart(l, u.uom, v)" :aria-label="`Counted ${l.item_name} in ${u.uom}`" @keydown.enter.prevent="nextInput($event)" />
-                  <span class="truncate text-sm text-ink-gray-6">{{ u.uom }}<span v-if="u.factor !== 1" class="text-ink-gray-4"> ({{ fmt(u.factor) }} {{ l.stock_uom }})</span></span>
-                </div>
-              </div>
-              <TextInput v-else class="qty w-24" type="number" min="0" step="any" inputmode="decimal" variant="outline" :model-value="l.v" @update:model-value="(v) => (l.v = v)" :disabled="!editable" :aria-label="'Counted ' + l.item_name" @keydown.enter.prevent="nextInput($event)" />
-            </ListCell>
-            <ListCell>
-              <span v-if="multi(l)" class="px-1 text-sm num" :class="blank(l.v) ? 'text-ink-gray-4' : 'text-ink-gray-8'">{{ blank(l.v) ? 'Total' : '= ' + fmt(stockQty(l)) + ' ' + l.stock_uom }}</span>
-              <Select v-else-if="l.uoms.length > 1 && inv.data.status === 'Counting'" v-model="l.uom" :options="l.uoms.map((u) => ({ value: u.uom, label: u.factor === 1 ? u.uom : `${u.uom} (${fmt(u.factor)} ${l.stock_uom})` }))" class="w-full" />
+              <Select v-if="l.uoms.length > 1 && inv.data.status === 'Counting'" v-model="l.uom" :options="l.uoms.map((u) => ({ value: u.uom, label: u.factor === 1 ? u.uom : `${u.uom} (${fmt(u.factor)} ${l.stock_uom})` }))" class="w-full" />
               <span v-else class="px-1 text-ink-gray-6">{{ l.uom }}</span>
             </ListCell>
             <ListCell class="justify-end text-ink-gray-6 num">{{ inv.data.show_system && l.system !== undefined ? fmt(l.system) : '' }}</ListCell>
@@ -95,11 +86,11 @@ import { state } from '../state'
 
 const nowHM = () => new Date().toTimeString().slice(0, 5)
 const lines = ref([]), q = ref(''), show = ref('All'), date = ref(state.ctx.today), time = ref(nowHM()), correcting = ref(false), submitting = ref(false)
-const cols = ['minmax(180px,1fr)', '6rem', '15rem', '9rem', '5rem', '6rem']
+const cols = ['minmax(180px,1fr)', '6rem', '7rem', '9rem', '5rem', '6rem']
 const inv = useRead('get_inventory', () => ({ location_name: state.location.name, count_date: date.value }), {
   onSuccess: (d) => {
     correcting.value = false
-    lines.value = d.lines.map((l) => withParts({ ...l, v: l.counted ?? '' }, d.status))
+    lines.value = d.lines.map((l) => ({ ...l, v: l.counted ?? '' }))
     time.value = d.count_time ? d.count_time.slice(0, 5) : date.value === state.ctx.today ? nowHM() : '23:59'
   },
 })
@@ -122,35 +113,9 @@ const groups = computed(() => {
   })
   return [...by.keys()].sort((x, y) => x.localeCompare(y)).map((name) => ({ name, lines: by.get(name) }))
 })
-// Items with more than one UOM are counted per UOM (3 Bag + 4 Kg), like the printed sheet.
-// One part filled keeps that UOM; several parts are added up in the stock UOM.
-const multi = (l) => !!l.parts && inv.data && inv.data.status === 'Counting'
-const bigFirst = (l) => [...l.uoms].sort((a, b) => b.factor - a.factor)
+// system is in the line's original UOM (l.factor); the UOM picked may be another one
 const factorOf = (l, uom) => (l.uoms.find((u) => u.uom === uom) || { factor: 1 }).factor
-const stockQty = (l) => Number(l.v) * factorOf(l, l.uom)
-function withParts(l, status = 'Counting') {
-  if (status !== 'Counting' || !l.uoms || l.uoms.length < 2) return l
-  l.parts = Object.fromEntries(l.uoms.map((u) => [u.uom, '']))
-  if (!blank(l.v)) l.parts[l.uom] = l.v
-  return l
-}
-function setPart(l, uom, v) {
-  l.parts[uom] = v
-  const filled = Object.entries(l.parts).filter(([, x]) => !blank(x))
-  if (!filled.length) { l.v = ''; return }
-  if (filled.length === 1) { l.uom = filled[0][0]; l.v = Number(filled[0][1]); return }
-  l.uom = l.stock_uom
-  l.v = filled.reduce((t, [u, x]) => t + Number(x) * factorOf(l, u), 0)
-}
-function clearLine(l) { if (l.parts) Object.keys(l.parts).forEach((u) => (l.parts[u] = '')); l.v = '' }
-function applyCount(l, x) {
-  if (l.parts && x.parts) { clearLine(l); x.parts.forEach((p) => setPart(l, l.parts[p.uom] !== undefined ? p.uom : l.stock_uom, p.counted)); return }
-  l.v = x.counted
-  if (x.uom && l.uoms.some((u) => u.uom === x.uom)) l.uom = x.uom
-  if (l.parts) { clearLine(l); setPart(l, l.uom, x.counted) }
-}
-// system is in the line's original UOM (l.factor); the count may now be in another UOM
-const diffOf = (l) => (blank(l.v) || l.system === undefined || l.system === null ? null : stockQty(l) / (l.factor || 1) - l.system)
+const diffOf = (l) => (blank(l.v) || l.system === undefined || l.system === null ? null : (Number(l.v) * factorOf(l, l.uom)) / (l.factor || 1) - l.system)
 const banner = computed(() => {
   const d = inv.data
   if (!d) return null
@@ -169,13 +134,13 @@ const fileInput = ref(null), savedAt = ref(''), dirty = ref(false)
 const moreOptions = [
   { label: 'Upload filled count sheet (Excel)', icon: 'lucide-upload', onClick: () => fileInput.value && fileInput.value.click() },
   { label: 'Set uncounted lines to 0', icon: 'lucide-circle-slash', onClick: fillZero },
-  { label: 'Clear all counts', icon: 'lucide-eraser', onClick: () => lines.value.forEach(clearLine) },
+  { label: 'Clear all counts', icon: 'lucide-eraser', onClick: () => lines.value.forEach((l) => (l.v = '')) },
 ]
 function fillZero() {
   const n = lines.value.filter((l) => blank(l.v)).length
   if (!n) return toast.info('Every line is already counted')
   dialog.confirm({ title: `Set ${n} uncounted line${n > 1 ? 's' : ''} to 0?`, message: 'Use this when everything you did not find on the shelf is really out of stock.', confirmLabel: 'Set to 0',
-    onConfirm: () => { lines.value.forEach((l) => { if (blank(l.v)) { if (l.parts) setPart(l, l.stock_uom, 0); else l.v = 0 } }); toast.success(`${n} lines set to 0`) } })
+    onConfirm: () => { lines.value.forEach((l) => { if (blank(l.v)) l.v = 0 }); toast.success(`${n} lines set to 0`) } })
 }
 async function importFile(e) {
   const f = e.target.files && e.target.files[0]
@@ -189,12 +154,12 @@ async function importFile(e) {
     if (!res.ok) throw new Error(JSON.parse(JSON.parse(j._server_messages || '["{}"]')[0]).message || 'Could not read the file')
     const byCode = Object.fromEntries(j.message.lines.map((l) => [l.item_code, l]))
     let n = 0
-    lines.value.forEach((l) => { const x = byCode[l.item_code]; if (x) { applyCount(l, x); delete byCode[l.item_code]; n++ } })
+    lines.value.forEach((l) => { const x = byCode[l.item_code]; if (x) { l.v = x.counted; if (x.uom && l.uoms.some((u) => u.uom === x.uom)) l.uom = x.uom; delete byCode[l.item_code]; n++ } })
     let added = 0, unknown = 0
     Object.values(byCode).forEach((x) => {
       if (!x.item_name) return unknown++
-      const l = newLine(x)
-      applyCount(l, x)
+      const l = newLine(x, x.counted)
+      if (x.uom && l.uoms.some((u) => u.uom === x.uom)) l.uom = x.uom
       lines.value.push(l); added++
     })
     toast.success(`${n} counts filled in from the sheet${added ? `, ${added} new items added` : ''}${unknown ? `, ${unknown} codes not found` : ''}. Check them and submit.`)
@@ -212,8 +177,8 @@ const timer = setInterval(async () => {
 }, 45000)
 onBeforeUnmount(() => clearInterval(timer))
 function newLine(r, counted = '') {
-  return withParts({ item_code: r.item_code, item_name: r.item_name, provider: r.provider || '', item_group: r.item_group || 'Other', uom: r.stock_uom, factor: 1, stock_uom: r.stock_uom,
-    uoms: r.uoms && r.uoms.length ? r.uoms : [{ uom: r.stock_uom, factor: 1 }], counted: null, system: inv.data.show_system ? r.actual_qty || 0 : undefined, v: counted, added: 1 })
+  return { item_code: r.item_code, item_name: r.item_name, provider: r.provider || '', item_group: r.item_group || 'Other', uom: r.stock_uom, factor: 1, stock_uom: r.stock_uom,
+    uoms: r.uoms && r.uoms.length ? r.uoms : [{ uom: r.stock_uom, factor: 1 }], counted: null, system: inv.data.show_system ? r.actual_qty || 0 : undefined, v: counted, added: 1 }
 }
 function addLine(r) {
   lines.value.unshift(newLine(r))
