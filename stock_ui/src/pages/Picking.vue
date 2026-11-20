@@ -2,11 +2,11 @@
   <Header title="Picking sheet" :subtitle="pick.data ? fmtDate(pick.data.for_date) : ''">
     <DatePicker v-model="date" class="w-40" />
     <DownloadMenu kind="picking" :params="{ provider: state.location.name, for_date: date }" label="Print / Excel" />
-    <Button variant="solid" label="Ship orders" route="/list/to_ship" />
+    <Button variant="solid" label="Ship orders" route="/stock/list/to_ship" />
   </Header>
   <div v-if="pick.data" class="space-y-4 px-3 pb-10 pt-5 sm:px-5">
     <div class="flex flex-wrap gap-2">
-      <Button v-for="o in pick.data.orders" :key="o.name" :route="'/o/' + o.name" :label="o.to_location + ' · ' + o.status + (o.is_late ? ' · late' : '')"
+      <Button v-for="o in pick.data.orders" :key="o.name" :route="'/stock/o/' + o.name" :label="o.to_location + ' · ' + o.status + (o.is_late ? ' · late' : '')"
         :theme="o.is_late ? 'red' : 'gray'" :icon-left="o.status === 'Submitted' ? 'lucide-circle-dot' : 'lucide-circle-check'" />
     </div>
     <SearchInput v-if="pick.data.rows.length > 8" v-model="q" placeholder="Search item" />

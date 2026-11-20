@@ -26,3 +26,16 @@ def setup(sync=True):
 	for name, purpose in ENTRY_TYPES.items():
 		if not frappe.db.exists("Stock Entry Type", name):
 			frappe.get_doc({"doctype": "Stock Entry Type", "name": name, "purpose": purpose}).insert(ignore_permissions=True)
+	seed_defaults()
+
+
+def seed_defaults():
+	"""Day close defaults on sites that had Stock Settings before these fields existed: a single's
+	JSON default only applies to new sites, and every save writes 0 for unset fields. Runs once."""
+	s = "ServePOS Stock Settings"
+	if frappe.db.get_single_value(s, "day_close_seeded"):
+		return
+	if not frappe.db.get_single_value(s, "day_start_hour"):
+		frappe.db.set_single_value(s, "day_start_hour", 5)
+	frappe.db.set_single_value(s, "auto_day_close", 1)
+	frappe.db.set_single_value(s, "day_close_seeded", 1)

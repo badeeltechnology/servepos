@@ -694,3 +694,77 @@ def delete_voucher(name):
 	if cint(frappe.db.get_value("ServePOS Voucher", name, "times_used")):
 		frappe.throw(_("This voucher has been used, so it is kept for the records. Turn it off instead."))
 	return _delete("ServePOS Voucher", name)
+
+
+# ---------------------------------------------------------------- stock settings (Settings > Stock)
+
+STOCK_SETTINGS = "ServePOS Stock Settings"
+# kept in the desk form: the per-role landing table and internal flags
+STOCK_SETTINGS_SKIP = {"role_access", "amount_access_seeded", "day_close_seeded"}
+
+
+def _stock_settings_fields():
+	meta = frappe.get_meta(STOCK_SETTINGS)
+	sections, cur = [], None
+	for f in meta.fields:
+		if f.fieldtype == "Section Break":
+			cur = {"label": f.label or "", "fields": []}
+			sections.append(cur)
+			continue
+		if f.fieldtype in ("Column Break", "Tab Break") or f.fieldname in STOCK_SETTINGS_SKIP or f.hidden:
+			continue
+		if f.fieldtype not in ("Time", "Int", "Float", "Data", "Select", "Check", "Link"):
+			continue
+		if cur is None:
+			cur = {"label": "", "fields": []}
+			sections.append(cur)
+		cur["fields"].append(f)
+	return [s for s in sections if s["fields"]]
+
+
+def _link_options(doctype):
+	company = frappe.defaults.get_global_default("company")
+	filters = {}
+	m = frappe.get_meta(doctype)
+	if m.has_field("is_group"):
+		filters["is_group"] = 0
+	if m.has_field("company") and company:
+		filters["company"] = company
+	if m.has_field("disabled"):
+		filters["disabled"] = 0
+	return frappe.get_all(doctype, filters=filters, pluck="name", order_by="name asc", limit_page_length=500)
+
+
+@frappe.whitelist()
+def get_stock_settings():
+	"""Stock order, inventory and day close settings as a form (the role landing table stays in the desk)."""
+	_assert()
+	doc = frappe.get_single(STOCK_SETTINGS)
+	out = []
+	for sec in _stock_settings_fields():
+		fields = []
+		for f in sec["fields"]:
+			row = {"fieldname": f.fieldname, "label": f.label, "fieldtype": f.fieldtype, "description": f.description or "",
+				"value": doc.get(f.fieldname)}
+			if f.fieldtype == "Select":
+				row["options"] = [o for o in (f.options or "").split("\n")]
+			elif f.fieldtype == "Link":
+				row["options"] = [""] + _link_options(f.options)
+			elif f.fieldtype == "Time" and row["value"]:
+				row["value"] = str(row["value"])[:5]
+			fields.append(row)
+		out.append({"label": sec["label"], "fields": fields})
+	return out
+
+
+@frappe.whitelist(methods=["POST"])
+def save_stock_settings(values):
+	_assert()
+	values = _data(values)
+	allowed = {f.fieldname for sec in _stock_settings_fields() for f in sec["fields"]}
+	doc = frappe.get_single(STOCK_SETTINGS)
+	for k, v in values.items():
+		if k in allowed:
+			doc.set(k, v)
+	doc.save()
+	return get_stock_settings()

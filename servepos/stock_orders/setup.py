@@ -90,9 +90,14 @@ def add_desk_link():
 		nav = frappe.get_single("Navbar Settings")
 	except Exception:
 		return
-	if any((r.item_label or "") == "Stock Orders" for r in nav.settings_dropdown):
+	row = next((r for r in nav.settings_dropdown if (r.item_label or "") in ("Stock Orders", "ServePOS")), None)
+	if row and row.item_label == "ServePOS" and row.route == "/manage":
 		return
-	nav.append("settings_dropdown", {"item_label": "Stock Orders", "item_type": "Route", "route": "/stock", "is_standard": 0})
+	if row:
+		# Stock Orders moved into the manager app
+		row.item_label, row.route = "ServePOS", "/manage"
+	else:
+		nav.append("settings_dropdown", {"item_label": "ServePOS", "item_type": "Route", "route": "/manage", "is_standard": 0})
 	nav.flags.ignore_permissions = True
 	nav.save()
 
@@ -110,11 +115,11 @@ def seed_settings():
 		s.write_off_account = frappe.get_cached_value("Company", company, "stock_adjustment_account")
 	if not s.role_access:
 		for role, page, desk in [
-			("ServePOS Outlet User", "/stock", 0),
-			("ServePOS CK Provider", "/stock", 0),
-			("ServePOS Pastry Provider", "/stock", 0),
-			("Stock Manager", "/stock", 1),
-			("Purchase User", "/stock/buy", 1),
+			("ServePOS Outlet User", "/manage/stock", 0),
+			("ServePOS CK Provider", "/manage/stock", 0),
+			("ServePOS Pastry Provider", "/manage/stock", 0),
+			("Stock Manager", "/manage/stock", 1),
+			("Purchase User", "/manage/stock/buy", 1),
 		]:
 			s.append("role_access", {"role": role, "landing_page": page, "allow_desk": desk})
 	if not s.get("amount_access_seeded"):
@@ -124,6 +129,10 @@ def seed_settings():
 			if row.landing_page == "/stock/picking":
 				row.landing_page = "/stock"  # providers now land on their Today dashboard
 		s.amount_access_seeded = 1
+	for row in s.role_access:
+		# Stock Orders moved into the manager app: /stock/... is now /manage/stock/...
+		if row.landing_page and (row.landing_page == "/stock" or row.landing_page.startswith("/stock/")):
+			row.landing_page = "/manage" + row.landing_page
 	s.flags.ignore_mandatory = True
 	s.save(ignore_permissions=True)
 

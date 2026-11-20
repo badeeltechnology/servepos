@@ -94,7 +94,7 @@ website_route_rules = [
 
 # The old /store tool was replaced by Stock Orders; keep old links working
 website_redirects = [
-	{"source": r"/store(/.*)?", "target": "/stock"},
+	{"source": r"/store(/.*)?", "target": "/manage/stock"},
 ]
 
 # Generators
