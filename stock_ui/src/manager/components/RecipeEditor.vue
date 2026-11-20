@@ -51,13 +51,13 @@
 import { computed, ref, watch } from 'vue'
 import { Alert, Badge, Button, Combobox, LoadingText, Select, TextInput, dialog } from 'frappe-ui'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
-import { get, post, act } from '../api'
+import { get, post, act, amount } from '../api'
 import { state } from '../state'
 
 const props = defineProps({ item: String, price: Number, stockItem: Boolean })
 const cur = state.ctx.currency || ''
 const r = ref({}), lines = ref([]), saved = ref('[]'), loading = ref(false), saving = ref(false), q = ref(''), found = ref([])
-const money = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const money = amount
 const snap = () => JSON.stringify(lines.value.map((l) => [l.item_code, Number(l.qty), l.uom, Number(l.yield_percent)]))
 const dirty = computed(() => snap() !== saved.value)
 

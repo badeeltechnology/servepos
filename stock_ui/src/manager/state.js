@@ -1,5 +1,5 @@
 import { reactive } from 'vue'
-import { getContext, get } from './api'
+import { getContext, get, setPrecision } from './api'
 import { state as stock, loadContext as loadStock, setLocation, myLocations } from '../state'
 
 const KEY = 'servepos-manage-outlet'
@@ -11,6 +11,7 @@ export async function loadContext() {
   try {
     const [ctx] = await Promise.all([getContext(), loadStock()])
     state.ctx = ctx
+    if (ctx) setPrecision(ctx.currency_precision)
     if (!ctx) return
     if (stock.error) throw new Error(stock.error)
     if (ctx.is_manager) state.setup = await get('admin.get_setup')

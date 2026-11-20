@@ -105,7 +105,7 @@ import { BarChart, DonutChart, NumberCard } from 'frappe-ui/charts'
 import Header from '../../components/Header.vue'
 import Empty from '../../components/Empty.vue'
 import { errText, fmt, fmtDate } from '../../api'
-import { useRead, money as moneyCur, ago } from '../api'
+import { useRead, money as moneyCur, ago, amount } from '../api'
 import { state, setOutlet } from '../state'
 
 const today = state.ctx.today
@@ -143,7 +143,7 @@ onBeforeUnmount(() => clearInterval(timer))
 const cur = state.ctx.currency || ''
 const curP = cur ? cur + ' ' : ''
 const money = (v) => moneyCur(v)
-const num2 = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const num2 = amount
 const num0 = (v) => Number(v || 0).toLocaleString('en', { maximumFractionDigits: 0 })
 const pct = (now, before) => (d.value && before ? ((Number(now || 0) - before) / before) * 100 : null)
 
@@ -151,10 +151,10 @@ const title = computed(() => presets.find((p) => p.key === preset.value).label =
 const rangeText = computed(() => (outlet.value || 'All outlets') + ' · ' + (range.value[0] === range.value[1] ? fmtDate(range.value[0]) : fmtDate(range.value[0]) + ' to ' + fmtDate(range.value[1])))
 const prevCaption = computed(() => (d.value ? (d.value.days === 1 ? 'vs the day before' : `vs the previous ${d.value.days} days`) : ''))
 
-const byHour = computed(() => (d.value ? s.value.hourly_sales.map((h) => ({ hour: String(h.hour).padStart(2, '0') + ':00', sales: Math.round(h.total * 100) / 100 })) : []))
+const byHour = computed(() => (d.value ? s.value.hourly_sales.map((h) => ({ hour: String(h.hour).padStart(2, '0') + ':00', sales: Number(h.total || 0) })) : []))
 const noTimes = computed(() => !!d.value && s.value.hourly_sales.length > 0 && s.value.hourly_sales.every((h) => h.hour === 0))
-const byDay = computed(() => (d.value ? s.value.daily_sales.map((x) => ({ day: fmtDate(x.date), sales: Math.round(x.total * 100) / 100 })) : []))
-const payments = computed(() => (d.value ? s.value.payment_breakdown.map((p) => ({ method: p.mode_of_payment, amount: Math.round(p.total * 100) / 100 })) : []))
+const byDay = computed(() => (d.value ? s.value.daily_sales.map((x) => ({ day: fmtDate(x.date), sales: Number(x.total || 0) })) : []))
+const payments = computed(() => (d.value ? s.value.payment_breakdown.map((p) => ({ method: p.mode_of_payment, amount: Number(p.total || 0) })) : []))
 const topItems = computed(() => (d.value ? s.value.top_items.filter((i) => i.total_qty > 0).sort((a, b) => b.total_amount - a.total_amount).slice(0, 10) : []))
 const stale = (t) => t && range.value[1] >= today && Date.parse(String(d.value.generated_at).replace(' ', 'T')) - Date.parse(String(t).replace(' ', 'T')) > 3 * 3600 * 1000
 </script>

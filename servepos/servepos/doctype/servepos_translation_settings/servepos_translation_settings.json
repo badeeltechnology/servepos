@@ -1,0 +1,61 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-11-20 22:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "provider",
+  "api_key",
+  "model",
+  "help"
+ ],
+ "fields": [
+  {
+   "fieldname": "provider",
+   "fieldtype": "Select",
+   "label": "Translate with",
+   "options": "\nClaude (Anthropic)\nOpenAI\nGoogle Translate",
+   "description": "Used by the Translate buttons next to Arabic names and descriptions in the manager app."
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "API key",
+   "length": 512
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Data",
+   "label": "Model",
+   "description": "Optional. Empty uses the default: claude-haiku-5-5 for Claude, gpt-4o-mini for OpenAI. Not used by Google Translate."
+  },
+  {
+   "fieldname": "help",
+   "fieldtype": "HTML",
+   "options": "<p class=\"text-muted small\">Claude and OpenAI write menu names the way Gulf menus do (Flat White: فلات وايت). Google Translate translates the meaning.</p>"
+  }
+ ],
+ "issingle": 1,
+ "modified": "2026-11-20 22:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Servepos",
+ "name": "ServePOS Translation Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "role": "ServePOS Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

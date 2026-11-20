@@ -11,7 +11,11 @@
     <div class="space-y-5">
       <section class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormControl label="Name" v-model="form.item_name" placeholder="e.g. Chicken burger" :required="true" />
-        <FormControl label="Name in Arabic" v-model="form.servepos_item_name_ar" dir="rtl" />
+        <div class="relative">
+          <FormControl label="Name in Arabic" v-model="form.servepos_item_name_ar" dir="rtl" />
+          <Button class="absolute -top-1.5 end-0" variant="ghost" size="sm" icon-left="lucide-languages" label="Translate"
+            :loading="tr.name" :disabled="!form.item_name.trim()" :title="form.item_name.trim() ? 'Arabic from the English name' : 'Type the English name first'" @click="translate('name')" />
+        </div>
         <div>
           <FormControl type="select" label="Category" v-model="form.item_group" :options="groupOpts" />
           <Button variant="ghost" size="sm" class="mt-1" label="New category" icon-left="lucide-plus" @click="newCategory" />
@@ -21,7 +25,11 @@
       </section>
       <section class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormControl type="textarea" label="Description" v-model="form.description" :rows="3" />
-        <FormControl type="textarea" label="Description in Arabic" v-model="form.servepos_description_ar" :rows="3" dir="rtl" />
+        <div class="relative">
+          <FormControl type="textarea" label="Description in Arabic" v-model="form.servepos_description_ar" :rows="3" dir="rtl" />
+          <Button class="absolute -top-1.5 end-0" variant="ghost" size="sm" icon-left="lucide-languages" label="Translate"
+            :loading="tr.description" :disabled="!(form.description || '').trim()" :title="(form.description || '').trim() ? 'Arabic from the English description' : 'Type the English description first'" @click="translate('description')" />
+        </div>
       </section>
       <section>
         <div class="mb-1.5 text-xs text-ink-gray-5">Photo</div>
@@ -105,6 +113,23 @@ const isNew = computed(() => props.name === 'new')
 const blank = () => ({ name: '', item_name: '', item_code: '', item_group: '', standard_rate: 0, description: '', servepos_item_name_ar: '', servepos_description_ar: '',
   image: '', servepos_is_disabled: 0, servepos_is_available: 1, modifier_groups: [], outlets: {}, all_outlets: true, web_all: false })
 const form = reactive(blank())
+
+// Translate buttons: Arabic from the English name or description, through the service chosen in Settings
+const tr = reactive({ name: false, description: false })
+async function translate(kind) {
+  const src = kind === 'name' ? form.item_name : form.description
+  tr[kind] = true
+  try {
+    const r = await post('servepos.api.translate.to_arabic', { text: src, kind, category: form.item_group || null })
+    if (kind === 'name') form.servepos_item_name_ar = r.text
+    else form.servepos_description_ar = r.text
+    toast.success(kind === 'name' ? 'Arabic name filled in. Check it, then save.' : 'Arabic description filled in. Check it, then save.')
+  } catch (e) {
+    toast.error(errText(e))
+  } finally {
+    tr[kind] = false
+  }
+}
 const saved = ref(''), loaded = ref(false), saving = ref(false), uploading = ref(false), addGroup = ref('')
 
 function cell(p) {
