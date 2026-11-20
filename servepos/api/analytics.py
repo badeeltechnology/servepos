@@ -50,10 +50,16 @@ def _group(profiles, from_date, to_date, key, label, extra=""):
 
 def items(profiles, from_date, to_date):
 	w, a = _where(profiles, from_date, to_date)
-	return _q(f"""select sii.item_code, max(sii.item_name) as item_name, max(sii.item_group) as item_group,
-			sum(sii.qty) as total_qty, sum(sii.amount) as total_amount, sum(sii.net_amount) as net_amount
+	rows = _q(f"""select sii.item_code, sum(sii.qty) as total_qty, sum(sii.amount) as total_amount, sum(sii.net_amount) as net_amount
 		from `tabSales Invoice Item` sii join `tabSales Invoice` si on si.name = sii.parent
 		where {w} group by sii.item_code""", a)
+	# names and categories from Item: reading them off every invoice line would defeat the covering index
+	info = {r.name: r for r in frappe.get_all("Item", filters={"name": ["in", [r.item_code for r in rows] or ["-"]]},
+		fields=["name", "item_name", "item_group"], limit_page_length=0)} if rows else {}
+	for r in rows:
+		i = info.get(r.item_code) or {}
+		r.item_name, r.item_group = i.get("item_name") or r.item_code, i.get("item_group")
+	return rows
 
 
 def payments(profiles, from_date, to_date):
@@ -90,9 +96,57 @@ def voids(profiles, from_date, to_date):
 	}
 
 
+def _pass(profiles, from_date, to_date):
+	"""One read of the period's invoices (only the columns the reports need), aggregated here:
+	a single scan is far cheaper than a GROUP BY per breakdown on a year of sales."""
+	w, a = _where(profiles, from_date, to_date)
+	rows = frappe.db.sql(f"""select si.posting_date, {HOUR}, si.pos_profile, si.servepos_order_type, si.servepos_waiter,
+			si.servepos_cashier, si.is_return, si.grand_total, si.net_total, si.total_taxes_and_charges,
+			si.servepos_guests, si.servepos_tip, si.discount_amount
+		from `tabSales Invoice` si where {w}""", a)
+	tot = {"total_sales": 0.0, "net_total": 0.0, "total_tax": 0.0, "order_count": 0, "total_guests": 0.0, "total_tips": 0.0, "total_discount": 0.0, "invoices": 0}
+	day, hour, heat, outlet, otype, waiter, cashier = {}, {}, {}, {}, {}, {}, {}
+
+	def add(m, k, n, gt, extra=None):
+		r = m.get(k)
+		if r is None:
+			r = m[k] = {"count": 0, "total": 0.0, "guests": 0.0, "tips": 0.0, "discount": 0.0}
+		r["count"] += n
+		r["total"] += gt
+		if extra:
+			r["guests"] += extra[0]
+			r["tips"] += extra[1]
+			r["discount"] += extra[2]
+
+	for d, h, p, ot, wt, ca, ret, gt, nt, tx, g, tip, disc in rows:
+		gt, n = flt(gt), 0 if ret else 1
+		g, tip, disc = flt(g), flt(tip), flt(disc)
+		tot["total_sales"] += gt
+		tot["net_total"] += flt(nt)
+		tot["total_tax"] += flt(tx)
+		tot["order_count"] += n
+		tot["total_guests"] += g
+		tot["total_tips"] += tip
+		tot["total_discount"] += disc
+		tot["invoices"] += 1
+		ex = (g, tip, disc)
+		add(day, d, n, gt)
+		add(hour, h or 0, n, gt)
+		add(heat, (d.weekday(), h or 0), n, gt)
+		add(outlet, p, n, gt, ex)
+		add(otype, ot or "Other", n, gt)
+		if wt:
+			add(waiter, wt, n, gt, ex)
+		if ca:
+			add(cashier, ca, n, gt)
+	tot["avg_order"] = tot["total_sales"] / tot["order_count"] if tot["order_count"] else 0
+	tot["avg_guest"] = tot["total_sales"] / tot["total_guests"] if tot["total_guests"] else 0
+	return tot, {"day": day, "hour": hour, "heat": heat, "outlet": outlet, "type": otype, "waiter": waiter, "cashier": cashier}
+
+
 def sales(profiles, from_date, to_date, seed_profile=None):
 	"""Everything the sales screens show for a period, in the shape the screens already use."""
-	t = totals(profiles, from_date, to_date)
+	t, g = _pass(profiles, from_date, to_date)
 
 	item_map = {}
 	if seed_profile:
@@ -123,41 +177,29 @@ def sales(profiles, from_date, to_date, seed_profile=None):
 		c["items"] += 1
 
 	v = voids(profiles, from_date, to_date)
-	people = ", sum(si.servepos_guests) as guests, sum(si.servepos_tip) as tips, sum(si.discount_amount) as discount"
-	waiters = [r for r in _group(profiles, from_date, to_date, "si.servepos_waiter", "waiter", people) if r.waiter]
 	void_staff = {r["staff"]: r for r in v["by_staff"]}
-	for r in waiters:
-		r["avg_order"] = flt(r.total) / r.count if r.count else 0
-		vs = void_staff.get(r.waiter) or {}
-		r["voids"], r["void_amount"] = vs.get("count", 0), vs.get("amount", 0)
+	waiters = []
+	for name, r in g["waiter"].items():
+		vs = void_staff.get(name) or {}
+		waiters.append({"waiter": name, "count": r["count"], "total": r["total"], "avg_order": r["total"] / r["count"] if r["count"] else 0,
+			"guests": int(r["guests"]), "tips": r["tips"], "discount": r["discount"], "voids": vs.get("count", 0), "void_amount": vs.get("amount", 0)})
 
 	t.update({
 		"total_items_sold": sum(it["total_qty"] for it in item_data if it["total_qty"] > 0),
 		"payment_breakdown": [{"mode_of_payment": r.mode_of_payment, "total": flt(r.total)} for r in payments(profiles, from_date, to_date)],
 		"top_items": sorted(item_data, key=lambda x: x["total_amount"], reverse=True),
 		"category_breakdown": sorted(cats.values(), key=lambda x: x["amount"], reverse=True),
-		"order_type_breakdown": sorted(({"type": r.type or "Other", "count": int(r.count), "total": flt(r.total)}
-			for r in _group(profiles, from_date, to_date, "si.servepos_order_type", "type")), key=lambda x: -x["total"]),
-		"hourly_sales": [{"hour": int(r.hour or 0), "count": int(r.count), "total": flt(r.total)}
-			for r in _group(profiles, from_date, to_date, HOUR, "hour")],
-		"daily_sales": [{"date": str(r.date), "count": int(r.count), "total": flt(r.total)}
-			for r in _group(profiles, from_date, to_date, "si.posting_date", "date", people)],
-		"heatmap": [{"weekday": int(r.wd), "hour": int(r.hour or 0), "count": int(r.count), "total": flt(r.total)}
-			for r in _q(*_heat(profiles, from_date, to_date))],
-		"waiter_breakdown": sorted(({"waiter": r.waiter, "count": int(r.count), "total": flt(r.total), "avg_order": flt(r.avg_order),
-			"guests": int(flt(r.guests)), "tips": flt(r.tips), "discount": flt(r.discount), "voids": r.voids, "void_amount": flt(r.void_amount)}
-			for r in waiters), key=lambda x: -x["total"]),
-		"cashier_breakdown": sorted(({"cashier": r.cashier, "count": int(r.count), "total": flt(r.total)}
-			for r in _group(profiles, from_date, to_date, "si.servepos_cashier", "cashier") if r.cashier), key=lambda x: -x["total"]),
+		"order_type_breakdown": sorted(({"type": k, "count": r["count"], "total": r["total"]} for k, r in g["type"].items()), key=lambda x: -x["total"]),
+		"hourly_sales": [{"hour": int(k), "count": r["count"], "total": r["total"]} for k, r in sorted(g["hour"].items())],
+		"daily_sales": [{"date": str(k), "count": r["count"], "total": r["total"]} for k, r in sorted(g["day"].items())],
+		"heatmap": [{"weekday": k[0], "hour": int(k[1]), "count": r["count"], "total": r["total"]} for k, r in g["heat"].items()],
+		"waiter_breakdown": sorted(waiters, key=lambda x: -x["total"]),
+		"cashier_breakdown": sorted(({"cashier": k, "count": r["count"], "total": r["total"]} for k, r in g["cashier"].items()), key=lambda x: -x["total"]),
+		"by_outlet": {k: {"total_sales": r["total"], "order_count": r["count"], "guests": r["guests"], "tips": r["tips"], "discount": r["discount"]}
+			for k, r in g["outlet"].items()},
 		"void_summary": {**v, "void_rate": round(v["count"] / (t["order_count"] + v["count"]) * 100, 1) if (t["order_count"] + v["count"]) else 0},
 	})
 	return t
-
-
-def _heat(profiles, from_date, to_date):
-	w, a = _where(profiles, from_date, to_date)
-	return (f"""select weekday(si.posting_date) as wd, {HOUR} as hour, sum(si.is_return = 0) as count, sum(si.grand_total) as total
-		from `tabSales Invoice` si where {w} group by 1, 2""", a)
 
 
 def by_outlet(profiles, from_date, to_date):
