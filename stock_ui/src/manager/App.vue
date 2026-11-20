@@ -15,7 +15,7 @@
               <div class="space-y-0.5">
                 <template v-for="item in nav" :key="item.key || item.route || item.href">
                   <SidebarLabel v-if="item.section" divider class="pt-3">{{ item.section }}</SidebarLabel>
-                  <SidebarItem v-else-if="item.route" :label="item.label" :icon="item.icon" :route="item.route" :active="$route.path === item.route" />
+                  <SidebarItem v-else-if="item.route" :label="item.label" :icon="item.icon" :route="item.route" :active="item.route === '/' ? $route.path === '/' : $route.path.startsWith(item.route)" />
                   <SidebarItem v-else :label="item.label" :icon="item.icon" :href="item.href" />
                 </template>
               </div>
@@ -48,27 +48,24 @@ const menu = computed(() => [
   { label: 'Log out ' + (state.ctx.full_name || ''), icon: 'lucide-log-out', onClick: logout },
 ])
 
-// Screens not rebuilt yet open in the current admin (/pos) until they move here.
 const nav = computed(() => {
-  const out = [{ route: '/', label: 'Today', icon: 'lucide-house' }]
+  const out = [
+    { route: '/', label: 'Today', icon: 'lucide-house' },
+    { route: '/sales', label: 'Sales', icon: 'lucide-chart-column' },
+  ]
   if (state.ctx.is_manager) {
     out.push(
       { section: 'Menu', key: 'm' },
-      { href: '/pos/menu', label: 'Menu items', icon: 'lucide-utensils' },
-      { href: '/pos/modifiers', label: 'Modifiers', icon: 'lucide-list-plus' },
-      { href: '/pos/visibility', label: 'Visibility', icon: 'lucide-eye' },
+      { route: '/items', label: 'Menu items', icon: 'lucide-utensils' },
+      { route: '/modifiers', label: 'Modifiers', icon: 'lucide-list-plus' },
       { section: 'Restaurant', key: 'r' },
-      { href: '/pos/restaurant', label: 'Tables and rooms', icon: 'lucide-armchair' },
-      { href: '/pos/waiters', label: 'Waiters', icon: 'lucide-users' },
-      { href: '/pos/promos', label: 'Promos', icon: 'lucide-tag' },
-      { href: '/pos/vouchers', label: 'Vouchers', icon: 'lucide-ticket' },
+      { route: '/floor', label: 'Tables and rooms', icon: 'lucide-armchair' },
+      { route: '/staff', label: 'Waiters', icon: 'lucide-users' },
+      { route: '/offers', label: 'Promos and vouchers', icon: 'lucide-ticket-percent' },
     )
   }
-  out.push(
-    { section: 'More', key: 'x' },
-    { href: '/pos/reports', label: 'Reports', icon: 'lucide-chart-column' },
-    { href: '/stock', label: 'Stock orders', icon: 'lucide-package' },
-  )
+  out.push({ section: 'More', key: 'x' }, { href: '/stock', label: 'Stock orders', icon: 'lucide-package' })
+  if (state.ctx.is_manager) out.push({ route: '/settings', label: 'Settings', icon: 'lucide-settings' })
   return out
 })
 </script>

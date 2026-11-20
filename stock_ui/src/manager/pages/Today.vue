@@ -28,7 +28,7 @@
         <BarChart v-if="d && d.days > 1" title="Sales by day" :subtitle="cur" :data="byDay" x="day" y="sales" :format="num2" :loading="!d" />
         <div v-else-if="noTimes" class="flex h-full flex-col justify-center rounded-lg border border-outline-gray-1 p-6">
           <p class="text-base-semibold">Sales by hour</p>
-          <p class="mt-2 text-p-sm text-ink-gray-6">These sales reached ERPNext without the time of sale, so they all show at midnight. The hour chart appears once the tills send the sale time.</p>
+          <p class="mt-2 text-p-sm text-ink-gray-6">These sales reached ERPNext without the time of sale, so they all show at midnight. The hour chart appears once the POS terminals send the sale time.</p>
         </div>
         <BarChart v-else title="Sales by hour" :subtitle="cur" :data="byHour" x="hour" y="sales" :format="num2" :loading="!d" />
       </div>
@@ -56,7 +56,7 @@
           <Empty v-if="d && !d.outlets.length">No outlets you can see.</Empty>
         </List>
       </div>
-      <p class="text-p-sm text-ink-gray-5">A till sends its sales every few minutes. Amber means nothing has arrived for over 3 hours: the till may be offline or closed.</p>
+      <p class="text-p-sm text-ink-gray-5">Each POS sends its sales every few minutes. Amber means nothing has arrived for over 3 hours: the POS may be offline or closed.</p>
     </section>
 
     <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -132,7 +132,7 @@ const outlet = ref(state.outlet)
 watch(outlet, (v) => setOutlet(v))
 const outletOptions = computed(() => [{ label: 'All outlets', value: '' }, ...state.ctx.profiles.map((p) => ({ label: p.name, value: p.name }))])
 
-const dash = useRead('get_dashboard', () => ({ pos_profile: outlet.value || null, from_date: range.value[0], to_date: range.value[1] }))
+const dash = useRead('manager.get_dashboard', () => ({ pos_profile: outlet.value || null, from_date: range.value[0], to_date: range.value[1] }))
 const d = computed(() => dash.data)
 const s = computed(() => (d.value ? d.value.sales : {}))
 
