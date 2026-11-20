@@ -1,19 +1,20 @@
-// Data access for the manager screens. Methods are named from servepos.api, e.g. 'admin.list_items'.
+// Data access for the manager screens. Methods are named from servepos.api, e.g. 'admin.list_items',
+// or given in full when they start with 'servepos.', e.g. 'servepos.recipes.api.close_day'.
 import { useCall, toast } from 'frappe-ui'
 import { errText } from '../api'
 
-const BASE = '/api/v2/method/servepos.api.'
+const url = (m) => '/api/v2/method/' + (m.startsWith('servepos.') ? m : 'servepos.api.' + m)
 
 /** A read that loads on mount and reloads when its params change. */
 export function useRead(method, params, opts = {}) {
-  return useCall({ url: BASE + method, params, refetch: true, ...opts })
+  return useCall({ url: url(method), params, refetch: true, ...opts })
 }
 
 /** One-off POST; throws with the server's message. */
 export async function post(method, params = {}) {
   const body = {}
   for (const [k, v] of Object.entries(params)) body[k] = v !== null && typeof v === 'object' ? JSON.stringify(v) : v
-  const res = await fetch(BASE + method, {
+  const res = await fetch(url(method), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Frappe-CSRF-Token': window.csrf_token || '' },
     body: JSON.stringify(body),
@@ -27,7 +28,7 @@ export async function post(method, params = {}) {
 export async function get(method, params = {}) {
   const q = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null) q.set(k, typeof v === 'object' ? JSON.stringify(v) : v)
-  const res = await fetch(BASE + method + '?' + q, { headers: { Accept: 'application/json' } })
+  const res = await fetch(url(method) + '?' + q, { headers: { Accept: 'application/json' } })
   const j = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(errText({ message: j.errors?.[0]?.message || 'Could not load' }))
   return j.data
@@ -45,7 +46,7 @@ export async function act(fn, ok) {
 }
 
 export async function getContext() {
-  const res = await fetch(BASE + 'manager.get_context', { headers: { Accept: 'application/json' } })
+  const res = await fetch(url('manager.get_context'), { headers: { Accept: 'application/json' } })
   if (res.status === 401 || res.status === 403) {
     window.location.href = '/login?redirect-to=' + encodeURIComponent(window.location.pathname)
     return null

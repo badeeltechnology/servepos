@@ -60,13 +60,13 @@ async function load() {
   if (!props.item || props.stockItem) return
   loading.value = true
   try {
-    r.value = await get('recipes.recipe.get_recipe', { item: props.item })
+    r.value = await get('servepos.recipes.recipe.get_recipe', { item: props.item })
     lines.value = r.value.lines.map((l) => ({ ...l, qty: +Number(l.qty).toFixed(4) }))
     saved.value = snap()
   } finally { loading.value = false }
 }
 watch(() => props.item, load, { immediate: true })
-watch(q, async (v) => { found.value = v && v.length > 1 ? (await get('recipes.recipe.search_ingredients', { txt: v, exclude: props.item })).filter((f) => !lines.value.some((l) => l.item_code === f.name)) : [] })
+watch(q, async (v) => { found.value = v && v.length > 1 ? (await get('servepos.recipes.recipe.search_ingredients', { txt: v, exclude: props.item })).filter((f) => !lines.value.some((l) => l.item_code === f.name)) : [] })
 
 const factor = (l) => (l.uoms.find((u) => u.uom === l.uom) || { factor: 1 }).factor
 const lineCost = (l) => (Number(l.qty || 0) * factor(l) / ((Number(l.yield_percent) || 100) / 100)) * Number(l.unit_cost || 0)
@@ -80,12 +80,12 @@ function add(f) {
 }
 async function save() {
   saving.value = true
-  const res = await act(() => post('recipes.recipe.save_recipe', { item: props.item, lines: lines.value.map((l) => ({ item_code: l.item_code, qty: Number(l.qty), uom: l.uom, yield_percent: Number(l.yield_percent) || 100 })) }), 'Recipe saved')
+  const res = await act(() => post('servepos.recipes.recipe.save_recipe', { item: props.item, lines: lines.value.map((l) => ({ item_code: l.item_code, qty: Number(l.qty), uom: l.uom, yield_percent: Number(l.yield_percent) || 100 })) }), 'Recipe saved')
   saving.value = false
   if (res) { r.value = res; lines.value = res.lines.map((l) => ({ ...l, qty: +Number(l.qty).toFixed(4) })); saved.value = snap() }
 }
 function remove() {
   dialog.danger({ title: 'Remove the recipe?', message: 'Sales of this item will stop taking ingredients out of stock. Saved versions are kept.', confirmLabel: 'Remove',
-    onConfirm: async () => { await post('recipes.recipe.remove_recipe', { item: props.item }); await load() } })
+    onConfirm: async () => { await post('servepos.recipes.recipe.remove_recipe', { item: props.item }); await load() } })
 }
 </script>
