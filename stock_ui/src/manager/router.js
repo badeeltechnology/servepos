@@ -12,6 +12,7 @@ const routes = [
   { path: '/floor/qr', name: 'qr', component: () => import('./pages/QrSheet.vue'), meta: manager },
   { path: '/staff', name: 'staff', component: () => import('./pages/Staff.vue'), meta: manager },
   { path: '/offers', name: 'offers', component: () => import('./pages/Offers.vue'), meta: manager },
+  { path: '/day-close', name: 'day-close', component: () => import('./pages/DayClose.vue'), meta: manager },
   { path: '/settings', name: 'settings', component: () => import('./pages/Settings.vue'), meta: manager },
   { path: '/:p(.*)*', redirect: '/' },
 ]

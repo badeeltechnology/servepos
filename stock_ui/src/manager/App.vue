@@ -64,7 +64,9 @@ const nav = computed(() => {
       { route: '/offers', label: 'Promos and vouchers', icon: 'lucide-ticket-percent' },
     )
   }
-  out.push({ section: 'More', key: 'x' }, { href: '/stock', label: 'Stock orders', icon: 'lucide-package' })
+  out.push({ section: 'Stock', key: 'x' })
+  if (state.ctx.is_manager) out.push({ route: '/day-close', label: 'Day close', icon: 'lucide-calendar-check' })
+  out.push({ href: '/stock', label: 'Stock orders', icon: 'lucide-package' })
   if (state.ctx.is_manager) out.push({ route: '/settings', label: 'Settings', icon: 'lucide-settings' })
   return out
 })

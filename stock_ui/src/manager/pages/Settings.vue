@@ -46,7 +46,7 @@ const links = [
   { href: '/app/servepos-void-reason', icon: 'lucide-ban', label: 'Void reasons', text: 'Reasons the cashier picks when removing an item' },
   { href: '/app/servepos-kitchen-station', icon: 'lucide-chef-hat', label: 'Kitchen stations', text: 'Where kitchen tickets print, by category' },
   { href: '/app/servepos-mobile-settings', icon: 'lucide-smartphone', label: 'Waiter app', text: 'Login length, ordering hours, old app switch' },
-  { href: '/app/servepos-stock-settings', icon: 'lucide-package', label: 'Stock orders', text: 'Order cut-off times, counting days, markup' },
+  { href: '/app/servepos-stock-settings', icon: 'lucide-package', label: 'Stock orders, recipes and day close', text: 'Order cut-off times, counting days, markup, business day start, food cost account' },
 ]
 const fcm = useRead('settings.get_fcm_status', {}, { immediate: !!state.setup.is_system_manager })
 const json = ref(''), saving = ref(false), testing = ref(false), testResult = ref(null)
