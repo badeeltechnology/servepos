@@ -2,6 +2,10 @@
 
 An intuitive POS solution built for restaurants to handle orders, payments, and kitchen coordination seamlessly.
 
+### Guide
+
+The [Serve POS guide](docs/guide/index.md) takes you from a fresh ERPNext site to the first sale: the outlet's POS Profile, the branch dimension, users and API keys, the menu, the desktop POS, printers and receipt layout, the waiter app, recipes, stock orders and reports.
+
 ### Installation
 
 You can install this app using the [bench](https://github.com/frappe/bench) CLI:

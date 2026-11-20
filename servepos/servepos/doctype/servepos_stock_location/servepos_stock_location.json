@@ -65,7 +65,7 @@
    "fieldname": "location_group",
    "fieldtype": "Data",
    "label": "Group",
-   "description": "For example GH or BEACH",
+   "description": "For example Downtown or Mall",
    "in_standard_filter": 1
   },
   {

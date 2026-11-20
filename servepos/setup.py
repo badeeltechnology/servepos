@@ -1139,6 +1139,31 @@ def migrate_visible_profiles_to_availability():
     print(f"Migrated {migrated} items to servepos_availability child table")
 
 
+def ensure_branch_dimension():
+    """Each outlet posts to its own branch, so sales, stock and the P&L can be read per outlet.
+
+    ServePOS reads `branch` on the POS Profile, Sales Invoice and Stock Entry. ERPNext adds those
+    fields when a Branch accounting dimension exists, so a fresh site gets one here. The fields are
+    built right away (ERPNext would otherwise queue that job), because the steps after this read them.
+    """
+    if not frappe.db.exists("DocType", "Branch"):
+        return
+    name = frappe.db.get_value("Accounting Dimension", {"document_type": "Branch"}, "name")
+    if not name:
+        print("Adding the Branch accounting dimension...")
+        doc = frappe.get_doc({"doctype": "Accounting Dimension", "document_type": "Branch"})
+        doc.flags.ignore_permissions = True
+        doc.insert()
+    else:
+        doc = frappe.get_doc("Accounting Dimension", name)
+        if doc.disabled:
+            return
+    if not frappe.get_meta("POS Profile", cached=False).has_field(doc.fieldname or "branch"):
+        from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import make_dimension_in_accounting_doctypes
+        make_dimension_in_accounting_doctypes(doc)
+        frappe.clear_cache(doctype="POS Profile")
+
+
 def setup_all():
     """Run all setup functions.
     Called on after_install and after_migrate via hooks.py.
@@ -1146,6 +1171,9 @@ def setup_all():
     print("=" * 50)
     print("Setting up ServePOS...")
     print("=" * 50)
+
+    # Outlets post to their own branch (sales, stock and P&L per outlet)
+    ensure_branch_dimension()
 
     # Create doctypes
     create_kitchen_station_doctype()
