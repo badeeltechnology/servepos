@@ -37,6 +37,8 @@
         </div>
       </section>
 
+      <RecipeEditor v-if="!isNew" :item="form.name" :price="Number(form.standard_rate) || 0" :stock-item="!!form.is_stock_item" />
+
       <section class="space-y-2">
         <div class="flex items-center justify-between"><h2 class="text-base-semibold">Modifier groups</h2>
           <Select v-model="addGroup" :options="groupChoices" placeholder="Add a group" class="w-56" /></div>
@@ -85,6 +87,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Badge, Button, Checkbox, Dropdown, FormControl, LoadingText, Select, Switch, dialog, toast } from 'frappe-ui'
 import Header from '../../components/Header.vue'
+import RecipeEditor from '../components/RecipeEditor.vue'
 import { get, post, act } from '../api'
 import { state, reloadSetup } from '../state'
 import { errText } from '../../api'
