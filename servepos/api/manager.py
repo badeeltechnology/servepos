@@ -10,6 +10,7 @@ from frappe import _
 from frappe.utils import add_days, date_diff, flt, getdate, now_datetime, nowdate
 
 from servepos.api import analytics, pos_session
+from servepos.api.currency import currency_precision
 
 MANAGER_ROLES = {"System Manager", "ServePOS Manager"}
 VIEW_ROLES = MANAGER_ROLES | {"ServePOS Reporter"}
@@ -47,12 +48,15 @@ def get_context():
 	roles = set(frappe.get_roles())
 	viewer = bool(roles & VIEW_ROLES) or frappe.session.user == "Administrator"
 	company = frappe.defaults.get_user_default("Company") or frappe.defaults.get_global_default("company")
+	currency = frappe.get_cached_value("Company", company, "default_currency") if company else ""
 	return {
 		"user": frappe.session.user,
 		"full_name": frappe.utils.get_fullname(frappe.session.user),
 		"today": nowdate(),
 		"company": company,
-		"currency": frappe.get_cached_value("Company", company, "default_currency") if company else "",
+		"currency": currency,
+		# decimals for money, as ERPNext decides them (3 for OMR, 2 for QAR)
+		"currency_precision": currency_precision(currency),
 		"profiles": _profiles() if viewer else [],
 		"is_viewer": viewer,
 		"is_manager": bool(roles & MANAGER_ROLES) or frappe.session.user == "Administrator",

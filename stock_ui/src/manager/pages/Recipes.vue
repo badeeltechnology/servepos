@@ -47,7 +47,7 @@ import { Alert, Badge, LoadingText, Select, TabButtons, TextInput } from 'frappe
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import Header from '../../components/Header.vue'
 import Thumb from '../components/Thumb.vue'
-import { useRead } from '../api'
+import { useRead, amount } from '../api'
 import { state } from '../state'
 
 const q = ref(''), group = ref(''), status = ref('all')
@@ -65,6 +65,6 @@ const tabs = computed(() => {
 })
 const rows = computed(() => ((r.data && r.data.rows) || []).filter((x) =>
   status.value === 'with' ? x.has_recipe : status.value === 'without' ? !x.has_recipe : status.value === 'high' ? (x.food_cost_pct || 0) > 35 : true))
-const money2 = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const money2 = amount
 const pctTheme = (p) => (p > 35 ? 'red' : p > 30 ? 'orange' : 'green')
 </script>

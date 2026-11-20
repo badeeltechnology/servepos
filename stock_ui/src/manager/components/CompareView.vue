@@ -46,7 +46,7 @@ import { computed, ref } from 'vue'
 import { Badge, DateRangePicker, LoadingText, TabButtons } from 'frappe-ui'
 import SummaryList from './SummaryList.vue'
 import { LineChart, NumberCard } from 'frappe-ui/charts'
-import { useRead, shiftDate } from '../api'
+import { useRead, shiftDate, amount } from '../api'
 import { fmtDate } from '../../api'
 import { state } from '../state'
 
@@ -57,7 +57,7 @@ const r = useRead('manager.get_compare', () => ({ pos_profile: props.outlet || n
   against: against.value, other_from: against.value === 'custom' ? other.value[0] : null, other_to: against.value === 'custom' ? other.value[1] : null }))
 const d = computed(() => r.data)
 const curP = state.ctx.currency ? state.ctx.currency + ' ' : ''
-const num2 = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const num2 = amount
 const num0 = (v) => Number(v || 0).toLocaleString('en', { maximumFractionDigits: 0 })
 const pct = (a, b) => (b ? ((a - b) / Math.abs(b)) * 100 : null)
 const span = (p) => (p.from_date === p.to_date ? fmtDate(p.from_date) : fmtDate(p.from_date) + ' to ' + fmtDate(p.to_date))

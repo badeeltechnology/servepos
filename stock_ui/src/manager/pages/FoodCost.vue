@@ -75,7 +75,7 @@ import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'f
 import { LineChart, NumberCard } from 'frappe-ui/charts'
 import Header from '../../components/Header.vue'
 import SummaryList from '../components/SummaryList.vue'
-import { useRead } from '../api'
+import { useRead, amount } from '../api'
 import { fmt, fmtDate } from '../../api'
 import { state, setOutlet, outletOptions } from '../state'
 import { usePeriod } from '../period'
@@ -87,7 +87,7 @@ watch(outlet, (v) => setOutlet(v))
 const r = useRead('manager.get_food_cost', () => ({ pos_profile: outlet.value || null, from_date: range.value[0], to_date: range.value[1] }))
 const d = computed(() => r.data)
 const curP = state.ctx.currency ? state.ctx.currency + ' ' : ''
-const num2 = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const num2 = amount
 const toRecipe = (i) => ({ name: 'item', params: { name: i.item_code }, hash: '#recipe' })
 const pctTheme = (p) => (p > 35 ? 'red' : p > 30 ? 'orange' : 'green')
 const daily = computed(() => ((d.value && d.value.daily) || []).filter((x) => x.recipe_sales).map((x) => ({ day: fmtDate(x.date), pct: Number(x.food_cost_pct.toFixed(1)) })))

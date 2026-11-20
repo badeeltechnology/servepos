@@ -35,6 +35,7 @@
   </div>
 </template>
 <script setup>
+import { amount } from '../manager/api'
 import { computed, ref } from 'vue'
 import { DateRangePicker } from 'frappe-ui'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow } from 'frappe-ui/list'
@@ -51,7 +52,7 @@ const range = ref([t.slice(0, 8) + '01', t])
 const cols = ['minmax(160px,1fr)', '10rem', '5rem', '9rem', '6rem', '8rem']
 const rep = useRead('markup_report', () => ({ from_date: range.value[0] || t, to_date: range.value[1] || t }))
 const cur = state.ctx.currency ? state.ctx.currency + ' ' : ''
-const money = (v) => Number(v || 0).toLocaleString('en', { maximumFractionDigits: 2 })
+const money = amount
 const byOutlet = computed(() => {
   const m = {}
   for (const r of rep.data || []) m[r.outlet] = (m[r.outlet] || 0) + Number(r.markup_amount || 0)

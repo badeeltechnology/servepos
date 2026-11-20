@@ -56,8 +56,15 @@ export async function getContext() {
   return body.data
 }
 
+// Decimals for money, as ERPNext decides them (System Settings, else the currency: OMR 3, QAR 2).
+// Set once the signed-in context loads; every amount on every screen goes through amount().
+let precision = 2
+export function setPrecision(p) { precision = Number.isInteger(p) && p >= 0 && p <= 6 ? p : 2 }
+export function amount(v) {
+  return Number(v || 0).toLocaleString('en', { minimumFractionDigits: precision, maximumFractionDigits: precision })
+}
 export function money(v, cur = '') {
-  const s = Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const s = amount(v)
   return cur ? `${cur} ${s}` : s
 }
 

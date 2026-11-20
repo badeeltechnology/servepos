@@ -187,7 +187,7 @@ import CompareView from '../components/CompareView.vue'
 import BusyHours from '../components/BusyHours.vue'
 import SummaryList from '../components/SummaryList.vue'
 import Header from '../../components/Header.vue'
-import { useRead, get } from '../api'
+import { useRead, get, amount } from '../api'
 import { fmt, fmtDate, fmtTime } from '../../api'
 import { state, setOutlet, outletOptions } from '../state'
 import { usePeriod } from '../period'
@@ -202,7 +202,7 @@ const dash = useRead('manager.get_dashboard', params)
 const d = computed(() => dash.data)
 const s = computed(() => (d.value ? d.value.sales : {}))
 const curP = state.ctx.currency ? state.ctx.currency + ' ' : ''
-const num2 = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const num2 = amount
 const num0 = (v) => Number(v || 0).toLocaleString('en', { maximumFractionDigits: 0 })
 const pct = (a, b) => (b ? ((a - b) / Math.abs(b)) * 100 : null)
 const fmtPct = (v) => (v === null || v === undefined ? 'new' : (v >= 0 ? '+' : '') + v.toFixed(0) + ' %')

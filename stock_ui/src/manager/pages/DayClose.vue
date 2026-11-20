@@ -95,7 +95,7 @@ import { Alert, Badge, Button, DateRangePicker, Dialog, FormControl, LoadingText
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import Header from '../../components/Header.vue'
 import SummaryList from '../components/SummaryList.vue'
-import { useRead, get, post, act, shiftDate } from '../api'
+import { useRead, get, post, act, shiftDate, amount } from '../api'
 import { fmt, fmtDate } from '../../api'
 import { state, outletOptions } from '../state'
 import { usePeriod } from '../period'
@@ -103,7 +103,7 @@ import { usePeriod } from '../period'
 const route = useRoute()
 const { presets, preset, custom, range } = usePeriod('week', route.query)
 const outlet = ref(state.outlet), cur = state.ctx.currency || ''
-const money = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const money = amount
 const themes = { Closed: 'green', 'Closed with shortfall': 'amber', 'Nothing to post': 'gray', Cancelled: 'gray' }
 const lineThemes = { Posted: 'green', Short: 'amber', 'Posted later': 'blue', 'Settled by count': 'gray', Cancelled: 'gray' }
 const list = useRead('servepos.recipes.api.list_day_closes', () => ({ pos_profile: outlet.value || null, from_date: range.value[0], to_date: range.value[1] }))
