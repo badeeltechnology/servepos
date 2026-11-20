@@ -21,9 +21,16 @@ def _require(roles=VIEW_ROLES):
 
 
 def _profiles():
-	"""POS Profiles this user may see (user permissions apply)."""
-	return frappe.get_list("POS Profile", filters={"disabled": 0}, fields=["name", "branch", "company", "warehouse", "currency"],
-		order_by="name asc", limit_page_length=0)
+	"""POS Profiles this user may see. User permissions on POS Profile apply; a Reporter without desk
+	read access on POS Profile still sees the outlets, limited by those user permissions when set."""
+	fields = ["name", "branch", "company", "warehouse", "currency"]
+	if frappe.has_permission("POS Profile", "read"):
+		return frappe.get_list("POS Profile", filters={"disabled": 0}, fields=fields, order_by="name asc", limit_page_length=0)
+	filters = {"disabled": 0}
+	allowed = [p.get("doc") for p in frappe.permissions.get_user_permissions(frappe.session.user).get("POS Profile", [])]
+	if allowed:
+		filters["name"] = ["in", allowed]
+	return frappe.get_all("POS Profile", filters=filters, fields=fields, order_by="name asc", limit_page_length=0)
 
 
 def _check_profile(pos_profile):
@@ -33,8 +40,12 @@ def _check_profile(pos_profile):
 
 @frappe.whitelist()
 def get_context():
-	_require()
+	"""Who is signed in. Anyone signed in may open /manage: stock-only users (outlet staff, the central
+	kitchen, buyers) see just their stock screens, so this never refuses; sales screens check is_viewer."""
+	if frappe.session.user == "Guest":
+		frappe.throw(_("Please sign in"), frappe.PermissionError)
 	roles = set(frappe.get_roles())
+	viewer = bool(roles & VIEW_ROLES) or frappe.session.user == "Administrator"
 	company = frappe.defaults.get_user_default("Company") or frappe.defaults.get_global_default("company")
 	return {
 		"user": frappe.session.user,
@@ -42,8 +53,9 @@ def get_context():
 		"today": nowdate(),
 		"company": company,
 		"currency": frappe.get_cached_value("Company", company, "default_currency") if company else "",
-		"profiles": _profiles(),
-		"is_manager": bool(roles & MANAGER_ROLES),
+		"profiles": _profiles() if viewer else [],
+		"is_viewer": viewer,
+		"is_manager": bool(roles & MANAGER_ROLES) or frappe.session.user == "Administrator",
 		"desk": frappe.get_cached_value("User", frappe.session.user, "user_type") == "System User",
 	}
 

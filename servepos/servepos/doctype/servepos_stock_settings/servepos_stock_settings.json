@@ -34,7 +34,8 @@
   "close_waits_for_deliveries",
   "cb_dc",
   "food_cost_account",
-  "waste_account"
+  "waste_account",
+  "day_close_seeded"
  ],
  "fields": [
   {
@@ -219,6 +220,13 @@
    "fieldtype": "Link",
    "label": "Waste account",
    "options": "Account"
+  },
+  {
+   "fieldname": "day_close_seeded",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Day close defaults seeded",
+   "read_only": 1
   }
  ],
  "links": [],

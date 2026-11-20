@@ -3,7 +3,7 @@
     <template #status>
       <StatusBadge v-if="form.data" :status="form.data.status" />
       <Badge v-if="order && order.is_late" label="Late" theme="amber" variant="subtle" />
-      <router-link v-if="order" :to="'/o/' + order.name" class="text-base text-ink-gray-5 underline hover:text-ink-gray-8">{{ order.name }}</router-link>
+      <router-link v-if="order" :to="'/stock/o/' + order.name" class="text-base text-ink-gray-5 underline hover:text-ink-gray-8">{{ order.name }}</router-link>
     </template>
     <template v-if="editable">
       <Dropdown :options="[{ label: 'Fill usual quantities', icon: 'lucide-wand-sparkles', onClick: fillUsual }, { label: 'Clear quantities', icon: 'lucide-eraser', onClick: clearAll }, { label: 'Emergency order', icon: 'lucide-siren', onClick: emergency }]">
@@ -106,8 +106,8 @@ const lateText = computed(() => {
 })
 const factorOf = (l) => (l.uoms.find((u) => u.uom === l.uom) || { factor: 1 }).factor
 
-function emergency() { router.push('/emergency/' + encodeURIComponent(provider.value)) }
-function go(p) { router.replace('/order/' + encodeURIComponent(p)) }
+function emergency() { router.push('/stock/emergency/' + encodeURIComponent(provider.value)) }
+function go(p) { router.replace('/stock/order/' + encodeURIComponent(p)) }
 function clearAll() { lines.value.forEach((l) => (l.qty = '')) }
 function fillUsual() { lines.value.forEach((l) => { if (l.usual) { l.qty = l.usual; l.uom = l.usual_uom || l.uom } }) }
 function nextInput(e) {

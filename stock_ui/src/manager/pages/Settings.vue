@@ -1,6 +1,9 @@
 <template>
   <Header title="Settings" />
   <div class="max-w-3xl space-y-6 px-3 pb-16 pt-4 sm:px-5">
+    <TabButtons :options="[{ label: 'POS', value: 'pos' }, { label: 'Stock and day close', value: 'stock' }]" v-model="tab" />
+    <StockSettings v-if="tab === 'stock'" />
+    <template v-else>
     <section class="space-y-2">
       <h2 class="text-base-semibold">More settings in ERPNext</h2>
       <div class="divide-y divide-outline-gray-1 rounded-6 border border-outline-gray-2">
@@ -32,11 +35,13 @@
         </div>
       </template>
     </section>
+    </template>
   </div>
 </template>
 <script setup>
 import { ref } from 'vue'
-import { Badge, Button, FormControl, LoadingText, dialog } from 'frappe-ui'
+import { Badge, Button, FormControl, LoadingText, TabButtons, dialog } from 'frappe-ui'
+import StockSettings from '../components/StockSettings.vue'
 import Header from '../../components/Header.vue'
 import { useRead, post, act } from '../api'
 import { state } from '../state'
@@ -46,8 +51,8 @@ const links = [
   { href: '/app/servepos-void-reason', icon: 'lucide-ban', label: 'Void reasons', text: 'Reasons the cashier picks when removing an item' },
   { href: '/app/servepos-kitchen-station', icon: 'lucide-chef-hat', label: 'Kitchen stations', text: 'Where kitchen tickets print, by category' },
   { href: '/app/servepos-mobile-settings', icon: 'lucide-smartphone', label: 'Waiter app', text: 'Login length, ordering hours, old app switch' },
-  { href: '/app/servepos-stock-settings', icon: 'lucide-package', label: 'Stock orders, recipes and day close', text: 'Order cut-off times, counting days, markup, business day start, food cost account' },
 ]
+const tab = ref(new URLSearchParams(window.location.search).get('tab') === 'stock' ? 'stock' : 'pos')
 const fcm = useRead('settings.get_fcm_status', {}, { immediate: !!state.setup.is_system_manager })
 const json = ref(''), saving = ref(false), testing = ref(false), testResult = ref(null)
 async function save() {

@@ -19,7 +19,7 @@ def _rules(user):
 	matched = [r for r in rows if r.role in roles]
 	if not matched:
 		return None, True
-	landing = matched[0].landing_page or "/stock"
+	landing = matched[0].landing_page or "/manage/stock"
 	desk = any(r.allow_desk for r in matched)
 	return landing, desk
 
