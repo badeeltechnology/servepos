@@ -88,6 +88,8 @@ website_route_rules = [
 	{"from_route": "/call-waiter", "to_route": "call_waiter"},
 	{"from_route": "/stock/<path:app_path>", "to_route": "stock"},
 	{"from_route": "/stock", "to_route": "stock"},
+	{"from_route": "/manage/<path:app_path>", "to_route": "manage"},
+	{"from_route": "/manage", "to_route": "manage"},
 ]
 
 # The old /store tool was replaced by Stock Orders; keep old links working
