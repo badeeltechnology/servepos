@@ -4,6 +4,8 @@
     <TabButtons :options="[{ label: 'POS', value: 'pos' }, { label: 'Stock and day close', value: 'stock' }]" v-model="tab" />
     <StockSettings v-if="tab === 'stock'" />
     <template v-else>
+    <TranslationSettings />
+
     <section class="space-y-2">
       <h2 class="text-base-semibold">More settings in ERPNext</h2>
       <List class="list-row-px-2">
@@ -45,6 +47,7 @@ import { ref } from 'vue'
 import { Badge, Button, FormControl, LoadingText, TabButtons, dialog } from 'frappe-ui'
 import { List, ListCell, ListRow, ListRows } from 'frappe-ui/list'
 import StockSettings from '../components/StockSettings.vue'
+import TranslationSettings from '../components/TranslationSettings.vue'
 import Header from '../../components/Header.vue'
 import { useRead, post, act } from '../api'
 import { state } from '../state'
