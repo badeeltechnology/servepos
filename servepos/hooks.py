@@ -88,6 +88,8 @@ website_route_rules = [
 	{"from_route": "/call-waiter", "to_route": "call_waiter"},
 	{"from_route": "/stock/<path:app_path>", "to_route": "stock"},
 	{"from_route": "/stock", "to_route": "stock"},
+	{"from_route": "/manage/<path:app_path>", "to_route": "manage"},
+	{"from_route": "/manage", "to_route": "manage"},
 ]
 
 # The old /store tool was replaced by Stock Orders; keep old links working
@@ -182,7 +184,11 @@ doc_events = {
 	},
 	"ServePOS Waiter Order": {
 		"on_update": "servepos.api.mobile.push.on_waiter_order_update"
-	}
+	},
+	# day close: stock arriving posts waiting shortfalls; a stock count settles them
+	"Stock Entry": {"on_submit": "servepos.recipes.day_close.on_stock_in"},
+	"Purchase Receipt": {"on_submit": "servepos.recipes.day_close.on_stock_in"},
+	"Stock Reconciliation": {"on_submit": "servepos.recipes.day_close.on_stock_count"}
 }
 
 # Waiter App (Mobile API v2): `Authorization: Bearer spw_...` device tokens
@@ -196,7 +202,8 @@ extend_bootinfo = "servepos.stock_orders.access.extend_bootinfo"
 
 scheduler_events = {
 	"hourly": [
-		"servepos.stock_orders.jobs.auto_close_received"
+		"servepos.stock_orders.jobs.auto_close_received",
+		"servepos.recipes.day_close.auto_close"
 	],
 	"cron": {
 		"*/5 * * * *": [

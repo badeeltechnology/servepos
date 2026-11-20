@@ -1,6 +1,18 @@
 """End-to-end check of Stock Orders with real users. Rolled back unless keep=1.
 
 Run as System Manager: /api/method/servepos.stock_orders.test_flow.run
+
+The outlets and users to test with come from the site's site_config.json, so no site's people or
+outlets are written into the code:
+
+	"servepos_stock_test": {
+		"outlet": "<outlet location>", "outlet_user": "<user who orders for it>",
+		"other": "<a second outlet>", "other_user": "<user who orders for that one>",
+		"ck": "<provider location, e.g. Central Kitchen>", "ck_user": "<user who ships from it>",
+		"store_user": "<user who ships from the Store>", "buyer": "<user who sees To buy>",
+		"store_item": "<an item only the Store supplies>",
+		"transfer_item": "<item one outlet lends another, optional>", "outlet_user_outlets": 3
+	}
 """
 import json
 import traceback
@@ -12,11 +24,24 @@ from frappe.utils import add_days, cint, flt, now_datetime, nowdate
 
 from servepos.stock_orders import api
 
-OUTLET, OUTLET_USER = "Nami Burger Ladies", "h.hakim@nostalgiacatering.com"
-OTHER, OTHER_USER = "Nami Greek", "r.hmadi@nostalgiacatering.com"
-CK, CK_USER = "Central Kitchen", "nostalgiack2026@gmail.com"
-STORE_USER, BUYER = "storekeeper@nostalgiacatering.com", "procurement@nostalgiacatering.com"
-TEST_ROLES = {OUTLET_USER: "ServePOS Outlet User", OTHER_USER: "ServePOS Outlet User", CK_USER: "ServePOS CK Provider"}
+OUTLET = OUTLET_USER = OTHER = OTHER_USER = CK = CK_USER = STORE_USER = BUYER = STORE_ONLY_ITEM = TRANSFER_ITEM = None
+OUTLET_USER_OUTLETS = None
+TEST_ROLES = {}
+CONFIG_KEYS = ("outlet", "outlet_user", "other", "other_user", "ck", "ck_user", "store_user", "buyer", "store_item")
+
+
+def load_config():
+	"""Read the test outlets and users from site_config (see the module docstring)."""
+	global OUTLET, OUTLET_USER, OTHER, OTHER_USER, CK, CK_USER, STORE_USER, BUYER, STORE_ONLY_ITEM, TRANSFER_ITEM, OUTLET_USER_OUTLETS, TEST_ROLES
+	conf = frappe.conf.get("servepos_stock_test") or {}
+	missing = [k for k in CONFIG_KEYS if not conf.get(k)]
+	if missing:
+		frappe.throw("Add servepos_stock_test to site_config.json first (missing: {0}). See servepos/stock_orders/test_flow.py.".format(", ".join(missing)))
+	OUTLET, OUTLET_USER, OTHER, OTHER_USER = conf["outlet"], conf["outlet_user"], conf["other"], conf["other_user"]
+	CK, CK_USER, STORE_USER, BUYER, STORE_ONLY_ITEM = conf["ck"], conf["ck_user"], conf["store_user"], conf["buyer"], conf["store_item"]
+	TRANSFER_ITEM = conf.get("transfer_item") or STORE_ONLY_ITEM
+	OUTLET_USER_OUTLETS = conf.get("outlet_user_outlets")
+	TEST_ROLES = {OUTLET_USER: "ServePOS Outlet User", OTHER_USER: "ServePOS Outlet User", CK_USER: "ServePOS CK Provider"}
 
 
 def qty(item, wh):
@@ -62,6 +87,7 @@ def expect_error(log, step, fn, *a, **kw):
 @frappe.whitelist()
 def run(keep=0):
 	frappe.only_for("System Manager")
+	load_config()
 	admin = frappe.session.user
 	saved_session = frappe._dict(frappe.local.session)
 	log = Log()
@@ -77,7 +103,8 @@ def run(keep=0):
 		# 1. outlet user context
 		as_user(OUTLET_USER)
 		ctx = api.get_context()
-		log.check(OUTLET in [o.name for o in ctx["outlets"]] and len(ctx["outlets"]) == 3, "Outlet user sees only her outlets",
+		log.check(OUTLET in [o.name for o in ctx["outlets"]] and OTHER not in [o.name for o in ctx["outlets"]]
+			and (not OUTLET_USER_OUTLETS or len(ctx["outlets"]) == cint(OUTLET_USER_OUTLETS)), "Outlet user sees only her outlets",
 			", ".join(o.name for o in ctx["outlets"]))
 		expect_error(log, "Outlet user cannot order for an outlet she doesn't hold", api.get_order_form, OTHER, CK, for_date)
 
@@ -90,16 +117,16 @@ def run(keep=0):
 		lines = [{"item_code": c, "qty": q} for c, q in zip(ck_items, [10, 4, 2])]
 		r = api.save_order(OUTLET, CK, lines, for_date)
 		log.check(r["status"] == "Draft", "Save draft", r)
-		r = api.save_order(OUTLET, CK, lines + [{"item_code": "RM-F&V-004", "qty": 1}], for_date, submit=1) if False else api.save_order(OUTLET, CK, lines, for_date, submit=1)
+		r = api.save_order(OUTLET, CK, lines, for_date, submit=1)
 		ck_order = r["name"]
 		log.check(r["status"] == "Submitted", "Submit CK order", r)
-		expect_error(log, "Store item rejected on a CK order", api.save_order, OUTLET, CK, lines + [{"item_code": "RM-F&V-004", "qty": 1}], for_date)
+		expect_error(log, "Store item rejected on a CK order", api.save_order, OUTLET, CK, lines + [{"item_code": STORE_ONLY_ITEM, "qty": 1}], for_date)
 		# 3. Store order with a converted UOM
 		# an item with a second UOM (whatever the site's data has)
 		conv = frappe.db.sql("""select d.parent, d.uom, d.conversion_factor from `tabUOM Conversion Detail` d
 			join tabItem i on i.name = d.parent where d.parenttype = 'Item' and d.uom != i.stock_uom and d.conversion_factor > 1
 			and i.servepos_stock_provider = 'Store' and i.disabled = 0 limit 1""", as_dict=True)
-		store_lines = [{"item_code": "RM-F&V-004", "qty": 3}]
+		store_lines = [{"item_code": STORE_ONLY_ITEM, "qty": 3}]
 		if conv:
 			store_lines.insert(0, {"item_code": conv[0].parent, "qty": 1, "uom": conv[0].uom})
 		r = api.save_order(OUTLET, "Store", store_lines, for_date, submit=1)
@@ -216,24 +243,24 @@ def run(keep=0):
 
 		# 9. transfer between outlets
 		as_user(OTHER_USER)
-		lemon = "RM-F&V-012"
+		lemon = TRANSFER_ITEM
 		r = api.request_transfer(OUTLET, OTHER, [{"item_code": lemon, "qty": 0.5}], note="Out of lemons")
 		tr_name = r["name"]
-		log.check(r["status"] == "Submitted", "Nami Greek asks Burger Ladies", r)
+		log.check(r["status"] == "Submitted", "Second outlet asks the first", r)
 		expect_error(log, "Requester cannot approve her own request", api.ship, tr_name, [])
 		as_user(OUTLET_USER)
 		home = api.get_home(OUTLET)
-		log.check(any(t.name == tr_name for t in home["transfers_asked"]), "Burger Ladies sees the request")
+		log.check(any(t.name == tr_name for t in home["transfers_asked"]), "First outlet sees the request")
 		g = api.get_order(tr_name)
 		have = qty(lemon, ow)
 		try:
 			r = api.ship(tr_name, [{"row": g["lines"][0]["row"], "qty_shipped": min(0.5, have)}])
-			log.check(r["status"] in ("Shipped", "Closed"), "Burger Ladies approves and sends (Closed = had none to give)", r)
+			log.check(r["status"] in ("Shipped", "Closed"), "First outlet approves and sends (Closed = had none to give)", r)
 			if r["status"] == "Shipped":
 				as_user(OTHER_USER)
 				g = api.get_order(tr_name)
 				r = api.receive(tr_name, [{"row": g["lines"][0]["row"], "qty_received": g["lines"][0]["qty_shipped"]}])
-				log.check(r["status"] == "Received", "Nami Greek receives", r)
+				log.check(r["status"] == "Received", "Second outlet receives", r)
 		except Exception as e:
 			frappe.clear_messages()
 			log.ok("Transfer blocked: giving outlet lacks stock (correct)", str(e)[:200])

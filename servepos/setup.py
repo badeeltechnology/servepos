@@ -1181,6 +1181,9 @@ def setup_all():
     from servepos.stock_orders.setup import setup as setup_stock_orders
     setup_stock_orders(sync=False)
 
+    from servepos.recipes.setup import setup as setup_recipes
+    setup_recipes()
+
     frappe.db.commit()
     print("=" * 50)
     print("ServePOS setup complete!")

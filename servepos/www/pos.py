@@ -33,10 +33,24 @@ def _read_manifest():
     return {"js": js_file, "css": css_file}
 
 
+# The admin moved to the Frappe UI manager app at /manage. Old links land on the matching screen;
+# add ?classic=1 to open the old React admin while it is still shipped.
+MANAGE_ROUTES = {
+    "": "", "menu": "items", "visibility": "items", "modifiers": "modifiers", "restaurant": "floor",
+    "waiters": "staff", "promos": "offers", "vouchers": "offers", "reports": "sales",
+}
+
+
 def get_context(context):
     """Provide context for the ServePOS frontend including CSRF token."""
     if frappe.session.user == "Guest":
         frappe.local.flags.redirect_location = "/login?redirect-to=/pos"
+        raise frappe.Redirect
+    if not frappe.form_dict.get("classic"):
+        path = (frappe.request.path if frappe.request else "/pos").rstrip("/")
+        sub = path[len("/pos"):].strip("/").split("/")[0] if path.startswith("/pos") else ""
+        target = MANAGE_ROUTES.get(sub, "")
+        frappe.local.flags.redirect_location = "/manage" + ("/" + target if target else "")
         raise frappe.Redirect
 
     csrf_token = frappe.sessions.get_csrf_token()
