@@ -1,11 +1,8 @@
 <template>
   <Header title="Recipes" :subtitle="r.data ? `${r.data.counts.with} of ${r.data.counts.all} menu items have a recipe` : ''" />
   <div class="space-y-4 px-3 pb-16 pt-4 sm:px-5">
-    <div v-if="r.data" class="rounded-6 bg-surface-gray-1 px-4 py-3 text-p-base text-ink-gray-7">
-      Recipes cover <b class="num">{{ Math.round(r.data.sales_covered_pct) }} %</b> of the last 30 days' sales.
-      Items without a recipe take nothing out of stock at day close, so start with the best sellers at the top of
-      <button class="text-ink-blue-6 hover:underline" @click="status = 'without'">No recipe yet</button>.
-    </div>
+    <Alert v-if="r.data" theme="blue" :title="`Recipes cover ${Math.round(r.data.sales_covered_pct)} % of the last 30 days' sales`"
+      description="Items without a recipe take nothing out of stock at day close. Start with the best sellers under No recipe yet." />
     <div class="flex flex-wrap items-center gap-2">
       <TextInput v-model="q" placeholder="Search menu items" class="w-64" :debounce="300"><template #prefix><span class="lucide-search size-4 text-ink-gray-5" /></template></TextInput>
       <Select v-model="group" :options="groupOptions" class="w-56" aria-label="Category" />
@@ -46,7 +43,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { Badge, LoadingText, Select, TabButtons, TextInput } from 'frappe-ui'
+import { Alert, Badge, LoadingText, Select, TabButtons, TextInput } from 'frappe-ui'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import Header from '../../components/Header.vue'
 import Thumb from '../components/Thumb.vue'

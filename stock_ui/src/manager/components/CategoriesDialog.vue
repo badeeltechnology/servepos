@@ -8,17 +8,25 @@
       <p class="text-p-sm text-ink-gray-6">{{ current ? `The order of ${current} on the ${outlet} POS. Use the arrows, then save.` : `The order categories appear in on the ${outlet} POS. Open a category to order its items.` }}</p>
 
       <div v-if="loading" class="py-6"><LoadingText /></div>
-      <div v-else class="max-h-[50vh] divide-y divide-outline-gray-1 overflow-y-auto rounded-6 border border-outline-gray-2">
-        <div v-for="(r, i) in list" :key="r.name" class="flex items-center gap-2 px-3 py-1.5">
-          <span class="w-6 text-right text-xs text-ink-gray-4 num">{{ i + 1 }}</span>
-          <button v-if="!current" class="min-w-0 flex-1 truncate text-left text-base hover:underline" @click="openCategory(r.name)">{{ r.name }}</button>
-          <span v-else class="min-w-0 flex-1 truncate text-base">{{ r.item_name }}</span>
-          <span v-if="!current" class="text-xs text-ink-gray-5">{{ r.items }} items</span>
-          <Button variant="ghost" size="sm" icon="lucide-arrow-up" aria-label="Move up" :disabled="i === 0" @click="move(i, -1)" />
-          <Button variant="ghost" size="sm" icon="lucide-arrow-down" aria-label="Move down" :disabled="i === list.length - 1" @click="move(i, 1)" />
-          <Button v-if="!current" variant="ghost" size="sm" icon="lucide-trash-2" aria-label="Delete category" :disabled="r.items > 0" :title="r.items ? 'Move its items out first' : 'Delete'" @click="remove(r.name)" />
-        </div>
-        <div v-if="!list.length" class="px-3 py-6 text-center text-p-sm text-ink-gray-5">Nothing here yet.</div>
+      <div v-else class="max-h-[50vh] overflow-y-auto">
+        <List :columns="['2rem', 'minmax(0,1fr)', 'auto', 'auto']" class="list-row-px-2">
+          <ListRows :items="list" v-slot="{ item: r, index: i }">
+            <ListRow class="min-h-10">
+              <ListCell class="justify-end text-xs text-ink-gray-4 num">{{ i + 1 }}</ListCell>
+              <ListCell class="min-w-0">
+                <Button v-if="!current" variant="ghost" class="min-w-0 justify-start" :label="r.name" @click="openCategory(r.name)" />
+                <span v-else class="truncate">{{ r.item_name }}</span>
+              </ListCell>
+              <ListCell class="text-xs text-ink-gray-5">{{ current ? '' : r.items + ' items' }}</ListCell>
+              <ListCell class="justify-end">
+                <Button variant="ghost" size="sm" icon="lucide-arrow-up" aria-label="Move up" :disabled="i === 0" @click="move(i, -1)" />
+                <Button variant="ghost" size="sm" icon="lucide-arrow-down" aria-label="Move down" :disabled="i === list.length - 1" @click="move(i, 1)" />
+                <Button v-if="!current" variant="ghost" size="sm" icon="lucide-trash-2" aria-label="Delete category" :disabled="r.items > 0" :title="r.items ? 'Move its items out first' : 'Delete'" @click="remove(r.name)" />
+              </ListCell>
+            </ListRow>
+          </ListRows>
+        </List>
+        <p v-if="!list.length" class="py-6 text-center text-p-sm text-ink-gray-5">Nothing here yet.</p>
       </div>
 
       <div v-if="!current" class="flex gap-2">
@@ -37,6 +45,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { Button, Dialog, LoadingText, Select, TextInput, dialog } from 'frappe-ui'
+import { List, ListCell, ListRow, ListRows } from 'frappe-ui/list'
 import { get, post, act } from '../api'
 import { state, outletOptions } from '../state'
 

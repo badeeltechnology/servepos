@@ -37,19 +37,21 @@
       </div>
       <div>
         <div class="mb-1.5 flex items-center justify-between"><span class="text-base-semibold">Options</span><Button size="sm" label="Add option" icon-left="lucide-plus" @click="addOption" /></div>
-        <div class="divide-y divide-outline-gray-1 rounded-6 border border-outline-gray-2">
-          <div class="grid grid-cols-[1fr_7rem_5rem_6rem] gap-2 px-3 py-1.5 text-xs text-ink-gray-5"><span>Option</span><span>Extra price</span><span class="text-center">Default</span><span /></div>
-          <div v-for="(o, i) in dlg.f.options" :key="o._k" class="grid grid-cols-[1fr_7rem_5rem_6rem] items-center gap-2 px-3 py-1">
-            <TextInput v-model="o.modifier_name" placeholder="e.g. Large" />
-            <TextInput type="number" v-model="o.price" min="0" step="0.5" />
-            <span class="flex justify-center"><Checkbox :model-value="!!o.is_default" @update:model-value="(v) => setDefault(i, v)" /></span>
-            <span class="flex justify-end">
-              <Button variant="ghost" size="sm" icon="lucide-arrow-up" aria-label="Move up" :disabled="i === 0" @click="moveOpt(i, -1)" />
-              <Button variant="ghost" size="sm" icon="lucide-arrow-down" aria-label="Move down" :disabled="i === dlg.f.options.length - 1" @click="moveOpt(i, 1)" />
-              <Button variant="ghost" size="sm" icon="lucide-x" aria-label="Remove option" @click="dlg.f.options.splice(i, 1)" />
-            </span>
-          </div>
-        </div>
+        <List :columns="['minmax(0,1fr)', '7rem', '4.5rem', '6.5rem']" class="list-row-px-2">
+          <ListHeader><ListHeaderCell>Option</ListHeaderCell><ListHeaderCell>Extra price</ListHeaderCell><ListHeaderCell class="justify-center">Default</ListHeaderCell><ListHeaderCell /></ListHeader>
+          <ListRows :items="dlg.f.options" row-key="_k" v-slot="{ item: o, index: i }">
+            <ListRow class="min-h-11">
+              <ListCell><TextInput v-model="o.modifier_name" placeholder="e.g. Large" class="w-full" /></ListCell>
+              <ListCell><TextInput type="number" v-model="o.price" min="0" step="0.5" class="w-full" /></ListCell>
+              <ListCell class="justify-center"><Checkbox :model-value="!!o.is_default" @update:model-value="(v) => setDefault(i, v)" /></ListCell>
+              <ListCell class="justify-end">
+                <Button variant="ghost" size="sm" icon="lucide-arrow-up" aria-label="Move up" :disabled="i === 0" @click="moveOpt(i, -1)" />
+                <Button variant="ghost" size="sm" icon="lucide-arrow-down" aria-label="Move down" :disabled="i === dlg.f.options.length - 1" @click="moveOpt(i, 1)" />
+                <Button variant="ghost" size="sm" icon="lucide-x" aria-label="Remove option" @click="dlg.f.options.splice(i, 1)" />
+              </ListCell>
+            </ListRow>
+          </ListRows>
+        </List>
       </div>
       <div>
         <label class="mb-1.5 flex items-center justify-between"><span class="text-base-semibold">Outlets</span>
@@ -71,12 +73,16 @@
   <Dialog v-model:open="asg.open" :title="`Add ${dlg.f.name} to items`" size="lg">
     <div class="space-y-2">
       <TextInput v-model="asg.q" placeholder="Search items" :debounce="250"><template #prefix><span class="lucide-search size-4 text-ink-gray-5" /></template></TextInput>
-      <div class="max-h-[45vh] divide-y divide-outline-gray-1 overflow-y-auto rounded-6 border border-outline-gray-2">
-        <label v-for="r in asg.rows" :key="r.name" class="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-surface-gray-1">
-          <Checkbox :model-value="asg.picked.includes(r.name)" @update:model-value="(v) => (v ? asg.picked.push(r.name) : asg.picked.splice(asg.picked.indexOf(r.name), 1))" />
-          <span class="min-w-0 flex-1 truncate text-base">{{ r.item_name }}</span><span class="text-xs text-ink-gray-5">{{ r.item_group }}</span>
-        </label>
-        <div v-if="!asg.rows.length" class="px-3 py-6 text-center text-p-sm text-ink-gray-5">Type to find items.</div>
+      <div class="max-h-[45vh] overflow-y-auto">
+        <List v-model:selection="asg.picked" selectable :columns="['minmax(0,1fr)', '10rem']" class="list-row-px-2">
+          <ListRows :items="asg.rows" v-slot="{ item: r, value }">
+            <ListRow :value="value" class="min-h-9">
+              <ListCell class="truncate">{{ r.item_name }}</ListCell>
+              <ListCell class="justify-end truncate text-xs text-ink-gray-5">{{ r.item_group }}</ListCell>
+            </ListRow>
+          </ListRows>
+        </List>
+        <p v-if="!asg.rows.length" class="px-1 py-4 text-center text-p-sm text-ink-gray-5">Type to find items.</p>
       </div>
     </div>
     <template #actions="{ close }">
