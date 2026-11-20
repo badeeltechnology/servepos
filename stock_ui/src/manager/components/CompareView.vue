@@ -20,52 +20,31 @@
         <LineChart title="Sales by day" :subtitle="`${span(d.a)} and ${span(d.b)}, day by day`" :data="days" x="day" :y="['This period', 'Compared with']" :format="num2" />
       </div>
 
-      <section v-if="d.outlets.length > 1" class="space-y-2">
-        <h2 class="text-base-semibold">Outlets side by side</h2>
-        <div class="overflow-x-auto">
-          <div class="min-w-[720px] divide-y divide-outline-gray-1 rounded-6 border border-outline-gray-2">
-            <div class="grid grid-cols-[1fr_8rem_8rem_6rem_6rem_6rem_7rem] gap-2 px-3 py-1.5 text-xs text-ink-gray-5">
-              <span>Outlet</span><span class="text-right">Sales</span><span class="text-right">Was</span><span class="text-right">Change</span>
-              <span class="text-right">Orders</span><span class="text-right">Was</span><span class="text-right">Average bill</span>
-            </div>
-            <div v-for="o in d.outlets" :key="o.pos_profile" class="grid grid-cols-[1fr_8rem_8rem_6rem_6rem_6rem_7rem] items-center gap-2 px-3 py-1.5 text-base">
-              <span class="truncate">{{ o.pos_profile }}</span>
-              <span class="text-right num">{{ num2(o.a_sales) }}</span><span class="text-right num text-ink-gray-5">{{ num2(o.b_sales) }}</span>
-              <span class="text-right"><Change :a="o.a_sales" :b="o.b_sales" /></span>
-              <span class="text-right num">{{ o.a_orders }}</span><span class="text-right num text-ink-gray-5">{{ o.b_orders }}</span>
-              <span class="text-right num">{{ o.a_orders ? num2(o.a_sales / o.a_orders) : '' }}</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <SummaryList v-if="d.outlets.length > 1" title="Outlets side by side" min-width="min-w-[760px]" :rows="d.outlets" :cols="[
+        { key: 'pos_profile', label: 'Outlet' }, { key: 'a_sales', label: 'Sales', align: 'right', format: num2 }, { key: 'b_sales', label: 'Was', align: 'right', format: num2, muted: true },
+        { key: 'change', label: 'Change', align: 'right', width: '6rem' }, { key: 'a_orders', label: 'Orders', align: 'right', width: '5rem' },
+        { key: 'b_orders', label: 'Was', align: 'right', width: '5rem', muted: true }, { key: 'avg', label: 'Average bill', align: 'right', width: '7rem', format: (v, o) => (o.a_orders ? num2(o.a_sales / o.a_orders) : '') }]">
+        <template #cell-change="{ item }"><Badge v-bind="change(item.a_sales, item.b_sales)" /></template>
+      </SummaryList>
 
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <section class="space-y-2">
-          <h2 class="text-base-semibold">Categories</h2>
-          <div class="divide-y divide-outline-gray-1 rounded-6 border border-outline-gray-2">
-            <div v-for="c in d.categories" :key="c.category" class="grid grid-cols-[1fr_7rem_5rem] gap-2 px-3 py-1.5 text-base">
-              <span class="truncate">{{ c.category }}</span><span class="text-right num">{{ num2(c.a) }}</span><span class="text-right"><Change :a="c.a" :b="c.b" /></span>
-            </div>
-          </div>
-        </section>
-        <section v-for="[title, list] in [['Selling more', d.risers], ['Selling less', d.fallers]]" :key="title" class="space-y-2">
-          <h2 class="text-base-semibold">{{ title }}</h2>
-          <div class="divide-y divide-outline-gray-1 rounded-6 border border-outline-gray-2">
-            <div v-for="m in list" :key="m.item_code" class="grid grid-cols-[1fr_7rem] gap-2 px-3 py-1.5 text-base">
-              <span class="min-w-0"><span class="block truncate">{{ m.item_name }}</span><span class="text-xs text-ink-gray-5 num">{{ num0(m.b_qty) }} → {{ num0(m.a_qty) }} sold</span></span>
-              <span class="text-right num" :class="m.change > 0 ? 'text-ink-green-6' : 'text-ink-red-6'">{{ m.change > 0 ? '+' : '' }}{{ num2(m.change) }}</span>
-            </div>
-            <div v-if="!list.length" class="px-3 py-4 text-p-sm text-ink-gray-5">Nothing.</div>
-          </div>
-        </section>
+        <SummaryList title="Categories" :rows="d.categories" :cols="[{ key: 'category', label: 'Category' }, { key: 'a', label: 'Sales', align: 'right', width: '7rem', format: num2 }, { key: 'change', label: 'Change', align: 'right', width: '5.5rem' }]">
+          <template #cell-change="{ item }"><Badge v-bind="change(item.a, item.b)" /></template>
+        </SummaryList>
+        <SummaryList v-for="[title, list] in [['Selling more', d.risers], ['Selling less', d.fallers]]" :key="title" :title="title" :rows="list" empty="Nothing."
+          :row-route="(m) => ({ name: 'item', params: { name: m.item_code } })"
+          :cols="[{ key: 'item_name', label: 'Item' }, { key: 'sold', label: 'Sold', align: 'right', width: '5.5rem', format: (v, m) => num0(m.b_qty) + ' → ' + num0(m.a_qty), muted: true }, { key: 'change', label: 'Change', align: 'right', width: '6rem' }]">
+          <template #cell-change="{ item }"><Badge :theme="item.change > 0 ? 'green' : 'red'" :label="(item.change > 0 ? '+' : '') + num2(item.change)" /></template>
+        </SummaryList>
       </div>
     </template>
   </div>
 </template>
 
 <script setup>
-import { computed, h, ref } from 'vue'
-import { DateRangePicker, LoadingText, TabButtons } from 'frappe-ui'
+import { computed, ref } from 'vue'
+import { Badge, DateRangePicker, LoadingText, TabButtons } from 'frappe-ui'
+import SummaryList from './SummaryList.vue'
 import { LineChart, NumberCard } from 'frappe-ui/charts'
 import { useRead, shiftDate } from '../api'
 import { fmtDate } from '../../api'
@@ -93,10 +72,10 @@ const days = computed(() => {
   return Array.from({ length: Math.max(a.length, b.length) }, (_, i) => ({
     day: a[i] ? fmtDate(a[i].date) : 'Day ' + (i + 1), 'This period': a[i] ? a[i].total : null, 'Compared with': b[i] ? b[i].total : null }))
 })
-const Change = (p) => {
-  const v = pct(p.a, p.b)
-  if (v === null) return h('span', { class: 'text-xs text-ink-gray-4' }, p.a ? 'new' : '')
-  return h('span', { class: 'num text-sm ' + (v >= 0 ? 'text-ink-green-6' : 'text-ink-red-6') }, (v >= 0 ? '▲ ' : '▼ ') + Math.abs(v).toFixed(0) + ' %')
+// change against the compared period as a frappe-ui Badge
+const change = (a, b) => {
+  const v = pct(a, b)
+  if (v === null) return { label: a ? 'new' : '', theme: 'gray' }
+  return { label: (v >= 0 ? '▲ ' : '▼ ') + Math.abs(v).toFixed(0) + ' %', theme: v >= 0 ? 'green' : 'red' }
 }
-Change.props = ['a', 'b']
 </script>

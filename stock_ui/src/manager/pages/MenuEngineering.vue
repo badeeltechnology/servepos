@@ -19,33 +19,19 @@
         <router-link to="/recipes" class="text-ink-blue-6 hover:underline">add recipes</router-link>, starting with the best sellers.
       </div>
       <template v-else>
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <button v-for="c in classes" :key="c.key" class="rounded-8 border p-4 text-left transition" :class="pick === c.key ? 'border-outline-gray-4 bg-surface-gray-2' : 'border-outline-gray-2 hover:bg-surface-gray-1'" @click="pick = pick === c.key ? '' : c.key">
-            <div class="flex items-center justify-between"><span class="text-base-semibold">{{ c.label }}</span><Badge :theme="c.theme" :label="String(count(c.key))" /></div>
-            <div class="mt-1 text-p-sm text-ink-gray-6">{{ c.what }}</div>
-            <div class="mt-2 text-p-sm text-ink-gray-8">{{ c.todo }}</div>
-          </button>
+        <div class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <NumberCard v-for="c in classes" :key="c.key" :title="c.label" :value="count(c.key)" :delta-caption="c.todo" />
         </div>
 
-        <section class="space-y-2">
-          <h2 class="text-base-semibold">Popularity and profit</h2>
-          <div class="relative h-[340px] rounded-6 border border-outline-gray-2">
-            <!-- quadrant chart: x = share of portions sold, y = profit per portion -->
-            <div class="absolute inset-0 m-8">
-              <div class="absolute bottom-0 top-0 border-l border-dashed border-outline-gray-3" :style="{ left: xPos(d.popularity_line) + '%' }" />
-              <div class="absolute left-0 right-0 border-t border-dashed border-outline-gray-3" :style="{ top: 100 - yPos(d.avg_margin) + '%' }" />
-              <span class="absolute right-1 top-1 text-xs text-ink-gray-4">Stars</span><span class="absolute left-1 top-1 text-xs text-ink-gray-4">Puzzles</span>
-              <span class="absolute bottom-1 right-1 text-xs text-ink-gray-4">Plowhorses</span><span class="absolute bottom-1 left-1 text-xs text-ink-gray-4">Dogs</span>
-              <Tooltip v-for="i in d.items" :key="i.item_code" :text="`${i.item_name}: ${fmt(i.qty, 0)} sold, ${num2(i.margin)} profit per portion`">
-                <button class="absolute size-3 -translate-x-1/2 translate-y-1/2 rounded-full ring-2 ring-white" :class="pick && pick !== i.class ? 'opacity-20' : ''"
-                  :style="{ left: xPos(i.mix_pct) + '%', bottom: yPos(i.margin) + '%', background: dot(i.class) }" @click="$router.push({ name: 'item', params: { name: i.item_code }, hash: '#recipe' })" />
-              </Tooltip>
-            </div>
-            <span class="absolute bottom-1 left-1/2 -translate-x-1/2 text-xs text-ink-gray-5">Share of portions sold →</span>
-            <span class="absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 text-xs text-ink-gray-5">Profit per portion →</span>
-          </div>
-        </section>
+        <div class="h-[380px]">
+          <ScatterChart title="Popularity and profit" subtitle="Share of portions sold against profit per portion; the dashed lines are the averages that split the four groups"
+            :data="d.items" x="mix_pct" y="margin" split-by="class" label="item_name" :format="num2"
+            :x-axis="{ title: 'Share of portions sold (%)', min: 0 }" :y-axis="{ title: 'Profit per portion', min: 0 }"
+            :reference-lines="[{ axis: 'x', value: d.popularity_line, label: 'Popular', dashed: true }, { value: d.avg_margin, label: 'Average profit', dashed: true }]"
+            @select="(e) => $router.push({ name: 'item', params: { name: e.row.item_code }, hash: '#recipe' })" />
+        </div>
 
+        <TabButtons v-model="pick" :options="[{ label: 'All', value: '' }, ...classes.map((c) => ({ label: c.label, value: c.key }))]" />
         <div class="overflow-x-auto">
           <List :columns="['minmax(200px,1.4fr)', '7rem', '5rem', '6rem', '6rem', '6rem', '6rem', '8rem']" class="-mx-3 min-w-[860px] list-row-px-3">
             <ListHeader>
@@ -72,14 +58,11 @@
       <section v-if="d.no_recipe.length" class="space-y-2">
         <h2 class="text-base-semibold">Sold without a recipe</h2>
         <p class="text-p-sm text-ink-gray-6">{{ num2(d.no_recipe_sales) }} of sales ({{ Math.round(d.no_recipe_sales / Math.max(d.no_recipe_sales + d.costed_sales, 1) * 100) }} %) can't be placed because these items have no cost yet.</p>
-        <div class="divide-y divide-outline-gray-1 rounded-6 border border-outline-gray-2">
-          <router-link v-for="i in d.no_recipe.slice(0, noRecipeLimit)" :key="i.item_code" :to="{ name: 'item', params: { name: i.item_code }, hash: '#recipe' }"
-            class="grid grid-cols-[1fr_6rem_8rem_6rem] items-center gap-2 px-3 py-1.5 text-base hover:bg-surface-gray-1">
-            <span class="truncate">{{ i.item_name }} <span class="text-xs text-ink-gray-4">{{ i.item_group }}</span></span>
-            <span class="text-right num">{{ fmt(i.qty, 0) }}</span><span class="text-right num">{{ num2(i.sales) }}</span>
-            <span class="text-right text-sm text-ink-blue-6">Add recipe</span>
-          </router-link>
-        </div>
+        <SummaryList :rows="d.no_recipe.slice(0, noRecipeLimit)" :row-route="(i) => ({ name: 'item', params: { name: i.item_code }, hash: '#recipe' })"
+          :cols="[{ key: 'item_name', label: 'Item' }, { key: 'item_group', label: 'Category', muted: true }, { key: 'qty', label: 'Sold', align: 'right', width: '5rem', format: (v) => fmt(v, 0) },
+            { key: 'sales', label: 'Sales', align: 'right', width: '8rem', format: num2 }, { key: 'add', label: '', align: 'right', width: '6.5rem' }]">
+          <template #cell-add><Badge theme="blue" label="Add recipe" /></template>
+        </SummaryList>
         <Button v-if="d.no_recipe.length > noRecipeLimit" :label="`Show all ${d.no_recipe.length}`" @click="noRecipeLimit = 1000" />
       </section>
     </template>
@@ -89,9 +72,11 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Badge, Button, DateRangePicker, LoadingText, Select, TabButtons, Tooltip } from 'frappe-ui'
+import { Badge, Button, DateRangePicker, LoadingText, Select, TabButtons } from 'frappe-ui'
+import { NumberCard, ScatterChart } from 'frappe-ui/charts'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import Header from '../../components/Header.vue'
+import SummaryList from '../components/SummaryList.vue'
 import { useRead } from '../api'
 import { fmt } from '../../api'
 import { state, setOutlet, outletOptions } from '../state'
@@ -114,14 +99,8 @@ const classes = [
   { key: 'Dog', label: 'Dogs', theme: 'red', what: 'Neither popular nor profitable.', todo: 'Rework or take off the menu.' },
 ]
 const theme = (c) => (classes.find((x) => x.key === c) || {}).theme || 'gray'
-const dot = (c) => ({ Star: '#30a66d', Plowhorse: '#2490ef', Puzzle: '#e79913', Dog: '#e03636' })[c]
 const count = (k) => ((d.value && d.value.items) || []).filter((i) => i.class === k).length
 const shown = computed(() => ((d.value && d.value.items) || []).filter((i) => !pick.value || i.class === pick.value))
 
-// plot scales: both axes start at zero, with a little headroom
-const maxX = computed(() => Math.max(...((d.value && d.value.items) || []).map((i) => i.mix_pct), d.value ? d.value.popularity_line * 2 : 1) * 1.05)
-const minY = computed(() => Math.min(0, ...((d.value && d.value.items) || []).map((i) => i.margin)))
-const maxY = computed(() => Math.max(...((d.value && d.value.items) || []).map((i) => i.margin), d.value ? d.value.avg_margin * 2 : 1) * 1.05)
-const xPos = (v) => Math.max(0, Math.min(100, (v / (maxX.value || 1)) * 100))
-const yPos = (v) => Math.max(0, Math.min(100, ((v - minY.value) / ((maxY.value - minY.value) || 1)) * 100))
+
 </script>

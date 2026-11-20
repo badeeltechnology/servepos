@@ -52,28 +52,16 @@
       </section>
 
       <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section class="space-y-2">
-          <h2 class="text-base-semibold">Highest food cost</h2>
-          <div class="divide-y divide-outline-gray-1 rounded-6 border border-outline-gray-2">
-            <div class="grid grid-cols-[1fr_5rem_7rem_5rem] gap-2 px-3 py-1.5 text-xs text-ink-gray-5"><span>Item</span><span class="text-right">Sold</span><span class="text-right">Sales</span><span class="text-right">Food cost</span></div>
-            <router-link v-for="i in d.highest" :key="i.item_code" :to="{ name: 'item', params: { name: i.item_code }, hash: '#recipe' }" class="grid grid-cols-[1fr_5rem_7rem_5rem] gap-2 px-3 py-1.5 text-base hover:bg-surface-gray-1">
-              <span class="truncate">{{ i.item_name }}</span><span class="text-right num">{{ fmt(i.qty, 0) }}</span><span class="text-right num">{{ num2(i.sales) }}</span>
-              <span class="text-right num" :class="i.food_cost_pct > 35 ? 'text-ink-red-6' : ''">{{ i.food_cost_pct.toFixed(1) }} %</span>
-            </router-link>
-            <div v-if="!d.highest.length" class="px-3 py-4 text-p-sm text-ink-gray-5">No item with a recipe sold in this period.</div>
-          </div>
-        </section>
-        <section class="space-y-2">
-          <h2 class="text-base-semibold">Best sellers without a recipe</h2>
-          <div class="divide-y divide-outline-gray-1 rounded-6 border border-outline-gray-2">
-            <div class="grid grid-cols-[1fr_5rem_7rem_6rem] gap-2 px-3 py-1.5 text-xs text-ink-gray-5"><span>Item</span><span class="text-right">Sold</span><span class="text-right">Sales</span><span /></div>
-            <router-link v-for="i in d.no_recipe" :key="i.item_code" :to="{ name: 'item', params: { name: i.item_code }, hash: '#recipe' }" class="grid grid-cols-[1fr_5rem_7rem_6rem] gap-2 px-3 py-1.5 text-base hover:bg-surface-gray-1">
-              <span class="truncate">{{ i.item_name }}</span><span class="text-right num">{{ fmt(i.qty, 0) }}</span><span class="text-right num">{{ num2(i.sales) }}</span>
-              <span class="text-right text-sm text-ink-blue-6">Add recipe</span>
-            </router-link>
-            <div v-if="!d.no_recipe.length" class="px-3 py-4 text-p-sm text-ink-gray-5">Every item sold has a recipe.</div>
-          </div>
-        </section>
+        <SummaryList title="Highest food cost" :rows="d.highest" empty="No item with a recipe sold in this period." :row-route="toRecipe"
+          :cols="[{ key: 'item_name', label: 'Item' }, { key: 'qty', label: 'Sold', align: 'right', width: '5rem', format: (v) => fmt(v, 0) },
+            { key: 'sales', label: 'Sales', align: 'right', width: '7rem', format: num2 }, { key: 'food_cost_pct', label: 'Food cost', align: 'right', width: '6rem' }]">
+          <template #cell-food_cost_pct="{ item }"><Badge :theme="pctTheme(item.food_cost_pct)" :label="item.food_cost_pct.toFixed(1) + ' %'" /></template>
+        </SummaryList>
+        <SummaryList title="Best sellers without a recipe" :rows="d.no_recipe" empty="Every item sold has a recipe." :row-route="toRecipe"
+          :cols="[{ key: 'item_name', label: 'Item' }, { key: 'qty', label: 'Sold', align: 'right', width: '5rem', format: (v) => fmt(v, 0) },
+            { key: 'sales', label: 'Sales', align: 'right', width: '7rem', format: num2 }, { key: 'add', label: '', align: 'right', width: '6rem' }]">
+          <template #cell-add><Badge theme="blue" label="Add recipe" /></template>
+        </SummaryList>
       </div>
     </template>
   </div>
@@ -86,6 +74,7 @@ import { Badge, DateRangePicker, LoadingText, Select, TabButtons } from 'frappe-
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import { LineChart, NumberCard } from 'frappe-ui/charts'
 import Header from '../../components/Header.vue'
+import SummaryList from '../components/SummaryList.vue'
 import { useRead } from '../api'
 import { fmt, fmtDate } from '../../api'
 import { state, setOutlet, outletOptions } from '../state'
@@ -99,6 +88,7 @@ const r = useRead('manager.get_food_cost', () => ({ pos_profile: outlet.value ||
 const d = computed(() => r.data)
 const curP = state.ctx.currency ? state.ctx.currency + ' ' : ''
 const num2 = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const toRecipe = (i) => ({ name: 'item', params: { name: i.item_code }, hash: '#recipe' })
 const pctTheme = (p) => (p > 35 ? 'red' : p > 30 ? 'orange' : 'green')
 const daily = computed(() => ((d.value && d.value.daily) || []).filter((x) => x.recipe_sales).map((x) => ({ day: fmtDate(x.date), pct: Number(x.food_cost_pct.toFixed(1)) })))
 </script>

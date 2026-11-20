@@ -26,10 +26,12 @@
         <p class="text-p-sm text-ink-gray-5">Arrows compare with {{ span(d.previous) }}.<template v-if="d.last_year.total_sales"> Same dates last year: {{ curP }}{{ num2(d.last_year.total_sales) }} from {{ num0(d.last_year.order_count) }} orders ({{ fmtPct(pct(s.total_sales, d.last_year.total_sales)) }}).</template></p>
         <div v-if="d.days > 1" class="h-64"><BarChart title="Sales by day" :data="byDay" x="day" y="sales" :format="num2" /></div>
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Table title="Payment methods" :cols="['Method', 'Amount', 'Share']" :rows="s.payment_breakdown.map((p) => [p.mode_of_payment, num2(p.total), pctOf(p.total, payTotal)])" />
-          <Table title="Order types" :cols="['Type', 'Orders', 'Sales']" :rows="s.order_type_breakdown.map((t) => [t.type, t.count, num2(t.total)])" />
-          <Table title="Categories" :cols="['Category', 'Qty', 'Sales']" :rows="s.category_breakdown.map((c) => [c.category, fmt(c.qty, 2), num2(c.amount)])" />
-          <Table v-if="!outlet" title="Outlets" :cols="['Outlet', 'Sales', 'Change']" :rows="d.outlets.filter((o) => o.order_count || o.previous_sales).map((o) => [o.pos_profile, num2(o.total_sales), fmtPct(pct(o.total_sales, o.previous_sales))])" />
+          <SummaryList title="Payment methods" :rows="s.payment_breakdown" :cols="[{ key: 'mode_of_payment', label: 'Method' }, { key: 'total', label: 'Amount', align: 'right', format: num2 }, { key: 'share', label: 'Share', align: 'right', width: '5rem', format: (v, r) => pctOf(r.total, payTotal) }]" />
+          <SummaryList title="Order types" :rows="s.order_type_breakdown" :cols="[{ key: 'type', label: 'Type' }, { key: 'count', label: 'Orders', align: 'right', width: '6rem' }, { key: 'total', label: 'Sales', align: 'right', format: num2 }]" />
+          <SummaryList title="Categories" :rows="s.category_breakdown" :cols="[{ key: 'category', label: 'Category' }, { key: 'qty', label: 'Qty', align: 'right', width: '6rem', format: (v) => fmt(v, 2) }, { key: 'amount', label: 'Sales', align: 'right', format: num2 }]" />
+          <SummaryList v-if="!outlet" title="Outlets" :rows="d.outlets.filter((o) => o.order_count || o.previous_sales)" :cols="[{ key: 'pos_profile', label: 'Outlet' }, { key: 'total_sales', label: 'Sales', align: 'right', format: num2 }, { key: 'change', label: 'Change', align: 'right', width: '6rem' }]">
+            <template #cell-change="{ item }"><Badge v-bind="changeBadge(item.total_sales, item.previous_sales)" /></template>
+          </SummaryList>
         </div>
       </template>
     </template>
@@ -72,8 +74,8 @@
           <div v-if="!(s.waiter_breakdown || []).length" class="py-6 text-center text-p-sm text-ink-gray-5">No waiter on the sales in this period.</div>
         </section>
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Table title="Cashiers" :cols="['Cashier', 'Orders', 'Sales']" :rows="s.cashier_breakdown.map((c) => [c.cashier, c.count, num2(c.total)])" />
-          <Table title="Voids by staff" :cols="['Voided by', 'Count', 'Amount']" :rows="s.void_summary.by_staff.map((v) => [v.staff, v.count, num2(v.amount)])" />
+          <SummaryList title="Cashiers" :rows="s.cashier_breakdown" :cols="[{ key: 'cashier', label: 'Cashier' }, { key: 'count', label: 'Orders', align: 'right', width: '6rem' }, { key: 'total', label: 'Sales', align: 'right', format: num2 }]" />
+          <SummaryList title="Voids by staff" :rows="s.void_summary.by_staff" :cols="voidCols('staff', 'Voided by')" />
         </div>
       </template>
     </template>
@@ -132,9 +134,9 @@
     <!-- voids -->
     <template v-if="tab === 'voids'">
       <div v-if="d" class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Table title="By reason" :cols="['Reason', 'Count', 'Amount']" :rows="s.void_summary.by_reason.map((v) => [v.reason, v.count, num2(v.amount)])" />
-        <Table title="By staff" :cols="['Voided by', 'Count', 'Amount']" :rows="s.void_summary.by_staff.map((v) => [v.staff, v.count, num2(v.amount)])" />
-        <Table title="Waste or back to stock" :cols="['What happened', 'Count', 'Amount']" :rows="s.void_summary.by_disposition.map((v) => [v.disposition, v.count, num2(v.amount)])" />
+        <SummaryList title="By reason" :rows="s.void_summary.by_reason" :cols="voidCols('reason', 'Reason')" />
+        <SummaryList title="By staff" :rows="s.void_summary.by_staff" :cols="voidCols('staff', 'Voided by')" />
+        <SummaryList title="Waste or back to stock" :rows="s.void_summary.by_disposition" :cols="voidCols('disposition', 'What happened')" />
       </div>
       <div class="overflow-x-auto">
         <List :columns="['9rem', '8rem', 'minmax(140px,1fr)', '9rem', '8rem', '8rem', '7rem']" class="-mx-3 min-w-[820px] list-row-px-3">
@@ -162,12 +164,13 @@
       <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-base sm:grid-cols-3">
         <template v-for="[k, v] in detailFacts" :key="k"><div><div class="text-xs text-ink-gray-5">{{ k }}</div><div>{{ v }}</div></div></template>
       </div>
-      <div class="divide-y divide-outline-gray-1 rounded-6 border border-outline-gray-2">
-        <div v-for="(i, n) in detail.d.items || []" :key="n" class="grid grid-cols-[1fr_4rem_6rem] gap-2 px-3 py-1.5">
-          <div><div>{{ i.item_name }}</div><div v-if="i.modifiers" class="text-xs text-ink-gray-5">{{ i.modifiers }}</div><div v-if="i.comment || i.void_reason" class="text-xs text-ink-amber-6">{{ i.comment || i.void_reason }}</div></div>
-          <div class="text-right num">× {{ fmt(i.qty, 2) }}</div><div class="text-right num">{{ num2(i.amount) }}</div>
-        </div>
-      </div>
+      <SummaryList :rows="detail.d.items || []" empty="No items." :cols="[{ key: 'item_name', label: 'Item' }, { key: 'qty', label: 'Qty', align: 'right', width: '4.5rem', format: (v) => '× ' + fmt(v, 2) }, { key: 'amount', label: 'Amount', align: 'right', width: '6rem', format: num2 }]">
+        <template #cell-item_name="{ item: i }">
+          <span class="min-w-0"><span class="block truncate">{{ i.item_name }}</span>
+            <span v-if="i.modifiers" class="block truncate text-xs text-ink-gray-5">{{ i.modifiers }}</span>
+            <span v-if="i.comment || i.void_reason" class="block truncate text-xs text-ink-amber-6">{{ i.comment || i.void_reason }}</span></span>
+        </template>
+      </SummaryList>
       <div v-if="(detail.d.payments || []).length" class="text-base">Paid: <span v-for="p in detail.d.payments" :key="p.mode_of_payment" class="mr-3">{{ p.mode_of_payment }} {{ num2(p.amount) }}</span></div>
       <a v-if="detail.d.desk_url" :href="detail.d.desk_url" target="_blank" class="text-base text-ink-blue-6 hover:underline">Open in ERPNext</a>
     </div>
@@ -175,13 +178,14 @@
 </template>
 
 <script setup>
-import { computed, h, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Badge, Button, Checkbox, DateRangePicker, Dialog, LoadingText, Select, TabButtons, TextInput } from 'frappe-ui'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import { BarChart, NumberCard } from 'frappe-ui/charts'
 import CompareView from '../components/CompareView.vue'
 import BusyHours from '../components/BusyHours.vue'
+import SummaryList from '../components/SummaryList.vue'
 import Header from '../../components/Header.vue'
 import { useRead, get } from '../api'
 import { fmt, fmtDate, fmtTime } from '../../api'
@@ -210,16 +214,13 @@ const payTotal = computed(() => (s.value.payment_breakdown || []).reduce((a, p) 
 const pctOf = (v, t) => (t ? Math.round((v / t) * 100) + ' %' : '')
 const subtitle = computed(() => (outlet.value || 'All outlets') + ' · ' + (range.value[0] === range.value[1] ? fmtDate(range.value[0]) : fmtDate(range.value[0]) + ' to ' + fmtDate(range.value[1])))
 
-// small table used across the summary
-const Table = (props) => h('section', { class: 'space-y-2' }, [
-  h('h2', { class: 'text-base-semibold' }, props.title),
-  h('div', { class: 'rounded-6 border border-outline-gray-2 divide-y divide-outline-gray-1' }, [
-    h('div', { class: 'grid grid-cols-[1fr_6rem_8rem] gap-2 px-3 py-1.5 text-xs text-ink-gray-5' }, props.cols.map((c, j) => h('span', { class: j ? 'text-right' : '' }, c))),
-    ...(props.rows.length
-    ? props.rows.map((r, i) => h('div', { key: i, class: 'grid grid-cols-[1fr_6rem_8rem] gap-2 px-3 py-1.5 text-base' }, r.map((c, j) => h('span', { class: j ? 'text-right num' : 'truncate' }, c))))
-    : [h('div', { class: 'px-3 py-4 text-p-sm text-ink-gray-5' }, 'Nothing in this period.')])]),
-])
-Table.props = ['title', 'cols', 'rows']
+const voidCols = (key, label) => [{ key, label }, { key: 'count', label: 'Count', align: 'right', width: '5rem' }, { key: 'amount', label: 'Amount', align: 'right', format: num2 }]
+// change against the period before as a frappe-ui Badge
+const changeBadge = (a, b) => {
+  const v = pct(a, b)
+  if (v === null) return { label: a ? 'new' : '', theme: 'gray' }
+  return { label: (v >= 0 ? '▲ ' : '▼ ') + Math.abs(v).toFixed(0) + ' %', theme: v >= 0 ? 'green' : 'red' }
+}
 
 const iq = ref(''), isort = ref('amount'), showZero = ref(false)
 const items = computed(() => (s.value.top_items || [])

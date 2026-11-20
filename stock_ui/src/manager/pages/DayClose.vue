@@ -37,16 +37,16 @@
       <div v-if="cl.loading" class="py-4"><LoadingText /></div>
       <template v-else-if="cl.preview">
         <p class="text-p-sm text-ink-gray-6">{{ cl.preview.invoices }} invoices, {{ fmt(cl.preview.items_sold, 2) }} items sold.</p>
-        <div v-if="cl.preview.pending_deliveries.length" class="rounded-6 bg-surface-amber-1 p-2 text-p-sm text-ink-amber-7">Deliveries not yet received: {{ cl.preview.pending_deliveries.join(', ') }}. Receive them first so their stock counts.</div>
-        <div v-if="cl.preview.no_recipe.length" class="rounded-6 bg-surface-amber-1 p-2 text-p-sm text-ink-amber-7">Sold without a recipe (nothing is taken for these): {{ cl.preview.no_recipe.join(', ') }}</div>
-        <div class="max-h-[40vh] overflow-y-auto rounded-6 border border-outline-gray-2">
-          <div class="grid grid-cols-[1fr_6rem_6rem_6rem] gap-2 border-b border-outline-gray-1 px-3 py-1.5 text-xs text-ink-gray-5"><span>Ingredient</span><span class="text-right">Needed</span><span class="text-right">In stock</span><span class="text-right">Short</span></div>
-          <div v-for="l in cl.preview.lines" :key="l.item_code" class="grid grid-cols-[1fr_6rem_6rem_6rem] gap-2 px-3 py-1 text-base">
-            <span class="truncate">{{ l.item_name }} <span class="text-xs text-ink-gray-5">{{ l.stock_uom }}</span></span>
-            <span class="text-right num">{{ fmt(l.needed_qty, 3) }}</span><span class="text-right num">{{ fmt(l.in_stock, 3) }}</span>
-            <span class="text-right num" :class="l.needed_qty > l.in_stock ? 'text-ink-amber-6' : 'text-ink-gray-4'">{{ l.needed_qty > l.in_stock ? fmt(l.needed_qty - Math.max(l.in_stock, 0), 3) : '' }}</span>
-          </div>
-          <div v-if="!cl.preview.lines.length" class="px-3 py-4 text-p-sm text-ink-gray-5">Nothing to take out of stock for this day.</div>
+        <Alert v-if="cl.preview.pending_deliveries.length" theme="orange" title="Deliveries not yet received" :description="cl.preview.pending_deliveries.join(', ') + '. Receive them first so their stock counts.'" />
+        <Alert v-if="cl.preview.no_recipe.length" theme="orange" title="Sold without a recipe, so nothing is taken for these" :description="cl.preview.no_recipe.join(', ')" />
+        <div class="max-h-[40vh] overflow-y-auto">
+          <SummaryList :rows="cl.preview.lines" empty="Nothing to take out of stock for this day." :cols="[
+            { key: 'item_name', label: 'Ingredient', format: (v, l) => v + ' (' + l.stock_uom + ')' },
+            { key: 'needed_qty', label: 'Needed', align: 'right', width: '6rem', format: (v) => fmt(v, 3) },
+            { key: 'in_stock', label: 'In stock', align: 'right', width: '6rem', format: (v) => fmt(v, 3) },
+            { key: 'short', label: 'Short', align: 'right', width: '6rem' }]">
+            <template #cell-short="{ item: l }"><Badge v-if="l.needed_qty > l.in_stock" theme="orange" :label="fmt(l.needed_qty - Math.max(l.in_stock, 0), 3)" /></template>
+          </SummaryList>
         </div>
       </template>
     </div>
@@ -66,16 +66,17 @@
         <span>{{ dt.d.invoices }} invoices</span><span>Used {{ cur }} {{ money(dt.d.consumed_value) }}</span>
         <a v-if="dt.d.consumption_entry" :href="`/app/stock-entry/${dt.d.consumption_entry}`" target="_blank" class="text-ink-blue-6 hover:underline">{{ dt.d.consumption_entry }}</a>
       </div>
-      <div v-if="dt.d.warnings" class="rounded-6 bg-surface-amber-1 p-2 text-p-sm text-ink-amber-7">{{ dt.d.warnings }}</div>
-      <div v-if="dt.d.no_recipe" class="rounded-6 bg-surface-amber-1 p-2 text-p-sm text-ink-amber-7">Sold without a recipe: {{ dt.d.no_recipe }}</div>
-      <div class="max-h-[45vh] overflow-y-auto rounded-6 border border-outline-gray-2">
-        <div class="grid grid-cols-[1fr_5rem_5rem_5rem_8rem] gap-2 border-b border-outline-gray-1 px-3 py-1.5 text-xs text-ink-gray-5"><span>Ingredient</span><span class="text-right">Needed</span><span class="text-right">Posted</span><span class="text-right">Short</span><span>Status</span></div>
-        <div v-for="l in dt.d.lines" :key="l.name" class="grid grid-cols-[1fr_5rem_5rem_5rem_8rem] items-center gap-2 px-3 py-1 text-base">
-          <span class="truncate">{{ l.item_name }} <span class="text-xs text-ink-gray-5">{{ l.stock_uom }}</span></span>
-          <span class="text-right num">{{ fmt(l.needed_qty, 3) }}</span><span class="text-right num">{{ fmt(l.posted_qty, 3) }}</span>
-          <span class="text-right num" :class="l.short_qty ? 'text-ink-amber-6' : 'text-ink-gray-4'">{{ l.short_qty ? fmt(l.short_qty, 3) : '' }}</span>
-          <span><Badge :theme="lineThemes[l.status]" :label="l.status" /></span>
-        </div>
+      <Alert v-if="dt.d.warnings" theme="orange" :title="dt.d.warnings" />
+      <Alert v-if="dt.d.no_recipe" theme="orange" title="Sold without a recipe" :description="dt.d.no_recipe" />
+      <div class="max-h-[45vh] overflow-y-auto">
+        <SummaryList :rows="dt.d.lines" empty="Nothing was taken out of stock." :cols="[
+          { key: 'item_name', label: 'Ingredient', format: (v, l) => v + ' (' + l.stock_uom + ')' },
+          { key: 'needed_qty', label: 'Needed', align: 'right', width: '5.5rem', format: (v) => fmt(v, 3) },
+          { key: 'posted_qty', label: 'Posted', align: 'right', width: '5.5rem', format: (v) => fmt(v, 3) },
+          { key: 'short_qty', label: 'Short', align: 'right', width: '5.5rem', format: (v) => (v ? fmt(v, 3) : ''), muted: true },
+          { key: 'status', label: 'Status', width: '8rem' }]">
+          <template #cell-status="{ item: l }"><Badge :theme="lineThemes[l.status]" :label="l.status" /></template>
+        </SummaryList>
       </div>
     </div>
     <template #actions="{ close }">
@@ -90,9 +91,10 @@
 <script setup>
 import { reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Badge, Button, DateRangePicker, Dialog, FormControl, LoadingText, Select, TabButtons, dialog } from 'frappe-ui'
+import { Alert, Badge, Button, DateRangePicker, Dialog, FormControl, LoadingText, Select, TabButtons, dialog } from 'frappe-ui'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import Header from '../../components/Header.vue'
+import SummaryList from '../components/SummaryList.vue'
 import { useRead, get, post, act, shiftDate } from '../api'
 import { fmt, fmtDate } from '../../api'
 import { state, outletOptions } from '../state'

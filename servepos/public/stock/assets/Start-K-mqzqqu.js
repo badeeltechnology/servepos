@@ -1,1 +1,0 @@
-import{a5 as s,c as o,b as a,f as c,X as r,k as n,o as _,s as e}from"./index-Dl9w2EPl.js";const u={class:"px-5 pt-5"},f={__name:"Start",setup(p){const t=n();return s(()=>{if(!e.location)return t.replace(e.ctx&&e.ctx.is_buyer?"/stock/buy":"/stock/home");t.replace("/stock/home")}),(i,l)=>(_(),o("div",u,[a(c(r))]))}};export{f as default};

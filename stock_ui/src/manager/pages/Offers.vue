@@ -16,7 +16,7 @@
           <ListHeader><ListHeaderCell>Promo</ListHeaderCell><ListHeaderCell>Discount</ListHeaderCell><ListHeaderCell>Outlets</ListHeaderCell><ListHeaderCell>Note</ListHeaderCell><ListHeaderCell>On</ListHeaderCell></ListHeader>
           <ListRows :items="promos.data || []" v-slot="{ item }">
             <ListRow class="relative min-h-11">
-              <button class="absolute inset-0" :aria-label="'Open ' + item.promo_name" @click="editPromo(item)" />
+              <button type="button" class="absolute inset-0 rounded-6" :aria-label="'Open ' + item.promo_name" @click="editPromo(item)" />
               <ListCell class="text-base-medium" :class="item.enabled ? '' : 'text-ink-gray-5'">{{ item.promo_name }}</ListCell>
               <ListCell><Badge theme="green" :label="item.discount_type === 'Percentage' ? `${fmt(item.discount_value)} %` : `${cur} ${fmt(item.discount_value)}`" /></ListCell>
               <ListCell class="text-sm text-ink-gray-6">{{ item.outlets.length ? (item.outlets.length === 1 ? item.outlets[0] : `${item.outlets.length} outlets`) : 'All outlets' }}</ListCell>
@@ -40,7 +40,7 @@
           <ListHeader><ListHeaderCell>Code</ListHeaderCell><ListHeaderCell>Status</ListHeaderCell><ListHeaderCell>Discount</ListHeaderCell><ListHeaderCell>Used</ListHeaderCell><ListHeaderCell>Expires</ListHeaderCell><ListHeaderCell>Outlet</ListHeaderCell><ListHeaderCell>Note</ListHeaderCell></ListHeader>
           <ListRows :items="vrows" v-slot="{ item }">
             <ListRow class="relative min-h-11">
-              <button class="absolute inset-0" :aria-label="'Open ' + item.code" @click="editVoucher(item)" />
+              <button type="button" class="absolute inset-0 rounded-6" :aria-label="'Open ' + item.code" @click="editVoucher(item)" />
               <ListCell class="font-mono text-base-medium tracking-wider">{{ item.code }}</ListCell>
               <ListCell><Badge :theme="{ Active: 'green', 'Used up': 'gray', Expired: 'amber', Off: 'gray' }[item.state]" :label="item.state" /></ListCell>
               <ListCell class="num">{{ fmt(item.discount_percent) }} %</ListCell>

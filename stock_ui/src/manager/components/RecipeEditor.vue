@@ -8,36 +8,40 @@
         <Button variant="solid" size="sm" label="Save recipe" :disabled="!dirty || !lines.length" :loading="saving" @click="save" />
       </div>
     </div>
-    <div v-if="stockItem" class="rounded-6 bg-surface-gray-1 p-3 text-p-sm text-ink-gray-6">This item is kept in stock, so each sale takes it out of stock directly. Recipes are for menu items that are made from ingredients.</div>
+    <Alert v-if="stockItem" theme="gray" title="Kept in stock" description="This item is kept in stock, so each sale takes it out of stock directly. Recipes are for menu items that are made from ingredients." />
     <template v-else>
-      <div class="overflow-x-auto rounded-6 border border-outline-gray-2">
-        <div class="grid min-w-[620px] grid-cols-[minmax(10rem,1fr)_6rem_7rem_5rem_6rem_2rem] gap-2 border-b border-outline-gray-1 px-3 py-1.5 text-xs text-ink-gray-5">
-          <span>Ingredient</span><span>Amount</span><span>Unit</span><span title="Usable share after trimming and cooking">Yield %</span><span class="text-right">Cost</span><span />
-        </div>
-        <div v-for="(l, i) in lines" :key="l.item_code" class="grid min-w-[620px] grid-cols-[minmax(10rem,1fr)_6rem_7rem_5rem_6rem_2rem] items-center gap-2 px-3 py-1">
-          <span class="min-w-0"><span class="block truncate text-base">{{ l.item_name }}</span><span v-if="l.is_recipe" class="text-xs text-ink-blue-6">prep recipe</span></span>
-          <TextInput type="number" v-model="l.qty" min="0" step="any" />
-          <Select v-model="l.uom" :options="l.uoms.map((u) => ({ label: u.uom, value: u.uom }))" />
-          <TextInput type="number" v-model="l.yield_percent" min="1" max="100" />
-          <span class="text-right text-sm num">{{ money(lineCost(l)) }}</span>
-          <Button variant="ghost" size="sm" icon="lucide-x" aria-label="Remove" @click="lines.splice(i, 1)" />
-        </div>
-        <div v-if="!lines.length && !loading" class="px-3 py-4 text-p-sm text-ink-gray-5">No recipe yet. Add the ingredients one portion uses.</div>
-        <div v-if="loading" class="px-3 py-4"><LoadingText /></div>
+      <div class="overflow-x-auto">
+        <List :columns="['minmax(10rem,1fr)', '6rem', '7rem', '5rem', '6rem', '2.5rem']" class="min-w-[620px] list-row-px-2">
+          <ListHeader>
+            <ListHeaderCell>Ingredient</ListHeaderCell><ListHeaderCell>Amount</ListHeaderCell><ListHeaderCell>Unit</ListHeaderCell>
+            <ListHeaderCell title="Usable share after trimming and cooking">Yield %</ListHeaderCell><ListHeaderCell class="justify-end">Cost</ListHeaderCell><ListHeaderCell />
+          </ListHeader>
+          <ListRows :items="lines" row-key="item_code" v-slot="{ item: l, index: i }">
+            <ListRow class="min-h-11">
+              <ListCell class="min-w-0 gap-2"><span class="truncate">{{ l.item_name }}</span><Badge v-if="l.is_recipe" theme="blue" label="prep recipe" /></ListCell>
+              <ListCell><TextInput type="number" v-model="l.qty" min="0" step="any" class="w-full" /></ListCell>
+              <ListCell><Select v-model="l.uom" :options="l.uoms.map((u) => ({ label: u.uom, value: u.uom }))" class="w-full" /></ListCell>
+              <ListCell><TextInput type="number" v-model="l.yield_percent" min="1" max="100" class="w-full" /></ListCell>
+              <ListCell class="justify-end num">{{ money(lineCost(l)) }}</ListCell>
+              <ListCell class="justify-end"><Button variant="ghost" size="sm" icon="lucide-x" aria-label="Remove" @click="lines.splice(i, 1)" /></ListCell>
+            </ListRow>
+          </ListRows>
+        </List>
+        <p v-if="!lines.length && !loading" class="py-3 text-p-sm text-ink-gray-5">No recipe yet. Add the ingredients one portion uses.</p>
+        <div v-if="loading" class="py-3"><LoadingText /></div>
       </div>
-      <div class="relative">
-        <TextInput v-model="q" placeholder="Add an ingredient: type its name" :debounce="250"><template #prefix><span class="lucide-plus size-4 text-ink-gray-5" /></template></TextInput>
-        <div v-if="found.length" class="absolute z-10 mt-1 max-h-72 w-full overflow-y-auto rounded-6 border border-outline-gray-2 bg-surface-white p-1 shadow-lg">
-          <button v-for="f in found" :key="f.name" class="flex w-full items-center gap-2 rounded-4 px-2 py-1.5 text-left hover:bg-surface-gray-2" @click="add(f)">
-            <span class="min-w-0 flex-1 truncate text-base">{{ f.item_name }}</span>
-            <span v-if="f.is_recipe" class="text-xs text-ink-blue-6">prep recipe</span>
-            <span class="text-xs text-ink-gray-5">{{ money(f.unit_cost) }} / {{ f.stock_uom }}</span>
-          </button>
-        </div>
-      </div>
-      <div v-if="lines.length" class="flex flex-wrap gap-6 rounded-6 bg-surface-gray-1 px-3 py-2 text-base">
+      <Combobox class="w-full" :model-value="null" v-model:query="q" :options="foundOptions" :filterable="false" :loading="searching"
+        placeholder="Add an ingredient: type its name" empty-text="Type two letters or more to search stock items and prep recipes"
+        @update:model-value="pick" @update:open="(o) => o && (q = '')">
+        <template #prefix><span class="lucide-plus size-4 text-ink-gray-5" /></template>
+        <template #item-suffix="{ item: option }">
+          <Badge v-if="option.is_recipe" theme="blue" label="prep recipe" />
+          <span class="text-xs text-ink-gray-5">{{ money(option.unit_cost) }} / {{ option.stock_uom }}</span>
+        </template>
+      </Combobox>
+      <div v-if="lines.length" class="flex flex-wrap items-center gap-x-6 gap-y-2 text-base">
         <span>Cost per portion <b class="num">{{ cur }} {{ money(total) }}</b></span>
-        <span v-if="price">Food cost <b class="num" :class="pct > 35 ? 'text-ink-red-6' : pct > 30 ? 'text-ink-amber-6' : 'text-ink-green-6'">{{ pct.toFixed(1) }} %</b> of {{ money(price) }}</span>
+        <span v-if="price">Food cost <Badge :theme="pct > 35 ? 'red' : pct > 30 ? 'orange' : 'green'" :label="pct.toFixed(1) + ' %'" /> of {{ money(price) }}</span>
         <span v-if="r.versions && r.versions.length" class="text-p-sm text-ink-gray-5">{{ r.versions.length }} version{{ r.versions.length > 1 ? 's' : '' }} saved</span>
       </div>
     </template>
@@ -45,7 +49,8 @@
 </template>
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { Button, LoadingText, Select, TextInput, dialog } from 'frappe-ui'
+import { Alert, Badge, Button, Combobox, LoadingText, Select, TextInput, dialog } from 'frappe-ui'
+import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import { get, post, act } from '../api'
 import { state } from '../state'
 
@@ -66,7 +71,20 @@ async function load() {
   } finally { loading.value = false }
 }
 watch(() => props.item, load, { immediate: true })
-watch(q, async (v) => { found.value = v && v.length > 1 ? (await get('servepos.recipes.recipe.search_ingredients', { txt: v, exclude: props.item })).filter((f) => !lines.value.some((l) => l.item_code === f.name)) : [] })
+// ingredient search on the server (frappe-ui Combobox, server mode); a newer search wins over a slower older one
+const searching = ref(false)
+let seq = 0
+watch(q, async (v) => {
+  const mine = ++seq
+  if (!v || v.length < 2) return (found.value = [])
+  searching.value = true
+  try {
+    const res = await get('servepos.recipes.recipe.search_ingredients', { txt: v, exclude: props.item })
+    if (mine === seq) found.value = res.filter((f) => !lines.value.some((l) => l.item_code === f.name))
+  } finally { if (mine === seq) searching.value = false }
+})
+const foundOptions = computed(() => found.value.map((f) => ({ ...f, label: f.item_name, value: f.name })))
+function pick(v) { const f = found.value.find((x) => x.name === v); if (f) add(f) }
 
 const factor = (l) => (l.uoms.find((u) => u.uom === l.uom) || { factor: 1 }).factor
 const lineCost = (l) => (Number(l.qty || 0) * factor(l) / ((Number(l.yield_percent) || 100) / 100)) * Number(l.unit_cost || 0)
