@@ -97,12 +97,12 @@ import { Badge, Button, Checkbox, Dialog, FormControl, LoadingText, Switch, Text
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import Header from '../../components/Header.vue'
 import OutletPicker from '../components/OutletPicker.vue'
-import { useRead, get, post, act } from '../api'
+import { useRead, get, post, act, amount } from '../api'
 import { state, reloadSetup } from '../state'
 
 const groups = useRead('admin.list_modifier_groups', {})
 const q = ref('')
-const fmt = (v) => Number(v || 0).toLocaleString('en', { maximumFractionDigits: 2 })
+const fmt = amount
 const filtered = computed(() => {
   const t = q.value.toLowerCase()
   return (groups.data || []).filter((g) => !t || g.group_name.toLowerCase().includes(t) || g.options.some((o) => o.modifier_name.toLowerCase().includes(t)))

@@ -56,7 +56,7 @@ const money = amount
 const byOutlet = computed(() => {
   const m = {}
   for (const r of rep.data || []) m[r.outlet] = (m[r.outlet] || 0) + Number(r.markup_amount || 0)
-  return Object.entries(m).map(([outlet, markup]) => ({ outlet, markup: Math.round(markup * 100) / 100 })).sort((a, b) => b.markup - a.markup)
+  return Object.entries(m).map(([outlet, markup]) => ({ outlet, markup: Number(markup || 0) })).sort((a, b) => b.markup - a.markup)
 })
 const sum = (k) => (rep.data || []).reduce((a, r) => a + Number(r[k] || 0), 0)
 </script>
