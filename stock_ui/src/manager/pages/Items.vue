@@ -20,7 +20,7 @@
         <ListHeaderCell>Outlets</ListHeaderCell><ListHeaderCell>Status</ListHeaderCell><ListHeaderCell />
       </ListHeader>
       <ListRows :items="rows" v-slot="{ item, value }">
-        <ListRow :value="value" class="min-h-12" :class="item.servepos_is_disabled ? 'opacity-60' : ''">
+        <ListRow :value="value" class="min-h-12 cursor-pointer" :class="item.servepos_is_disabled ? 'opacity-60' : ''" @click.capture="openRow($event, item)">
           <ListCell class="gap-2">
             <Thumb :src="item.image" :text="item.item_name" />
             <div class="min-w-0">
@@ -92,6 +92,19 @@ import CopyMenuDialog from '../components/CopyMenuDialog.vue'
 import PinnedDialog from '../components/PinnedDialog.vue'
 import { get, post, act } from '../api'
 import { state, outletOptions, reloadSetup } from '../state'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+// A click on a row opens the item; only the checkbox selects it (frappe-ui's selectable rows
+// toggle on any click, so the click is caught here before the row sees it).
+function openRow(e, item) {
+  if (e.target.closest('[data-slot="list-row-checkbox"]')) return
+  e.preventDefault()
+  e.stopPropagation()
+  const to = router.resolve({ name: 'item', params: { name: item.name } })
+  if (e.metaKey || e.ctrlKey) window.open(to.href, '_blank')
+  else router.push(to)
+}
 
 const cols = ['minmax(220px,1fr)', '10rem', '6rem', '9rem', '7rem', '3rem']
 const search = ref(''), group = ref(''), status = ref('all'), outlet = ref(state.outlet)
