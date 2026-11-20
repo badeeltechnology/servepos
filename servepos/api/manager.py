@@ -9,7 +9,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, date_diff, flt, getdate, now_datetime, nowdate
 
-from servepos.api import pos_session
+from servepos.api import analytics, pos_session
 
 MANAGER_ROLES = {"System Manager", "ServePOS Manager"}
 VIEW_ROLES = MANAGER_ROLES | {"ServePOS Reporter"}
@@ -60,12 +60,6 @@ def get_context():
 	}
 
 
-def _totals(pos_profile, from_date, to_date):
-	"""Sales and order count from submitted POS sales (Sales Invoice is_pos and legacy POS Invoice)."""
-	_p, _s, rows = pos_session._fetch_pos_invoices(["name", "grand_total"], from_date, to_date, pos_profile)
-	return {"total_sales": sum(flt(r.grand_total) for r in rows), "order_count": len(rows)}
-
-
 def _pos_status(names):
 	"""Per outlet: when its last sale reached ERPNext and its last closed shift."""
 	if not names:
@@ -82,34 +76,218 @@ def _pos_status(names):
 	return out
 
 
+def _scope(pos_profile):
+	"""The outlets a report covers: the chosen one, or every outlet this user may see."""
+	return [pos_profile] if pos_profile else [p.name for p in _profiles()]
+
+
+def _dates(from_date, to_date):
+	f = str(getdate(from_date or nowdate()))
+	return f, str(getdate(to_date or f))
+
+
 @frappe.whitelist()
 def get_dashboard(pos_profile=None, from_date=None, to_date=None):
-	"""Everything the Today screen shows for one outlet or all of them, for a date range."""
+	"""Everything the Today and Sales screens show for one outlet or all of them, for a date range,
+	with the period before and the same dates last year to compare against."""
 	_require()
 	_check_profile(pos_profile)
-	from_date = str(getdate(from_date or nowdate()))
-	to_date = str(getdate(to_date or from_date))
-	days = date_diff(to_date, from_date) + 1
-	prev_to = str(add_days(from_date, -1))
-	prev_from = str(add_days(from_date, -days))
-
-	sales = pos_session.get_sales_analytics(pos_profile, from_date, to_date)
-	visible = [p.name for p in _profiles()]
-	summary = pos_session.get_profile_summary(from_date, to_date)
-	by_outlet = {r["profile"]: r for r in summary.get("rows", [])}
-	pos_status = _pos_status([pos_profile] if pos_profile else visible)
+	from_date, to_date = _dates(from_date, to_date)
+	scope = _scope(pos_profile)
+	per = analytics.periods(from_date, to_date)
+	sales = analytics.sales(scope, from_date, to_date, seed_profile=pos_profile)
+	now_by, prev_by = analytics.by_outlet(scope, from_date, to_date), analytics.by_outlet(scope, *per["previous"])
+	pos_status = _pos_status(scope)
 	outlets = []
-	for name in ([pos_profile] if pos_profile else visible):
-		r = by_outlet.get(name) or {}
-		outlets.append({"pos_profile": name, "total_sales": flt(r.get("total_sales")), "order_count": r.get("order_count") or 0,
-			"tips": flt(r.get("tips")), **pos_status.get(name, {})})
+	for name in scope:
+		r, p = now_by.get(name) or {}, prev_by.get(name) or {}
+		orders = int(flt(r.get("order_count")))
+		outlets.append({"pos_profile": name, "total_sales": flt(r.get("total_sales")), "order_count": orders,
+			"avg_order": flt(r.get("total_sales")) / orders if orders else 0, "guests": int(flt(r.get("guests"))),
+			"tips": flt(r.get("tips")), "discount": flt(r.get("discount")), "previous_sales": flt(p.get("total_sales")),
+			**pos_status.get(name, {})})
 	outlets.sort(key=lambda r: -r["total_sales"])
 	return {
-		"from_date": from_date, "to_date": to_date, "days": days,
-		"previous": {"from_date": prev_from, "to_date": prev_to, **_totals(pos_profile, prev_from, prev_to)},
+		"from_date": from_date, "to_date": to_date, "days": date_diff(to_date, from_date) + 1,
+		"previous": {"from_date": per["previous"][0], "to_date": per["previous"][1], **analytics.totals(scope, *per["previous"])},
+		"last_year": {"from_date": per["last_year"][0], "to_date": per["last_year"][1], **analytics.totals(scope, *per["last_year"])},
 		"sales": sales,
 		"outlets": outlets,
+		"day_start_hour": int(frappe.db.get_single_value("ServePOS Stock Settings", "day_start_hour") or 5) if frappe.db.exists("DocType", "ServePOS Stock Settings") else 5,
 		"generated_at": str(now_datetime()),
+	}
+
+
+@frappe.whitelist()
+def get_compare(pos_profile=None, from_date=None, to_date=None, against="previous", other_from=None, other_to=None):
+	"""Two periods side by side: totals, each outlet, each day (lined up by day), categories and
+	the items that moved most. against = previous | last_year | custom (other_from, other_to)."""
+	_require()
+	_check_profile(pos_profile)
+	from_date, to_date = _dates(from_date, to_date)
+	scope = _scope(pos_profile)
+	if against == "custom" and other_from:
+		b_from, b_to = _dates(other_from, other_to)
+	else:
+		b_from, b_to = analytics.periods(from_date, to_date)["last_year" if against == "last_year" else "previous"]
+
+	def day_series(f, t):
+		rows = {r.date: r for r in analytics._group(scope, f, t, "si.posting_date", "date")}
+		out, d = [], getdate(f)
+		while d <= getdate(t):
+			r = rows.get(d) or {}
+			out.append({"date": str(d), "total": flt(r.get("total")), "count": int(flt(r.get("count")))})
+			d = add_days(d, 1)
+		return out
+
+	def item_map(f, t):
+		return {r.item_code: r for r in analytics.items(scope, f, t)}
+
+	a_items, b_items = item_map(from_date, to_date), item_map(b_from, b_to)
+	moves = []
+	for code in set(a_items) | set(b_items):
+		a, b = a_items.get(code) or {}, b_items.get(code) or {}
+		moves.append({"item_code": code, "item_name": (a or b).get("item_name"), "item_group": (a or b).get("item_group"),
+			"a_qty": flt(a.get("total_qty")), "b_qty": flt(b.get("total_qty")),
+			"a_amount": flt(a.get("total_amount")), "b_amount": flt(b.get("total_amount"))})
+	for m in moves:
+		m["change"] = m["a_amount"] - m["b_amount"]
+	cats = {}
+	for m in moves:
+		c = cats.setdefault(m["item_group"] or "Uncategorized", {"category": m["item_group"] or "Uncategorized", "a": 0, "b": 0})
+		c["a"] += m["a_amount"]
+		c["b"] += m["b_amount"]
+	a_out, b_out = analytics.by_outlet(scope, from_date, to_date), analytics.by_outlet(scope, b_from, b_to)
+	outlets = []
+	for name in scope:
+		a, b = a_out.get(name) or {}, b_out.get(name) or {}
+		outlets.append({"pos_profile": name, "a_sales": flt(a.get("total_sales")), "b_sales": flt(b.get("total_sales")),
+			"a_orders": int(flt(a.get("order_count"))), "b_orders": int(flt(b.get("order_count"))),
+			"a_guests": int(flt(a.get("guests"))), "b_guests": int(flt(b.get("guests")))})
+	outlets.sort(key=lambda r: -r["a_sales"])
+	moves.sort(key=lambda m: m["change"])
+	return {
+		"a": {"from_date": from_date, "to_date": to_date, **analytics.totals(scope, from_date, to_date), "days": day_series(from_date, to_date)},
+		"b": {"from_date": b_from, "to_date": b_to, **analytics.totals(scope, b_from, b_to), "days": day_series(b_from, b_to)},
+		"outlets": outlets,
+		"categories": sorted(cats.values(), key=lambda c: -c["a"]),
+		"risers": [m for m in reversed(moves) if m["change"] > 0][:10],
+		"fallers": [m for m in moves if m["change"] < 0][:10],
+	}
+
+
+# ---------------------------------------------------------------- menu engineering and food cost
+
+def _cost_table(costs):
+	"""A derived table of (item, cost) to join sales against, built from parameters."""
+	if not costs:
+		return "(select '' as item_code, 0 as cost) rc", {}
+	parts, args = [], {}
+	for n, (code, cost) in enumerate(costs.items()):
+		parts.append(f"select %(rc_i{n})s as item_code, %(rc_c{n})s as cost")
+		args[f"rc_i{n}"], args[f"rc_c{n}"] = code, flt(cost)
+	return "(" + " union all ".join(parts) + ") rc", args
+
+
+@frappe.whitelist()
+def get_menu_engineering(pos_profile=None, from_date=None, to_date=None, item_group=None):
+	"""Each menu item by popularity (share of portions sold) and profit per portion (price less recipe
+	cost), against the averages of the items compared: Star (popular, profitable), Plowhorse (popular,
+	low profit), Puzzle (profitable, not popular), Dog (neither). Items without a recipe have no cost,
+	so they are listed apart."""
+	_require()
+	_check_profile(pos_profile)
+	from_date, to_date = _dates(from_date, to_date)
+	from servepos.recipes.recipe import all_recipe_costs
+
+	rows = [r for r in analytics.items(_scope(pos_profile), from_date, to_date) if flt(r.total_qty) > 0]
+	groups = sorted({r.item_group or "Uncategorized" for r in rows})
+	if item_group:
+		rows = [r for r in rows if (r.item_group or "Uncategorized") == item_group]
+	costs = all_recipe_costs([r.item_code for r in rows])
+	costed = [r for r in rows if r.item_code in costs]
+	total_qty = sum(flt(r.total_qty) for r in costed)
+	items, no_recipe = [], []
+	for r in rows:
+		qty, amount = flt(r.total_qty), flt(r.net_amount or r.total_amount)
+		price = amount / qty if qty else 0
+		row = {"item_code": r.item_code, "item_name": r.item_name, "item_group": r.item_group, "qty": qty, "sales": amount, "price": price}
+		if r.item_code not in costs:
+			no_recipe.append(row)
+			continue
+		cost = flt(costs[r.item_code])
+		row.update({"cost": cost, "margin": price - cost, "total_margin": (price - cost) * qty,
+			"food_cost_pct": cost / price * 100 if price else 0, "mix_pct": qty / total_qty * 100 if total_qty else 0})
+		items.append(row)
+	avg_margin = sum(i["total_margin"] for i in items) / total_qty if total_qty else 0
+	# popular: at least 70 % of an even share (the usual menu engineering rule)
+	pop_line = (100 / len(items)) * 0.7 if items else 0
+	for i in items:
+		popular, profitable = i["mix_pct"] >= pop_line, i["margin"] >= avg_margin
+		i["class"] = "Star" if popular and profitable else "Plowhorse" if popular else "Puzzle" if profitable else "Dog"
+	items.sort(key=lambda i: -i["total_margin"])
+	no_recipe.sort(key=lambda i: -i["sales"])
+	return {"from_date": from_date, "to_date": to_date, "item_group": item_group or "", "groups": groups,
+		"avg_margin": avg_margin, "popularity_line": pop_line, "items": items, "no_recipe": no_recipe,
+		"no_recipe_sales": sum(i["sales"] for i in no_recipe), "costed_sales": sum(i["sales"] for i in items)}
+
+
+@frappe.whitelist()
+def get_food_cost(pos_profile=None, from_date=None, to_date=None):
+	"""Food cost from recipes (what the sales should have used, at today's ingredient costs) per outlet
+	and per day, next to what day close took out of stock, shortfalls still open and recorded waste."""
+	_require()
+	_check_profile(pos_profile)
+	from_date, to_date = _dates(from_date, to_date)
+	from servepos.recipes.recipe import all_recipe_costs
+
+	scope = _scope(pos_profile)
+	costs = all_recipe_costs()
+	rc, rc_args = _cost_table(costs)
+	w, a = analytics._where(scope, from_date, to_date)
+	a.update(rc_args)
+	base = f"""from `tabSales Invoice Item` sii join `tabSales Invoice` si on si.name = sii.parent
+		left join {rc} on rc.item_code = sii.item_code where {w}"""
+	cols = """sum(sii.net_amount) as sales, sum(if(rc.item_code is null, 0, sii.net_amount)) as recipe_sales,
+		sum(coalesce(rc.cost, 0) * sii.stock_qty) as cost"""
+
+	def shape(r):
+		sales, rs, cost = flt(r.sales), flt(r.recipe_sales), flt(r.cost)
+		return {"sales": sales, "recipe_sales": rs, "cost": cost, "food_cost_pct": cost / rs * 100 if rs else 0,
+			"coverage_pct": rs / sales * 100 if sales else 0}
+
+	total = shape(frappe.db.sql(f"select {cols} {base}", a, as_dict=True)[0])
+	daily = [{"date": str(r.d), **shape(r)} for r in frappe.db.sql(f"select si.posting_date as d, {cols} {base} group by 1 order by 1", a, as_dict=True)]
+	per_outlet = {r.p: shape(r) for r in frappe.db.sql(f"select si.pos_profile as p, {cols} {base} group by 1", a, as_dict=True)}
+
+	dc = {r.pos_profile: r for r in frappe.db.sql("""select pos_profile, sum(consumed_value) as posted, sum(short_lines) as short_lines, count(*) as days
+		from `tabServePOS Day Close` where docstatus < 2 and status != 'Cancelled' and business_date between %(f)s and %(t)s and pos_profile in %(ps)s
+		group by pos_profile""", {"f": from_date, "t": to_date, "ps": tuple(scope) or ("-",)}, as_dict=True)}
+	wh = {p.name: p.warehouse for p in _profiles() if p.name in scope}
+	waste = {}
+	if wh and frappe.db.exists("Stock Entry Type", "POS Waste"):
+		for r in frappe.db.sql("""select sed.s_warehouse as wh, sum(sed.amount) as v from `tabStock Entry Detail` sed
+				join `tabStock Entry` se on se.name = sed.parent
+				where se.docstatus = 1 and se.stock_entry_type = 'POS Waste' and se.posting_date between %(f)s and %(t)s
+				and sed.s_warehouse in %(w)s group by sed.s_warehouse""", {"f": from_date, "t": to_date, "w": tuple(set(wh.values())) or ("-",)}, as_dict=True):
+			waste[r.wh] = flt(r.v)
+	outlets = []
+	for name in scope:
+		d = dc.get(name) or {}
+		outlets.append({"pos_profile": name, **per_outlet.get(name, shape(frappe._dict())), "posted": flt(d.get("posted")),
+			"closed_days": int(flt(d.get("days"))), "short_lines": int(flt(d.get("short_lines"))), "waste": waste.get(wh.get(name), 0)})
+	outlets.sort(key=lambda o: -o["sales"])
+
+	items = frappe.db.sql(f"""select sii.item_code, max(sii.item_name) as item_name, sum(sii.qty) as qty, sum(sii.net_amount) as sales,
+			sum(coalesce(rc.cost, 0) * sii.stock_qty) as cost, max(rc.item_code is not null) as has_recipe
+		{base} group by sii.item_code order by sales desc""", a, as_dict=True)
+	with_recipe = [{**r, "food_cost_pct": flt(r.cost) / flt(r.sales) * 100 if flt(r.sales) else 0} for r in items if r.has_recipe]
+	return {
+		"from_date": from_date, "to_date": to_date, "total": total, "daily": daily, "outlets": outlets,
+		"posted": sum(o["posted"] for o in outlets), "waste": sum(o["waste"] for o in outlets),
+		"short_lines": sum(o["short_lines"] for o in outlets), "recipes": len(costs),
+		"highest": sorted(with_recipe, key=lambda r: -r["food_cost_pct"])[:15],
+		"no_recipe": [r for r in items if not r.has_recipe][:20],
 	}
 
 

@@ -37,7 +37,7 @@
         </div>
       </section>
 
-      <RecipeEditor v-if="!isNew" :item="form.name" :price="Number(form.standard_rate) || 0" :stock-item="!!form.is_stock_item" />
+      <RecipeEditor id="recipe" class="scroll-mt-16" v-if="!isNew" :item="form.name" :price="Number(form.standard_rate) || 0" :stock-item="!!form.is_stock_item" />
 
       <section class="space-y-2">
         <div class="flex items-center justify-between"><h2 class="text-base-semibold">Modifier groups</h2>
@@ -83,7 +83,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Badge, Button, Checkbox, Dropdown, FormControl, LoadingText, Select, Switch, dialog, toast } from 'frappe-ui'
 import Header from '../../components/Header.vue'
@@ -104,6 +104,9 @@ function cell(p) {
   if (!form.outlets[p]) form.outlets[p] = { pos: false, web: false }
   return form.outlets[p]
 }
+// opened from Recipes, Menu engineering or Food cost: go straight to the recipe
+watch(loaded, (v) => { if (v && window.location.hash === '#recipe') nextTick(() => document.getElementById('recipe')?.scrollIntoView({ block: 'start' })) })
+
 async function load() {
   loaded.value = false
   Object.assign(form, blank())

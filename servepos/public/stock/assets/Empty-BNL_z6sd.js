@@ -1,1 +1,0 @@
-import{ao as t,o as s,c as o,x as c}from"./index-B4DyTVUc.js";const r={},n={class:"px-3 py-10 text-center text-p-sm text-ink-gray-5"};function a(e,_){return s(),o("div",n,[c(e.$slots,"default")])}const l=t(r,[["render",a]]);export{l as E};

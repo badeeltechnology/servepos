@@ -83,6 +83,38 @@ def recipe_cost(item_code, depth=0):
 	return total / (flt(doc.quantity) or 1)
 
 
+def all_recipe_costs(item_codes=None):
+	"""Cost of one portion for every menu item (or the given ones) that has a recipe, from today's
+	ingredient costs, in a few queries. Prep recipes inside recipes are costed too. {item: cost}"""
+	boms = frappe.db.sql("""select name, item, quantity from `tabBOM` where is_default = 1 and is_active = 1 and docstatus = 1""", as_dict=True)
+	if not boms:
+		return {}
+	by_bom = {b.name: b for b in boms}
+	lines = {}
+	for r in frappe.db.sql("""select parent, item_code, stock_qty from `tabBOM Item` where parent in %(b)s""", {"b": tuple(by_bom)}, as_dict=True):
+		lines.setdefault(r.parent, []).append(r)
+	bom_of = {b.item: b.name for b in boms}
+	ingredients = {l.item_code for ls in lines.values() for l in ls}
+	stock = set(frappe.get_all("Item", filters={"name": ["in", list(ingredients)], "is_stock_item": 1}, pluck="name")) if ingredients else set()
+	rates = unit_cost(list(stock))
+	memo = {}
+
+	def cost(item, depth=0):
+		if item in memo:
+			return memo[item]
+		bom = bom_of.get(item)
+		if not bom or depth > 5:
+			return 0
+		total = 0
+		for l in lines.get(bom, []):
+			total += flt(l.stock_qty) * (flt(rates.get(l.item_code)) if l.item_code in stock else cost(l.item_code, depth + 1))
+		memo[item] = total / (flt(by_bom[bom].quantity) or 1)
+		return memo[item]
+
+	wanted = item_codes if item_codes is not None else list(bom_of)
+	return {i: cost(i) for i in wanted if i in bom_of}
+
+
 @frappe.whitelist()
 def search_ingredients(txt="", exclude=None):
 	"""Stock items, and menu items or prep recipes that have a recipe of their own."""
@@ -150,3 +182,63 @@ def remove_recipe(item):
 		frappe.db.set_value("BOM", b, {"is_default": 0, "is_active": 0})
 	frappe.db.set_value("Item", item, "default_bom", None)
 	return {"ok": 1}
+
+
+@frappe.whitelist()
+def list_recipes(search=None, item_group=None, status="all", from_date=None, to_date=None):
+	"""Every menu item with its recipe state: cost per portion, food cost %, ingredient count and how
+	much it sold in the period (so the best sellers without a recipe can be done first)."""
+	_assert()
+	from frappe.utils import add_days, getdate, nowdate
+	from servepos.api.admin import menu_groups
+
+	filters = {"disabled": 0, "is_stock_item": 0, "item_group": ["in", menu_groups() or ["-"]], "servepos_is_disabled": 0}
+	if item_group:
+		filters["item_group"] = item_group
+	or_filters = None
+	if search:
+		s = f"%{search.strip()}%"
+		or_filters = {"item_name": ["like", s], "name": ["like", s]}
+	items = frappe.get_all("Item", filters=filters, or_filters=or_filters, fields=["name", "item_name", "item_group", "standard_rate", "image"],
+		order_by="item_name asc", limit_page_length=0)
+	codes = [i.name for i in items]
+	costs = all_recipe_costs(codes)
+	boms = {}
+	if costs:
+		for r in frappe.db.sql("""select b.item, b.name, b.modified, count(bi.name) as n_lines from `tabBOM` b
+				left join `tabBOM Item` bi on bi.parent = b.name
+				where b.is_default = 1 and b.is_active = 1 and b.docstatus = 1 and b.item in %(c)s group by b.name""", {"c": tuple(costs)}, as_dict=True):
+			boms[r.item] = r
+	t = getdate(to_date or nowdate())
+	f = getdate(from_date or add_days(t, -29))
+	sold = {}
+	if codes:
+		for r in frappe.db.sql("""select sii.item_code, sum(sii.qty) as qty, sum(sii.net_amount) as sales
+				from `tabSales Invoice Item` sii join `tabSales Invoice` si on si.name = sii.parent
+				where si.is_pos = 1 and si.docstatus = 1 and si.posting_date between %(f)s and %(t)s and sii.item_code in %(c)s
+				group by sii.item_code""", {"f": f, "t": t, "c": tuple(codes)}, as_dict=True):
+			sold[r.item_code] = r
+	rows = []
+	for i in items:
+		price = flt(i.standard_rate)
+		has = i.name in costs
+		s = sold.get(i.name) or {}
+		row = {"item_code": i.name, "item_name": i.item_name, "item_group": i.item_group, "image": i.image, "price": price,
+			"has_recipe": has, "cost": flt(costs.get(i.name)) if has else None,
+			"food_cost_pct": flt(costs.get(i.name)) / price * 100 if has and price else None,
+			"ingredients": (boms.get(i.name) or {}).get("n_lines") or 0, "updated": str((boms.get(i.name) or {}).get("modified") or "")[:10],
+			"qty_sold": flt(s.get("qty")), "sales": flt(s.get("sales"))}
+		rows.append(row)
+	counts = {"all": len(rows), "with": sum(1 for r in rows if r["has_recipe"]), "without": sum(1 for r in rows if not r["has_recipe"]),
+		"high": sum(1 for r in rows if (r["food_cost_pct"] or 0) > 35)}
+	if status == "with":
+		rows = [r for r in rows if r["has_recipe"]]
+	elif status == "without":
+		rows = [r for r in rows if not r["has_recipe"]]
+	elif status == "high":
+		rows = [r for r in rows if (r["food_cost_pct"] or 0) > 35]
+	rows.sort(key=lambda r: (-r["sales"], r["item_name"] or ""))
+	covered = sum(r["sales"] for r in rows if r["has_recipe"])
+	all_sales = sum(r["sales"] for r in rows)
+	return {"rows": rows, "counts": counts, "from_date": str(f), "to_date": str(t),
+		"sales_covered_pct": covered / all_sales * 100 if all_sales else 0}
