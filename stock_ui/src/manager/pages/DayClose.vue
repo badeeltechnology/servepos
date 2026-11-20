@@ -104,20 +104,20 @@ const outlet = ref(state.outlet), cur = state.ctx.currency || ''
 const money = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const themes = { Closed: 'green', 'Closed with shortfall': 'amber', 'Nothing to post': 'gray', Cancelled: 'gray' }
 const lineThemes = { Posted: 'green', Short: 'amber', 'Posted later': 'blue', 'Settled by count': 'gray', Cancelled: 'gray' }
-const list = useRead('recipes.api.list_day_closes', () => ({ pos_profile: outlet.value || null, from_date: range.value[0], to_date: range.value[1] }))
+const list = useRead('servepos.recipes.api.list_day_closes', () => ({ pos_profile: outlet.value || null, from_date: range.value[0], to_date: range.value[1] }))
 
 const cl = reactive({ open: false, outlet: '', date: '', preview: null, loading: false, busy: false })
 function openClose() { Object.assign(cl, { open: true, outlet: outlet.value || state.ctx.profiles[0]?.name, date: shiftDate(list.data?.business_date || state.ctx.today, -1), preview: null }) }
 watch(() => [cl.open, cl.outlet, cl.date], async () => {
   if (!cl.open || !cl.outlet || !cl.date) return
   cl.loading = true
-  try { cl.preview = await get('recipes.api.preview_day', { pos_profile: cl.outlet, business_date: cl.date }) } finally { cl.loading = false }
+  try { cl.preview = await get('servepos.recipes.api.preview_day', { pos_profile: cl.outlet, business_date: cl.date }) } finally { cl.loading = false }
 })
 async function doClose(close) {
   const now = list.data && cl.date >= list.data.business_date
   const go = async () => {
     cl.busy = true
-    const name = await act(() => post('recipes.api.close_day', { pos_profile: cl.outlet, business_date: cl.date, force: now ? 1 : 0 }), 'Day closed')
+    const name = await act(() => post('servepos.recipes.api.close_day', { pos_profile: cl.outlet, business_date: cl.date, force: now ? 1 : 0 }), 'Day closed')
     cl.busy = false
     if (name) { close(); list.reload(); open(name) }
   }
@@ -126,15 +126,15 @@ async function doClose(close) {
 }
 
 const dt = reactive({ open: false, d: null, busy: false })
-async function open(name) { Object.assign(dt, { open: true, d: null }); dt.d = await get('recipes.api.get_day_close', { name }) }
+async function open(name) { Object.assign(dt, { open: true, d: null }); dt.d = await get('servepos.recipes.api.get_day_close', { name }) }
 async function retry() {
   dt.busy = true
-  const r = await act(() => post('recipes.api.retry_shortfalls', { name: dt.d.name }), (r) => (r.length ? 'Posted what is now in stock' : 'Still not in stock'))
+  const r = await act(() => post('servepos.recipes.api.retry_shortfalls', { name: dt.d.name }), (r) => (r.length ? 'Posted what is now in stock' : 'Still not in stock'))
   dt.busy = false
   if (r) { open(dt.d.name); list.reload() }
 }
 function undo(close) {
   dialog.danger({ title: 'Undo this day close?', message: 'Its stock entries are cancelled and the ingredients go back to stock. You can close the day again after fixing recipes.', confirmLabel: 'Undo',
-    onConfirm: async () => { await post('recipes.api.cancel_day_close', { name: dt.d.name }); close(); list.reload() } })
+    onConfirm: async () => { await post('servepos.recipes.api.cancel_day_close', { name: dt.d.name }); close(); list.reload() } })
 }
 </script>
