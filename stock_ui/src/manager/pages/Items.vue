@@ -90,7 +90,7 @@ import OutletPicker from '../components/OutletPicker.vue'
 import CategoriesDialog from '../components/CategoriesDialog.vue'
 import CopyMenuDialog from '../components/CopyMenuDialog.vue'
 import PinnedDialog from '../components/PinnedDialog.vue'
-import { get, post, act } from '../api'
+import { get, post, act, amount } from '../api'
 import { state, outletOptions, reloadSetup } from '../state'
 import { useRouter } from 'vue-router'
 
@@ -113,7 +113,7 @@ const groupOptions = computed(() => [{ label: 'All categories', value: '' }, ...
 const rows = ref([]), total = ref(0), loading = ref(false), loaded = ref(false), selection = ref([]), busy = ref(false)
 const anyFilter = computed(() => search.value || group.value || outlet.value || status.value !== 'all')
 const profileCount = computed(() => state.setup.profiles.length)
-const fmtPrice = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmtPrice = amount
 
 async function load(more = false) {
   loading.value = true

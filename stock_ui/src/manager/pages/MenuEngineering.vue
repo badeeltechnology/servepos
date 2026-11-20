@@ -77,7 +77,7 @@ import { NumberCard, ScatterChart } from 'frappe-ui/charts'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import Header from '../../components/Header.vue'
 import SummaryList from '../components/SummaryList.vue'
-import { useRead } from '../api'
+import { useRead, amount } from '../api'
 import { fmt } from '../../api'
 import { state, setOutlet, outletOptions } from '../state'
 import { usePeriod } from '../period'
@@ -90,7 +90,7 @@ const group = ref(''), pick = ref(''), noRecipeLimit = ref(10)
 const r = useRead('manager.get_menu_engineering', () => ({ pos_profile: outlet.value || null, from_date: range.value[0], to_date: range.value[1], item_group: group.value || null }))
 const d = computed(() => r.data)
 const groupOptions = computed(() => [{ label: 'All categories', value: '' }, ...((d.value && d.value.groups) || []).map((g) => ({ label: g, value: g }))])
-const num2 = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const num2 = amount
 
 const classes = [
   { key: 'Star', label: 'Stars', theme: 'green', what: 'Popular and profitable.', todo: 'Keep them visible, keep the quality and portion steady.' },

@@ -105,7 +105,7 @@ import { BarChart, DonutChart, NumberCard } from 'frappe-ui/charts'
 import Header from '../../components/Header.vue'
 import Empty from '../../components/Empty.vue'
 import { errText, fmt, fmtDate } from '../../api'
-import { useRead, money as moneyCur, ago } from '../api'
+import { useRead, money as moneyCur, ago, amount } from '../api'
 import { state, setOutlet } from '../state'
 
 const today = state.ctx.today
@@ -143,7 +143,7 @@ onBeforeUnmount(() => clearInterval(timer))
 const cur = state.ctx.currency || ''
 const curP = cur ? cur + ' ' : ''
 const money = (v) => moneyCur(v)
-const num2 = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const num2 = amount
 const num0 = (v) => Number(v || 0).toLocaleString('en', { maximumFractionDigits: 0 })
 const pct = (now, before) => (d.value && before ? ((Number(now || 0) - before) / before) * 100 : null)
 

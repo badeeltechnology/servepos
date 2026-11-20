@@ -61,8 +61,11 @@ def _request_id(value):
 	return value.strip()
 
 
-def _precision():
-	return cint(frappe.db.get_single_value("System Settings", "currency_precision")) or 2
+def _precision(currency=None):
+	# ERPNext's rule: System Settings currency precision, else the currency's own decimals (OMR 3)
+	from servepos.api.currency import currency_precision
+
+	return currency_precision(currency)
 
 
 def _profile_currency(pos_profile):
@@ -523,9 +526,10 @@ def bootstrap(pos_profile=None, version=None):
 	profile = security.assert_profile_access(waiter, pos_profile)
 	settings = security.get_settings()
 	menu = build_menu(profile.name)
+	currency = profile.currency or _profile_currency(profile.name)
 	data = {
-		"currency": profile.currency or _profile_currency(profile.name),
-		"currency_precision": _precision(),
+		"currency": currency,
+		"currency_precision": _precision(currency),
 		"settings": {
 			"order_start_time": _str_time(settings.order_start_time),
 			"order_end_time": _str_time(settings.order_end_time),
