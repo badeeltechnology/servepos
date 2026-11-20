@@ -17,7 +17,7 @@
     <List v-model:selection="selection" :columns="cols" selectable class="-mx-3 list-row-px-3">
       <ListHeader>
         <ListHeaderCell>Item</ListHeaderCell><ListHeaderCell>Category</ListHeaderCell><ListHeaderCell class="justify-end">Price</ListHeaderCell>
-        <ListHeaderCell>Outlets</ListHeaderCell><ListHeaderCell>Status</ListHeaderCell><ListHeaderCell />
+        <ListHeaderCell class="pl-6">Outlets</ListHeaderCell><ListHeaderCell>Status</ListHeaderCell><ListHeaderCell />
       </ListHeader>
       <ListRows :items="rows" v-slot="{ item, value }">
         <ListRow :value="value" class="min-h-12 cursor-pointer" :class="item.servepos_is_disabled ? 'opacity-60' : ''" @click.capture="openRow($event, item)">
@@ -30,7 +30,7 @@
           </ListCell>
           <ListCell class="text-sm text-ink-gray-6">{{ item.item_group }}</ListCell>
           <ListCell class="justify-end num">{{ fmtPrice(item.standard_rate) }}</ListCell>
-          <ListCell class="text-sm" :class="item.outlets.length ? 'text-ink-gray-7' : 'text-ink-red-6'">{{ outletText(item) }}</ListCell>
+          <ListCell class="pl-6 text-sm" :class="item.outlets.length ? 'text-ink-gray-7' : 'text-ink-red-6'">{{ outletText(item) }}</ListCell>
           <ListCell><Badge :theme="statusOf(item).theme" :label="statusOf(item).label" /></ListCell>
           <ListCell class="justify-end"><Button variant="ghost" icon="lucide-chevron-right" aria-label="Open" class="relative" :route="{ name: 'item', params: { name: item.name } }" @click.stop /></ListCell>
         </ListRow>
@@ -106,7 +106,7 @@ function openRow(e, item) {
   else router.push(to)
 }
 
-const cols = ['minmax(220px,1fr)', '10rem', '6rem', '9rem', '7rem', '3rem']
+const cols = ['minmax(220px,1fr)', '10rem', '6rem', '10.5rem', '7rem', '3rem']
 const search = ref(''), group = ref(''), status = ref('all'), outlet = ref(state.outlet)
 const statusOptions = [{ label: 'All', value: 'all' }, { label: 'Active', value: 'active' }, { label: 'Sold out', value: 'unavailable' }, { label: 'Disabled', value: 'disabled' }]
 const groupOptions = computed(() => [{ label: 'All categories', value: '' }, ...state.setup.groups.map((g) => ({ label: g, value: g }))])
