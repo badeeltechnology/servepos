@@ -96,7 +96,7 @@ def get_dashboard(pos_profile=None, from_date=None, to_date=None):
 	scope = _scope(pos_profile)
 	per = analytics.periods(from_date, to_date)
 	sales = analytics.sales(scope, from_date, to_date, seed_profile=pos_profile)
-	now_by, prev_by = analytics.by_outlet(scope, from_date, to_date), analytics.by_outlet(scope, *per["previous"])
+	now_by, prev_by = sales.pop("by_outlet"), analytics.by_outlet(scope, *per["previous"])
 	pos_status = _pos_status(scope)
 	outlets = []
 	for name in scope:
@@ -131,12 +131,14 @@ def get_compare(pos_profile=None, from_date=None, to_date=None, against="previou
 	else:
 		b_from, b_to = analytics.periods(from_date, to_date)["last_year" if against == "last_year" else "previous"]
 
-	def day_series(f, t):
-		rows = {r.date: r for r in analytics._group(scope, f, t, "si.posting_date", "date")}
+	ta, ga = analytics._pass(scope, from_date, to_date)
+	tb, gb = analytics._pass(scope, b_from, b_to)
+
+	def day_series(g, f, t):
 		out, d = [], getdate(f)
 		while d <= getdate(t):
-			r = rows.get(d) or {}
-			out.append({"date": str(d), "total": flt(r.get("total")), "count": int(flt(r.get("count")))})
+			r = g["day"].get(d) or {}
+			out.append({"date": str(d), "total": flt(r.get("total")), "count": int(r.get("count") or 0)})
 			d = add_days(d, 1)
 		return out
 
@@ -157,18 +159,17 @@ def get_compare(pos_profile=None, from_date=None, to_date=None, against="previou
 		c = cats.setdefault(m["item_group"] or "Uncategorized", {"category": m["item_group"] or "Uncategorized", "a": 0, "b": 0})
 		c["a"] += m["a_amount"]
 		c["b"] += m["b_amount"]
-	a_out, b_out = analytics.by_outlet(scope, from_date, to_date), analytics.by_outlet(scope, b_from, b_to)
 	outlets = []
 	for name in scope:
-		a, b = a_out.get(name) or {}, b_out.get(name) or {}
-		outlets.append({"pos_profile": name, "a_sales": flt(a.get("total_sales")), "b_sales": flt(b.get("total_sales")),
-			"a_orders": int(flt(a.get("order_count"))), "b_orders": int(flt(b.get("order_count"))),
+		a, b = ga["outlet"].get(name) or {}, gb["outlet"].get(name) or {}
+		outlets.append({"pos_profile": name, "a_sales": flt(a.get("total")), "b_sales": flt(b.get("total")),
+			"a_orders": int(a.get("count") or 0), "b_orders": int(b.get("count") or 0),
 			"a_guests": int(flt(a.get("guests"))), "b_guests": int(flt(b.get("guests")))})
 	outlets.sort(key=lambda r: -r["a_sales"])
 	moves.sort(key=lambda m: m["change"])
 	return {
-		"a": {"from_date": from_date, "to_date": to_date, **analytics.totals(scope, from_date, to_date), "days": day_series(from_date, to_date)},
-		"b": {"from_date": b_from, "to_date": b_to, **analytics.totals(scope, b_from, b_to), "days": day_series(b_from, b_to)},
+		"a": {"from_date": from_date, "to_date": to_date, **ta, "days": day_series(ga, from_date, to_date)},
+		"b": {"from_date": b_from, "to_date": b_to, **tb, "days": day_series(gb, b_from, b_to)},
 		"outlets": outlets,
 		"categories": sorted(cats.values(), key=lambda c: -c["a"]),
 		"risers": [m for m in reversed(moves) if m["change"] > 0][:10],
@@ -177,17 +178,6 @@ def get_compare(pos_profile=None, from_date=None, to_date=None, against="previou
 
 
 # ---------------------------------------------------------------- menu engineering and food cost
-
-def _cost_table(costs):
-	"""A derived table of (item, cost) to join sales against, built from parameters."""
-	if not costs:
-		return "(select '' as item_code, 0 as cost) rc", {}
-	parts, args = [], {}
-	for n, (code, cost) in enumerate(costs.items()):
-		parts.append(f"select %(rc_i{n})s as item_code, %(rc_c{n})s as cost")
-		args[f"rc_i{n}"], args[f"rc_c{n}"] = code, flt(cost)
-	return "(" + " union all ".join(parts) + ") rc", args
-
 
 @frappe.whitelist()
 def get_menu_engineering(pos_profile=None, from_date=None, to_date=None, item_group=None):
@@ -243,22 +233,42 @@ def get_food_cost(pos_profile=None, from_date=None, to_date=None):
 
 	scope = _scope(pos_profile)
 	costs = all_recipe_costs()
-	rc, rc_args = _cost_table(costs)
 	w, a = analytics._where(scope, from_date, to_date)
-	a.update(rc_args)
-	base = f"""from `tabSales Invoice Item` sii join `tabSales Invoice` si on si.name = sii.parent
-		left join {rc} on rc.item_code = sii.item_code where {w}"""
-	cols = """sum(sii.net_amount) as sales, sum(if(rc.item_code is null, 0, sii.net_amount)) as recipe_sales,
-		sum(coalesce(rc.cost, 0) * sii.stock_qty) as cost"""
 
-	def shape(r):
-		sales, rs, cost = flt(r.sales), flt(r.recipe_sales), flt(r.cost)
+	def lines(key):
+		# sales lines grouped by (key, item): the covering index answers this without reading invoice rows
+		return frappe.db.sql(f"""select {key} as k, sii.item_code, sum(sii.stock_qty) as qty, sum(sii.qty) as sold, sum(sii.net_amount) as sales
+			from `tabSales Invoice Item` sii join `tabSales Invoice` si on si.name = sii.parent where {w} group by 1, 2""", a, as_dict=True)
+
+	def roll(rows):
+		out = {}
+		for r in rows:
+			o = out.setdefault(r.k, {"sales": 0.0, "recipe_sales": 0.0, "cost": 0.0})
+			o["sales"] += flt(r.sales)
+			if r.item_code in costs:
+				o["recipe_sales"] += flt(r.sales)
+				o["cost"] += flt(r.qty) * flt(costs[r.item_code])
+		return out
+
+	def shape(o):
+		sales, rs, cost = flt(o.get("sales")), flt(o.get("recipe_sales")), flt(o.get("cost"))
 		return {"sales": sales, "recipe_sales": rs, "cost": cost, "food_cost_pct": cost / rs * 100 if rs else 0,
 			"coverage_pct": rs / sales * 100 if sales else 0}
 
-	total = shape(frappe.db.sql(f"select {cols} {base}", a, as_dict=True)[0])
-	daily = [{"date": str(r.d), **shape(r)} for r in frappe.db.sql(f"select si.posting_date as d, {cols} {base} group by 1 order by 1", a, as_dict=True)]
-	per_outlet = {r.p: shape(r) for r in frappe.db.sql(f"select si.pos_profile as p, {cols} {base} group by 1", a, as_dict=True)}
+	by_outlet_items = lines("si.pos_profile")
+	per_outlet = {k: shape(v) for k, v in roll(by_outlet_items).items()}
+	total = shape({f: sum(flt(o[f]) for o in per_outlet.values()) for f in ("sales", "recipe_sales", "cost")})
+	daily = [{"date": str(k), **shape(v)} for k, v in sorted(roll(lines("si.posting_date")).items())]
+	items = {}
+	for r in by_outlet_items:
+		it = items.setdefault(r.item_code, {"item_code": r.item_code, "qty": 0.0, "sales": 0.0, "cost": 0.0, "has_recipe": r.item_code in costs})
+		it["qty"] += flt(r.sold)
+		it["sales"] += flt(r.sales)
+		it["cost"] += flt(r.qty) * flt(costs.get(r.item_code) or 0)
+	names = dict(frappe.get_all("Item", filters={"name": ["in", list(items) or ["-"]]}, fields=["name", "item_name"], as_list=True)) if items else {}
+	for it in items.values():
+		it["item_name"] = names.get(it["item_code"]) or it["item_code"]
+	items = sorted(items.values(), key=lambda r: -r["sales"])
 
 	dc = {r.pos_profile: r for r in frappe.db.sql("""select pos_profile, sum(consumed_value) as posted, sum(short_lines) as short_lines, count(*) as days
 		from `tabServePOS Day Close` where docstatus < 2 and status != 'Cancelled' and business_date between %(f)s and %(t)s and pos_profile in %(ps)s
@@ -274,20 +284,17 @@ def get_food_cost(pos_profile=None, from_date=None, to_date=None):
 	outlets = []
 	for name in scope:
 		d = dc.get(name) or {}
-		outlets.append({"pos_profile": name, **per_outlet.get(name, shape(frappe._dict())), "posted": flt(d.get("posted")),
+		outlets.append({"pos_profile": name, **per_outlet.get(name, shape({})), "posted": flt(d.get("posted")),
 			"closed_days": int(flt(d.get("days"))), "short_lines": int(flt(d.get("short_lines"))), "waste": waste.get(wh.get(name), 0)})
 	outlets.sort(key=lambda o: -o["sales"])
 
-	items = frappe.db.sql(f"""select sii.item_code, max(sii.item_name) as item_name, sum(sii.qty) as qty, sum(sii.net_amount) as sales,
-			sum(coalesce(rc.cost, 0) * sii.stock_qty) as cost, max(rc.item_code is not null) as has_recipe
-		{base} group by sii.item_code order by sales desc""", a, as_dict=True)
-	with_recipe = [{**r, "food_cost_pct": flt(r.cost) / flt(r.sales) * 100 if flt(r.sales) else 0} for r in items if r.has_recipe]
+	with_recipe = [{**r, "food_cost_pct": flt(r["cost"]) / flt(r["sales"]) * 100 if flt(r["sales"]) else 0} for r in items if r["has_recipe"]]
 	return {
 		"from_date": from_date, "to_date": to_date, "total": total, "daily": daily, "outlets": outlets,
 		"posted": sum(o["posted"] for o in outlets), "waste": sum(o["waste"] for o in outlets),
 		"short_lines": sum(o["short_lines"] for o in outlets), "recipes": len(costs),
 		"highest": sorted(with_recipe, key=lambda r: -r["food_cost_pct"])[:15],
-		"no_recipe": [r for r in items if not r.has_recipe][:20],
+		"no_recipe": [r for r in items if not r["has_recipe"]][:20],
 	}
 
 
