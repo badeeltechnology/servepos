@@ -137,6 +137,7 @@ const nav = computed(() => {
     out.push(
       { section: 'Menu', key: 'menu' },
       { route: '/items', label: 'Menu items', icon: 'lucide-utensils' },
+      { route: '/recipes', label: 'Recipes', icon: 'lucide-chef-hat' },
       { route: '/modifiers', label: 'Modifiers', icon: 'lucide-list-plus' },
       { route: '/offers', label: 'Promos and vouchers', icon: 'lucide-ticket-percent' },
       { section: 'Restaurant', key: 'rest' },
@@ -152,7 +153,13 @@ const nav = computed(() => {
   }
   if (stock.ctx && stock.ctx.is_buyer) out.push({ section: 'Buying', key: 'buy' }, { route: '/stock/buy', label: 'To buy', icon: 'lucide-shopping-cart' })
   const reports = []
-  if (viewer.value) reports.push({ route: '/sales', label: 'Sales', icon: 'lucide-chart-column' })
+  if (viewer.value) {
+    reports.push(
+      { route: '/sales', label: 'Sales', icon: 'lucide-chart-column' },
+      { route: '/reports/menu', label: 'Menu engineering', icon: 'lucide-star' },
+      { route: '/reports/food-cost', label: 'Food cost', icon: 'lucide-percent' },
+    )
+  }
   if (stock.ctx && stock.ctx.is_admin) reports.push({ route: '/stock/reports', label: 'Stock and markup', icon: 'lucide-chart-pie' })
   if (reports.length) out.push({ section: 'Reports', key: 'rep' }, ...reports)
   return out

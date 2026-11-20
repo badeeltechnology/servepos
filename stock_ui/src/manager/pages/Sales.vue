@@ -8,26 +8,72 @@
       <TabButtons :options="presets.map((p) => ({ label: p.label, value: p.key }))" v-model="preset" />
       <DateRangePicker v-if="preset === 'custom'" v-model="custom" class="w-60" />
     </div>
-    <TabButtons v-model="tab" :options="[{ label: 'Summary', value: 'summary' }, { label: 'Items', value: 'items' }, { label: 'Invoices', value: 'invoices' }, { label: 'Voids', value: 'voids' }]" />
+    <TabButtons v-model="tab" :options="[{ label: 'Summary', value: 'summary' }, { label: 'Compare', value: 'compare' }, { label: 'Busy hours', value: 'hours' }, { label: 'Staff', value: 'staff' }, { label: 'Items', value: 'items' }, { label: 'Invoices', value: 'invoices' }, { label: 'Voids', value: 'voids' }]" />
 
     <!-- summary -->
     <template v-if="tab === 'summary'">
       <div v-if="!d" class="py-10"><LoadingText /></div>
       <template v-else>
-        <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <NumberCard title="Sales" :prefix="curP" :value="s.total_sales" :format="num2" :delta-caption="s.total_tax ? `net ${num2(s.net_total)} + tax ${num2(s.total_tax)}` : ''" />
-          <NumberCard title="Orders" :value="s.order_count" :delta-caption="`average ${num2(s.avg_order)}`" />
-          <NumberCard title="Guests" :value="s.total_guests" :delta-caption="s.total_guests ? `${num2(s.total_sales / s.total_guests)} per guest` : ''" />
-          <NumberCard title="Tips" :prefix="curP" :value="s.total_tips" :format="num2" />
+        <div class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <NumberCard title="Sales" :prefix="curP" :value="s.total_sales" :format="num2" :delta="pct(s.total_sales, d.previous.total_sales)" delta-suffix="%" :delta-format="num0" :delta-caption="cmpCaption('total_sales', true)" />
+          <NumberCard title="Orders" :value="s.order_count" :delta="pct(s.order_count, d.previous.order_count)" delta-suffix="%" :delta-format="num0" :delta-caption="cmpCaption('order_count')" />
+          <NumberCard title="Average bill" :prefix="curP" :value="s.avg_order" :format="num2" :delta="pct(s.avg_order, d.previous.avg_order)" delta-suffix="%" :delta-format="num0" :delta-caption="cmpCaption('avg_order', true)" />
+          <NumberCard title="Guests" :value="s.total_guests" :delta="pct(s.total_guests, d.previous.total_guests)" delta-suffix="%" :delta-format="num0" :delta-caption="guestsOk ? `${num2(s.total_sales / s.total_guests)} per guest` : s.total_guests ? 'recorded on few orders' : ''" />
+          <NumberCard title="Discounts" :prefix="curP" :value="s.total_discount" :format="num2" :delta="pct(s.total_discount, d.previous.total_discount)" delta-suffix="%" :delta-format="num0" negative-is-better
+            :delta-caption="s.total_sales ? `${(s.total_discount / (s.total_sales + s.total_discount) * 100).toFixed(1)} % of sales` : ''" />
+          <NumberCard title="Tips" :prefix="curP" :value="s.total_tips" :format="num2" :delta-caption="s.total_tax ? `tax ${num2(s.total_tax)}` : ''" />
         </div>
+        <p class="text-p-sm text-ink-gray-5">Arrows compare with {{ span(d.previous) }}.<template v-if="d.last_year.total_sales"> Same dates last year: {{ curP }}{{ num2(d.last_year.total_sales) }} from {{ num0(d.last_year.order_count) }} orders ({{ fmtPct(pct(s.total_sales, d.last_year.total_sales)) }}).</template></p>
+        <div v-if="d.days > 1" class="h-64"><BarChart title="Sales by day" :data="byDay" x="day" y="sales" :format="num2" /></div>
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Table title="Payment methods" :cols="['Method', 'Amount', 'Share']" :rows="s.payment_breakdown.map((p) => [p.mode_of_payment, num2(p.total), pctOf(p.total, payTotal)])" />
           <Table title="Order types" :cols="['Type', 'Orders', 'Sales']" :rows="s.order_type_breakdown.map((t) => [t.type, t.count, num2(t.total)])" />
           <Table title="Categories" :cols="['Category', 'Qty', 'Sales']" :rows="s.category_breakdown.map((c) => [c.category, fmt(c.qty, 2), num2(c.amount)])" />
-          <Table v-if="d.days > 1" title="By day" :cols="['Day', 'Orders', 'Sales']" :rows="s.daily_sales.map((x) => [fmtDate(x.date), x.count, num2(x.total)])" />
-          <Table title="Waiters" :cols="['Waiter', 'Orders', 'Sales']" :rows="(s.waiter_breakdown || []).map((w) => [w.waiter, w.count, num2(w.total)])" />
+          <Table v-if="!outlet" title="Outlets" :cols="['Outlet', 'Sales', 'Change']" :rows="d.outlets.filter((o) => o.order_count || o.previous_sales).map((o) => [o.pos_profile, num2(o.total_sales), fmtPct(pct(o.total_sales, o.previous_sales))])" />
+        </div>
+      </template>
+    </template>
+
+    <CompareView v-if="tab === 'compare'" :outlet="outlet" :range="range" />
+
+    <template v-if="tab === 'hours'">
+      <div v-if="!d" class="py-10"><LoadingText /></div>
+      <BusyHours v-else :cells="s.heatmap || []" :range="range" :day-start="d.day_start_hour" />
+    </template>
+
+    <template v-if="tab === 'staff'">
+      <div v-if="!d" class="py-10"><LoadingText /></div>
+      <template v-else>
+        <section class="space-y-2">
+          <h2 class="text-base-semibold">Waiters</h2>
+          <div class="overflow-x-auto">
+            <List :columns="['minmax(150px,1.2fr)', '6rem', '8rem', '7rem', '5rem', '7rem', '6rem', '7rem', '6rem']" class="-mx-3 min-w-[860px] list-row-px-3">
+              <ListHeader>
+                <ListHeaderCell>Waiter</ListHeaderCell><ListHeaderCell class="justify-end">Orders</ListHeaderCell><ListHeaderCell class="justify-end">Sales</ListHeaderCell>
+                <ListHeaderCell class="justify-end">Average bill</ListHeaderCell><ListHeaderCell class="justify-end">Guests</ListHeaderCell><ListHeaderCell class="justify-end">Discounts</ListHeaderCell>
+                <ListHeaderCell class="justify-end">Tips</ListHeaderCell><ListHeaderCell class="justify-end">Void amount</ListHeaderCell><ListHeaderCell class="justify-end">Voids</ListHeaderCell>
+              </ListHeader>
+              <ListRows :items="s.waiter_breakdown || []" row-key="waiter" v-slot="{ item }">
+                <ListRow class="min-h-10">
+                  <ListCell class="truncate">{{ item.waiter }}</ListCell>
+                  <ListCell class="justify-end num">{{ item.count }}</ListCell>
+                  <ListCell class="justify-end text-base-medium num">{{ num2(item.total) }}</ListCell>
+                  <ListCell class="justify-end num" :class="item.avg_order > s.avg_order * 1.1 ? 'text-ink-green-6' : item.avg_order < s.avg_order * 0.9 ? 'text-ink-amber-6' : ''">{{ num2(item.avg_order) }}</ListCell>
+                  <ListCell class="justify-end num">{{ item.guests || '' }}</ListCell>
+                  <ListCell class="justify-end num">{{ item.discount ? num2(item.discount) : '' }}</ListCell>
+                  <ListCell class="justify-end num">{{ item.tips ? num2(item.tips) : '' }}</ListCell>
+                  <ListCell class="justify-end num">{{ item.void_amount ? num2(item.void_amount) : '' }}</ListCell>
+                  <ListCell class="justify-end num" :class="item.voids ? 'text-ink-red-6' : 'text-ink-gray-4'">{{ item.voids || 0 }}</ListCell>
+                </ListRow>
+              </ListRows>
+            </List>
+          </div>
+          <p class="text-p-sm text-ink-gray-5">Average bill in green is over 10 % above the overall average ({{ num2(s.avg_order) }}), amber is over 10 % below. Voids count what each person voided.</p>
+          <div v-if="!(s.waiter_breakdown || []).length" class="py-6 text-center text-p-sm text-ink-gray-5">No waiter on the sales in this period.</div>
+        </section>
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <Table title="Cashiers" :cols="['Cashier', 'Orders', 'Sales']" :rows="s.cashier_breakdown.map((c) => [c.cashier, c.count, num2(c.total)])" />
-          <Table v-if="!outlet" title="Outlets" :cols="['Outlet', 'Orders', 'Sales']" :rows="d.outlets.filter((o) => o.order_count).map((o) => [o.pos_profile, o.order_count, num2(o.total_sales)])" />
+          <Table title="Voids by staff" :cols="['Voided by', 'Count', 'Amount']" :rows="s.void_summary.by_staff.map((v) => [v.staff, v.count, num2(v.amount)])" />
         </div>
       </template>
     </template>
@@ -133,7 +179,9 @@ import { computed, h, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Badge, Button, Checkbox, DateRangePicker, Dialog, LoadingText, Select, TabButtons, TextInput } from 'frappe-ui'
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
-import { NumberCard } from 'frappe-ui/charts'
+import { BarChart, NumberCard } from 'frappe-ui/charts'
+import CompareView from '../components/CompareView.vue'
+import BusyHours from '../components/BusyHours.vue'
 import Header from '../../components/Header.vue'
 import { useRead, get } from '../api'
 import { fmt, fmtDate, fmtTime } from '../../api'
@@ -151,6 +199,13 @@ const d = computed(() => dash.data)
 const s = computed(() => (d.value ? d.value.sales : {}))
 const curP = state.ctx.currency ? state.ctx.currency + ' ' : ''
 const num2 = (v) => Number(v || 0).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const num0 = (v) => Number(v || 0).toLocaleString('en', { maximumFractionDigits: 0 })
+const pct = (a, b) => (b ? ((a - b) / Math.abs(b)) * 100 : null)
+const fmtPct = (v) => (v === null || v === undefined ? 'new' : (v >= 0 ? '+' : '') + v.toFixed(0) + ' %')
+const span = (p) => (p.from_date === p.to_date ? fmtDate(p.from_date) : fmtDate(p.from_date) + ' to ' + fmtDate(p.to_date))
+const cmpCaption = (k, money) => (d.value && d.value.previous[k] ? 'was ' + (money ? num2(d.value.previous[k]) : num0(d.value.previous[k])) : '')
+const guestsOk = computed(() => s.value.total_guests >= s.value.order_count * 0.5)
+const byDay = computed(() => (s.value.daily_sales || []).map((x) => ({ day: fmtDate(x.date), sales: x.total })))
 const payTotal = computed(() => (s.value.payment_breakdown || []).reduce((a, p) => a + p.total, 0))
 const pctOf = (v, t) => (t ? Math.round((v / t) * 100) + ' %' : '')
 const subtitle = computed(() => (outlet.value || 'All outlets') + ' · ' + (range.value[0] === range.value[1] ? fmtDate(range.value[0]) : fmtDate(range.value[0]) + ' to ' + fmtDate(range.value[1])))
