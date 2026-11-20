@@ -11,6 +11,8 @@
           </div>
           <FormControl v-else-if="f.fieldtype === 'Select' || f.fieldtype === 'Link'" type="select" :label="f.label" :description="f.description"
             :options="f.options.map((o) => ({ label: o || (f.fieldtype === 'Link' ? 'Not set' : ''), value: o }))" v-model="vals[f.fieldname]" />
+          <FormControl v-else-if="f.fieldname === 'day_start_hour'" type="select" :label="f.label" :description="f.description"
+            :options="hours" :model-value="Number(vals[f.fieldname] || 0)" @update:model-value="(v) => (vals[f.fieldname] = Number(v))" />
           <FormControl v-else :type="f.fieldtype === 'Time' ? 'time' : f.fieldtype === 'Data' ? 'text' : 'number'" :label="f.label" :description="f.description" v-model="vals[f.fieldname]" />
         </template>
       </div>
@@ -26,6 +28,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { Button, FormControl, LoadingText, Switch } from 'frappe-ui'
 import { get, post, act } from '../api'
 
+// the business day start as a time, 00:00 to 23:00
+const hours = Array.from({ length: 24 }, (_, h) => ({ label: String(h).padStart(2, '0') + ':00', value: h }))
 const form = ref(null), saving = ref(false)
 const vals = reactive({}), orig = reactive({})
 function fill(f) {

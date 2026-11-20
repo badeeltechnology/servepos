@@ -15,7 +15,9 @@ fixtures = [
 	{"dt": "Custom Field", "filters": [["fieldname", "like", "servepos%"]]},
 	{"dt": "Custom Field", "filters": [["fieldname", "like", "custom_pos_invoice%"]]},
 	{"dt": "Custom Field", "filters": [["fieldname", "=", "custom_sales_invoice"]]},
-	{"dt": "Custom Field", "filters": [["fieldname", "in", ["enable_kds", "auto_generate_kot", "auto_deduct_stock", "kot_warning_minutes", "kot_urgent_minutes", "branch"]]]},
+	# only this app's fields: "branch" is also the name ERPNext gives the Branch accounting dimension on ~100 doctypes
+	{"dt": "Custom Field", "filters": [["dt", "=", "POS Profile"], ["fieldname", "in", ["enable_kds", "auto_generate_kot", "auto_deduct_stock", "kot_warning_minutes", "kot_urgent_minutes"]]]},
+	{"dt": "Custom Field", "filters": [["dt", "in", ["ServePOS Room", "ServePOS Table"]], ["fieldname", "=", "branch"]]},
 	{"dt": "Role", "filters": [["name", "like", "ServePOS%"]]},
 ]
 
@@ -175,6 +177,7 @@ doc_events = {
 		"on_cancel": "servepos.api.stock.reverse_stock_on_cancel"
 	},
 	"Sales Invoice": {
+		"before_validate": "servepos.api.pos_session.keep_pos_sale_date",
 		"before_submit": "servepos.api.stock.create_manufacture_entries_before_submit",
 		"on_submit": "servepos.api.kot.auto_generate_kot_on_submit",
 		"on_cancel": "servepos.api.stock.reverse_stock_on_cancel"

@@ -1216,3 +1216,13 @@ def record_shift_log(pos_session_id, pos_profile=None, branch=None, cashier_name
     frappe.db.commit()
 
     return {"message": "Shift log recorded", "name": doc.name}
+
+
+def keep_pos_sale_date(doc, method=None):
+	"""A sale from a ServePOS terminal keeps the date (and time) the terminal gave it, even when it
+	syncs later. Without this ERPNext resets POS invoices to today unless set_posting_time is on,
+	which sites otherwise had to switch on for every Sales Invoice through Customize Form."""
+	if doc.is_new() and doc.get("is_pos") and doc.get("posting_date") and (
+		doc.get("servepos_order_number") or doc.get("servepos_order_type")
+	):
+		doc.set_posting_time = 1
