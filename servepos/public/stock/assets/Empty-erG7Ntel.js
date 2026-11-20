@@ -1,0 +1,1 @@
+import{_ as e}from"./Spinner-D_HteziZ.js";import{o,b as r,m as s}from"./index-DfhZ372G.js";const c={},n={class:"px-3 py-10 text-center text-p-sm text-ink-gray-5"};function a(t,_){return o(),r("div",n,[s(t.$slots,"default")])}const f=e(c,[["render",a]]);export{f as E};

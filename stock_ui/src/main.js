@@ -1,6 +1,12 @@
 import { createApp } from 'vue'
-import App from './App.vue'
-import router from './router'
 import './index.css'
 
-createApp(App).use(router).mount('#app')
+// One bundle, two apps: /manage is the manager app, everything else is Stock Orders.
+const path = window.location.pathname
+const isManager = path === '/manage' || path.startsWith('/manage/')
+
+const load = isManager
+  ? Promise.all([import('./manager/App.vue'), import('./manager/router.js')])
+  : Promise.all([import('./App.vue'), import('./router.js')])
+
+load.then(([{ default: App }, { default: router }]) => createApp(App).use(router).mount('#app'))
