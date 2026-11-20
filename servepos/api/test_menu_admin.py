@@ -58,10 +58,7 @@ def _codes(profile):
 
 def _pick_profiles():
 	prof = ma._profiles()
-	pref = ["Garden Cafe", "Garden Mix", "Cocktail Bar", "Greek Kitchen"]
-	chosen = [p for p in pref if p in prof]
-	chosen += [p for p in sorted(prof) if p not in chosen]
-	return chosen[:4], prof
+	return sorted(prof)[:4], prof
 
 
 @frappe.whitelist(methods=["POST"])
