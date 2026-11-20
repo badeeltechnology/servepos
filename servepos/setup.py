@@ -1182,9 +1182,27 @@ def setup_all():
     setup_stock_orders(sync=False)
 
     from servepos.recipes.setup import setup as setup_recipes
+    add_report_indexes()
     setup_recipes()
 
     frappe.db.commit()
     print("=" * 50)
     print("ServePOS setup complete!")
     print("=" * 50)
+
+
+def add_report_indexes():
+    """Indexes the sales reports rely on. The Sales Invoice one holds every column the reports join
+    and filter on, and the line ones hold every column they add up, so a year of sales is read
+    from the indexes alone instead of from the much wider tables."""
+    for doctype, fields, name in (
+        ("Sales Invoice", ["posting_date", "is_pos", "docstatus", "pos_profile", "name"], "servepos_report_cover"),
+        ("Sales Invoice Item", ["parent", "item_code", "qty", "amount", "net_amount", "stock_qty"], "servepos_report_cover"),
+        ("Sales Invoice Payment", ["parent", "mode_of_payment", "amount"], "servepos_report_cover"),
+        ("ServePOS Void Log", ["void_date", "pos_profile"], "servepos_void_date_profile"),
+    ):
+        try:
+            if frappe.db.table_exists(doctype):
+                frappe.db.add_index(doctype, fields, name)
+        except Exception:
+            frappe.log_error(title=f"ServePOS: could not add index {name}")

@@ -4,23 +4,26 @@
       <Select v-model="profile" :options="outletOptions(false)" aria-label="Outlet" />
       <p class="text-p-sm text-ink-gray-6">These items show first on the POS Popular tab, in this order. Up to {{ MAX }}.</p>
       <div v-if="loading" class="py-6"><LoadingText /></div>
-      <div v-else class="max-h-[40vh] divide-y divide-outline-gray-1 overflow-y-auto rounded-6 border border-outline-gray-2">
-        <div v-for="(r, i) in pins" :key="r.item_code" class="flex items-center gap-2 px-3 py-1.5">
-          <span class="w-6 text-right text-xs text-ink-gray-4 num">{{ i + 1 }}</span>
-          <div class="min-w-0 flex-1"><div class="truncate text-base">{{ r.item_name }}</div><div class="text-xs text-ink-gray-5">{{ r.item_group }}</div></div>
-          <Badge v-if="r.on_outlet === false" theme="amber" label="Not on this outlet" />
-          <Button variant="ghost" size="sm" icon="lucide-arrow-up" aria-label="Move up" :disabled="i === 0" @click="move(i, -1)" />
-          <Button variant="ghost" size="sm" icon="lucide-arrow-down" aria-label="Move down" :disabled="i === pins.length - 1" @click="move(i, 1)" />
-          <Button variant="ghost" size="sm" icon="lucide-x" aria-label="Unpin" @click="pins.splice(i, 1); dirty = true" />
-        </div>
-        <div v-if="!pins.length" class="px-3 py-6 text-center text-p-sm text-ink-gray-5">No pinned items on this outlet.</div>
+      <div v-else class="max-h-[40vh] overflow-y-auto">
+        <List :columns="['2rem', 'minmax(0,1fr)', 'auto', 'auto']" class="list-row-px-2">
+          <ListRows :items="pins" row-key="item_code" v-slot="{ item: r, index: i }">
+            <ListRow class="min-h-11">
+              <ListCell class="justify-end text-xs text-ink-gray-4 num">{{ i + 1 }}</ListCell>
+              <ListCell class="min-w-0 flex-col !items-start"><span class="w-full truncate">{{ r.item_name }}</span><span class="text-xs text-ink-gray-5">{{ r.item_group }}</span></ListCell>
+              <ListCell><Badge v-if="r.on_outlet === false" theme="orange" label="Not on this outlet" /></ListCell>
+              <ListCell class="justify-end">
+                <Button variant="ghost" size="sm" icon="lucide-arrow-up" aria-label="Move up" :disabled="i === 0" @click="move(i, -1)" />
+                <Button variant="ghost" size="sm" icon="lucide-arrow-down" aria-label="Move down" :disabled="i === pins.length - 1" @click="move(i, 1)" />
+                <Button variant="ghost" size="sm" icon="lucide-x" aria-label="Unpin" @click="pins.splice(i, 1); dirty = true" />
+              </ListCell>
+            </ListRow>
+          </ListRows>
+        </List>
+        <p v-if="!pins.length" class="py-6 text-center text-p-sm text-ink-gray-5">No pinned items on this outlet.</p>
       </div>
-      <div class="relative">
-        <TextInput v-model="q" placeholder="Add an item: type its name" :debounce="250" :disabled="pins.length >= MAX" />
-        <div v-if="found.length" class="absolute z-10 mt-1 w-full rounded-6 border border-outline-gray-2 bg-surface-white p-1 shadow-lg">
-          <button v-for="f in found" :key="f.name" class="block w-full rounded-4 px-2 py-1.5 text-left text-base hover:bg-surface-gray-2" @click="add(f)">{{ f.item_name }} <span class="text-xs text-ink-gray-5">{{ f.item_group }}</span></button>
-        </div>
-      </div>
+      <Combobox class="w-full" :model-value="null" v-model:query="q" :options="found.map((f) => ({ label: f.item_name, value: f.name, description: f.item_group }))" :filterable="false"
+        placeholder="Add an item: type its name" empty-text="Type two letters or more to search this outlet's menu" :disabled="pins.length >= MAX"
+        @update:model-value="(v) => { const f = found.find((x) => x.name === v); if (f) add(f) }" @update:open="(o) => o && (q = '')" />
     </div>
     <template #actions="{ close }">
       <div class="flex items-center justify-between"><span class="text-p-sm text-ink-gray-5">{{ pins.length }} / {{ MAX }}</span>
@@ -30,7 +33,8 @@
 </template>
 <script setup>
 import { ref, watch } from 'vue'
-import { Badge, Button, Dialog, LoadingText, Select, TextInput } from 'frappe-ui'
+import { Badge, Button, Combobox, Dialog, LoadingText, Select } from 'frappe-ui'
+import { List, ListCell, ListRow, ListRows } from 'frappe-ui/list'
 import { get, post, act } from '../api'
 import { outletOptions } from '../state'
 const MAX = 24

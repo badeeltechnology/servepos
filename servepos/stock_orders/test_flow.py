@@ -359,7 +359,7 @@ def run(keep=0):
 		from servepos.stock_orders import access
 		frappe.get_doc({"doctype": "User Permission", "user": BUYER, "allow": "Warehouse", "for_value": ow, "apply_to_all_doctypes": 1}).insert(ignore_permissions=True)
 		landing, _desk = access._rules(BUYER)
-		log.check(landing == "/stock" or "ServePOS Outlet User" in frappe.get_roles(BUYER),
+		log.check(landing == "/manage/stock" or "ServePOS Outlet User" in frappe.get_roles(BUYER),
 			"An outlet User Permission alone gives the outlet landing page", landing)
 
 		# 15. amounts: outlet staff never receive prices or values

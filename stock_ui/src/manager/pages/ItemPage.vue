@@ -37,21 +37,25 @@
         </div>
       </section>
 
-      <RecipeEditor v-if="!isNew" :item="form.name" :price="Number(form.standard_rate) || 0" :stock-item="!!form.is_stock_item" />
+      <RecipeEditor id="recipe" class="scroll-mt-16" v-if="!isNew" :item="form.name" :price="Number(form.standard_rate) || 0" :stock-item="!!form.is_stock_item" />
 
       <section class="space-y-2">
         <div class="flex items-center justify-between"><h2 class="text-base-semibold">Modifier groups</h2>
           <Select v-model="addGroup" :options="groupChoices" placeholder="Add a group" class="w-56" /></div>
-        <div class="divide-y divide-outline-gray-1 rounded-6 border border-outline-gray-2">
-          <div v-for="(m, i) in form.modifier_groups" :key="m.modifier_group" class="flex items-center gap-2 px-3 py-1.5">
-            <span class="min-w-0 flex-1 truncate text-base">{{ m.modifier_group }}</span>
-            <label class="flex items-center gap-1.5 text-sm text-ink-gray-6"><Checkbox v-model="m.is_required" /> Required</label>
-            <Button variant="ghost" size="sm" icon="lucide-arrow-up" aria-label="Move up" :disabled="i === 0" @click="moveMod(i, -1)" />
-            <Button variant="ghost" size="sm" icon="lucide-arrow-down" aria-label="Move down" :disabled="i === form.modifier_groups.length - 1" @click="moveMod(i, 1)" />
-            <Button variant="ghost" size="sm" icon="lucide-x" aria-label="Remove" @click="form.modifier_groups.splice(i, 1)" />
-          </div>
-          <div v-if="!form.modifier_groups.length" class="px-3 py-4 text-p-sm text-ink-gray-5">No modifier groups. Add one to offer choices like size or extras.</div>
-        </div>
+        <List :columns="['minmax(0,1fr)', '7rem', '6.5rem']" class="list-row-px-2">
+          <ListRows :items="form.modifier_groups" row-key="modifier_group" v-slot="{ item: m, index: i }">
+            <ListRow class="min-h-10">
+              <ListCell class="truncate">{{ m.modifier_group }}</ListCell>
+              <ListCell><Checkbox v-model="m.is_required" label="Required" /></ListCell>
+              <ListCell class="justify-end">
+                <Button variant="ghost" size="sm" icon="lucide-arrow-up" aria-label="Move up" :disabled="i === 0" @click="moveMod(i, -1)" />
+                <Button variant="ghost" size="sm" icon="lucide-arrow-down" aria-label="Move down" :disabled="i === form.modifier_groups.length - 1" @click="moveMod(i, 1)" />
+                <Button variant="ghost" size="sm" icon="lucide-x" aria-label="Remove" @click="form.modifier_groups.splice(i, 1)" />
+              </ListCell>
+            </ListRow>
+          </ListRows>
+        </List>
+        <p v-if="!form.modifier_groups.length" class="text-p-sm text-ink-gray-5">No modifier groups. Add one to offer choices like size or extras.</p>
       </section>
     </div>
 
@@ -69,25 +73,28 @@
         <label class="flex items-start justify-between gap-3"><span><span class="text-base">All outlets</span><span class="block text-p-sm text-ink-gray-5">Including outlets added later.</span></span>
           <Switch v-model="form.all_outlets" /></label>
         <label v-if="form.all_outlets" class="flex items-center justify-between gap-3 text-base">Also on the online menu <Switch v-model="form.web_all" /></label>
-        <div v-else class="rounded-6 border border-outline-gray-2">
-          <div class="grid grid-cols-[1fr_3.5rem_3.5rem] border-b border-outline-gray-1 px-3 py-1.5 text-xs text-ink-gray-5"><span>Outlet</span><span class="text-center">POS</span><span class="text-center">Online</span></div>
-          <div v-for="p in state.setup.profiles" :key="p.name" class="grid grid-cols-[1fr_3.5rem_3.5rem] items-center px-3 py-1">
-            <span class="truncate text-base">{{ p.name }}</span>
-            <span class="flex justify-center"><Checkbox v-model="cell(p.name).pos" /></span>
-            <span class="flex justify-center"><Checkbox v-model="cell(p.name).web" /></span>
-          </div>
-        </div>
+        <List v-else :columns="['minmax(0,1fr)', '3.5rem', '3.5rem']" class="list-row-px-2">
+          <ListHeader><ListHeaderCell>Outlet</ListHeaderCell><ListHeaderCell class="justify-center">POS</ListHeaderCell><ListHeaderCell class="justify-center">Online</ListHeaderCell></ListHeader>
+          <ListRows :items="state.setup.profiles" row-key="name" v-slot="{ item: p }">
+            <ListRow class="min-h-9">
+              <ListCell class="truncate">{{ p.name }}</ListCell>
+              <ListCell class="justify-center"><Checkbox v-model="cell(p.name).pos" /></ListCell>
+              <ListCell class="justify-center"><Checkbox v-model="cell(p.name).web" /></ListCell>
+            </ListRow>
+          </ListRows>
+        </List>
       </section>
     </aside>
   </div>
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Badge, Button, Checkbox, Dropdown, FormControl, LoadingText, Select, Switch, dialog, toast } from 'frappe-ui'
 import Header from '../../components/Header.vue'
 import RecipeEditor from '../components/RecipeEditor.vue'
+import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import { get, post, act } from '../api'
 import { state, reloadSetup } from '../state'
 import { errText } from '../../api'
@@ -104,6 +111,9 @@ function cell(p) {
   if (!form.outlets[p]) form.outlets[p] = { pos: false, web: false }
   return form.outlets[p]
 }
+// opened from Recipes, Menu engineering or Food cost: go straight to the recipe
+watch(loaded, (v) => { if (v && window.location.hash === '#recipe') nextTick(() => document.getElementById('recipe')?.scrollIntoView({ block: 'start' })) })
+
 async function load() {
   loaded.value = false
   Object.assign(form, blank())

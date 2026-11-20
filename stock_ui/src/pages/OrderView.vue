@@ -1,5 +1,5 @@
 <template>
-  <Header :title="title" back="/">
+  <Header :title="title" back="/stock">
     <template #status>
       <StatusBadge v-if="d" :status="d.doc.status" />
       <Badge v-if="d && d.doc.is_emergency" label="Emergency" theme="red" variant="subtle" />

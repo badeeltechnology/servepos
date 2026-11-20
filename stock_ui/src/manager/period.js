@@ -11,8 +11,10 @@ export function usePeriod(initial = 'today', query = {}) {
     { key: 'today', label: 'Today', range: () => [today, today] },
     { key: 'yesterday', label: 'Yesterday', range: () => [shiftDate(today, -1), shiftDate(today, -1)] },
     { key: 'week', label: 'Last 7 days', range: () => [shiftDate(today, -6), today] },
+    { key: 'days30', label: 'Last 30 days', range: () => [shiftDate(today, -29), today] },
     { key: 'month', label: 'This month', range: () => [monthStart, today] },
     { key: 'lastmonth', label: 'Last month', range: () => [lastMonthEnd.slice(0, 8) + '01', lastMonthEnd] },
+    { key: 'year', label: 'This year', range: () => [today.slice(0, 5) + '01-01', today] },
     { key: 'custom', label: 'Custom', range: () => custom.value },
   ]
   const ok = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '')

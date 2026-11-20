@@ -1,15 +1,20 @@
 <template>
   <Header title="Settings" />
   <div class="max-w-3xl space-y-6 px-3 pb-16 pt-4 sm:px-5">
+    <TabButtons :options="[{ label: 'POS', value: 'pos' }, { label: 'Stock and day close', value: 'stock' }]" v-model="tab" />
+    <StockSettings v-if="tab === 'stock'" />
+    <template v-else>
     <section class="space-y-2">
       <h2 class="text-base-semibold">More settings in ERPNext</h2>
-      <div class="divide-y divide-outline-gray-1 rounded-6 border border-outline-gray-2">
-        <a v-for="l in links" :key="l.href" :href="l.href" target="_blank" class="flex items-center gap-3 px-3 py-2.5 hover:bg-surface-gray-1">
-          <span :class="l.icon" class="size-4 text-ink-gray-5" />
-          <span class="flex-1"><span class="block text-base">{{ l.label }}</span><span class="block text-p-sm text-ink-gray-5">{{ l.text }}</span></span>
-          <span class="lucide-external-link size-4 text-ink-gray-4" />
-        </a>
-      </div>
+      <List class="list-row-px-2">
+        <ListRows :items="links" row-key="href" v-slot="{ item: l }">
+          <ListRow :href="l.href" class="min-h-12">
+            <ListCell><span :class="l.icon" class="size-4 text-ink-gray-5" /></ListCell>
+            <ListCell class="min-w-0 flex-col !items-start"><span class="text-base">{{ l.label }}</span><span class="text-p-sm text-ink-gray-5">{{ l.text }}</span></ListCell>
+            <ListCell><span class="lucide-chevron-right size-4 text-ink-gray-4" /></ListCell>
+          </ListRow>
+        </ListRows>
+      </List>
     </section>
 
     <section v-if="state.setup.is_system_manager" class="space-y-3">
@@ -32,11 +37,14 @@
         </div>
       </template>
     </section>
+    </template>
   </div>
 </template>
 <script setup>
 import { ref } from 'vue'
-import { Badge, Button, FormControl, LoadingText, dialog } from 'frappe-ui'
+import { Badge, Button, FormControl, LoadingText, TabButtons, dialog } from 'frappe-ui'
+import { List, ListCell, ListRow, ListRows } from 'frappe-ui/list'
+import StockSettings from '../components/StockSettings.vue'
 import Header from '../../components/Header.vue'
 import { useRead, post, act } from '../api'
 import { state } from '../state'
@@ -46,8 +54,8 @@ const links = [
   { href: '/app/servepos-void-reason', icon: 'lucide-ban', label: 'Void reasons', text: 'Reasons the cashier picks when removing an item' },
   { href: '/app/servepos-kitchen-station', icon: 'lucide-chef-hat', label: 'Kitchen stations', text: 'Where kitchen tickets print, by category' },
   { href: '/app/servepos-mobile-settings', icon: 'lucide-smartphone', label: 'Waiter app', text: 'Login length, ordering hours, old app switch' },
-  { href: '/app/servepos-stock-settings', icon: 'lucide-package', label: 'Stock orders, recipes and day close', text: 'Order cut-off times, counting days, markup, business day start, food cost account' },
 ]
+const tab = ref(new URLSearchParams(window.location.search).get('tab') === 'stock' ? 'stock' : 'pos')
 const fcm = useRead('settings.get_fcm_status', {}, { immediate: !!state.setup.is_system_manager })
 const json = ref(''), saving = ref(false), testing = ref(false), testResult = ref(null)
 async function save() {

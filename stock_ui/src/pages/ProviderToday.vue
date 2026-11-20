@@ -1,7 +1,7 @@
 <template>
   <Header title="Today" :subtitle="state.location.name + (pick.data ? ' · deliveries for ' + fmtDate(pick.data.for_date) : '')">
-    <Button v-if="shipsHere" icon-left="lucide-table-2" label="Picking sheet" route="/picking" />
-    <Button v-if="shipsHere" variant="solid" icon-left="lucide-truck" label="Ship orders" route="/list/to_ship" />
+    <Button v-if="shipsHere" icon-left="lucide-table-2" label="Picking sheet" route="/stock/picking" />
+    <Button v-if="shipsHere" variant="solid" icon-left="lucide-truck" label="Ship orders" route="/stock/list/to_ship" />
   </Header>
   <div class="space-y-6 px-3 pb-10 pt-5 sm:px-5">
     <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">

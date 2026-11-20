@@ -13,7 +13,7 @@
         <ListHeader><ListHeaderCell>Waiter</ListHeaderCell><ListHeaderCell>Branch</ListHeaderCell><ListHeaderCell>Outlets</ListHeaderCell><ListHeaderCell>App login</ListHeaderCell><ListHeaderCell>Active</ListHeaderCell></ListHeader>
         <ListRows :items="rows" v-slot="{ item }">
           <ListRow class="relative min-h-11">
-            <button class="absolute inset-0" :aria-label="'Open ' + item.waiter_name" @click="edit(item)" />
+            <button type="button" class="absolute inset-0 rounded-6" :aria-label="'Open ' + item.waiter_name" @click="edit(item)" />
             <ListCell class="flex-col !items-start"><span class="text-base" :class="item.is_active ? '' : 'text-ink-gray-5 line-through'">{{ item.waiter_name }}</span><span class="text-xs text-ink-gray-5">{{ item.phone }}</span></ListCell>
             <ListCell class="text-sm text-ink-gray-6">{{ item.branch || 'Every branch' }}</ListCell>
             <ListCell class="text-sm text-ink-gray-6">{{ item.outlets.length ? (item.outlets.length === 1 ? item.outlets[0] : `${item.outlets.length} outlets`) : 'All outlets' }}</ListCell>
