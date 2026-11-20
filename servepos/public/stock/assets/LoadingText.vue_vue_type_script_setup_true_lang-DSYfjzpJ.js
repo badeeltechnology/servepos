@@ -1,0 +1,1 @@
+import{S as t}from"./Spinner-CpVyqEtk.js";import{k as a,o as s,b as o,d as n,u as r,f as c,t as i}from"./index-BguJWAp5.js";const m={class:"flex items-center text-base text-ink-gray-4"},_=a({__name:"LoadingText",props:{text:{default:"Loading..."}},setup(e){return(p,d)=>(s(),o("div",m,[n(r(t),{class:"-ml-1 mr-2 h-3 w-3"}),c(" "+i(e.text),1)]))}});export{_};
