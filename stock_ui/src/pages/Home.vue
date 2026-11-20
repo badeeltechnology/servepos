@@ -13,12 +13,12 @@
         <template v-if="money">
           <NumberCard title="Stock on hand" :value="home.data.stock_value" :prefix="cur" :format="fmtMoney" :delta-caption="home.data.items_in_stock + ' items in stock'" />
           <NumberCard title="Received this week" :value="home.data.received_week_total" :prefix="cur" :format="fmtMoney"
-            :sparkline="{ data: home.data.received_week.map((d) => d.value), type: 'bar' }" />
+            :sparkline="home.data.received_week.some((d) => d.value) ? { data: home.data.received_week.map((d) => d.value), type: 'bar' } : undefined" />
         </template>
         <template v-else>
           <NumberCard title="Items in stock" :value="home.data.items_in_stock" delta-caption="items with stock in your outlet" />
           <NumberCard title="Received this week" :value="home.data.received_week_orders" suffix=" deliveries"
-            :sparkline="{ data: home.data.received_week.map((d) => d.orders), type: 'bar' }" />
+            :sparkline="home.data.received_week.some((d) => d.orders) ? { data: home.data.received_week.map((d) => d.orders), type: 'bar' } : undefined" />
         </template>
         <NumberCard title="To receive" :value="home.data.incoming.length" :delta-caption="home.data.discrepancies.length ? home.data.discrepancies.length + ' with a discrepancy' : 'deliveries on the way'" />
         <NumberCard title="Next inventory" :value="invValue" :delta-caption="invCaption" />
