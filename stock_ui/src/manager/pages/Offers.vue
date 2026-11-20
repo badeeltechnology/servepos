@@ -127,12 +127,12 @@ import { Badge, Button, Dialog, FormControl, Switch, TabButtons, TextInput, dial
 import { List, ListCell, ListHeader, ListHeaderCell, ListRow, ListRows } from 'frappe-ui/list'
 import Header from '../../components/Header.vue'
 import OutletPicker from '../components/OutletPicker.vue'
-import { useRead, post, act, shiftDate } from '../api'
+import { useRead, post, act, shiftDate, amount } from '../api'
 import { fmtDate } from '../../api'
 import { state, outletOptions } from '../state'
 
 const tab = ref('promos'), busy = ref(false), cur = state.ctx.currency || ''
-const fmt = (v) => Number(v || 0).toLocaleString('en', { maximumFractionDigits: 2 })
+const fmt = amount
 const promos = useRead('admin.list_promos', {})
 const vq = ref(''), vstate = ref('Active')
 const vouchers = useRead('admin.list_vouchers', () => ({ search: vq.value || null }))
