@@ -26,7 +26,7 @@ The first five pages take you from nothing to a first sale. Do them in order: ea
 2. [Set up an outlet in ERPNext](outlet-setup.md): branch, warehouse, walk-in customer, payments and the POS Profile
 3. [Users and roles](users.md): who signs in where, and the POS user with its API key
 4. [Your menu](menu.md): categories, items, prices, Arabic names, modifiers, tables
-5. [Install and connect the desktop POS](desktop-pos.md), then make your first sale
+5. [Install and connect the desktop POS](desktop-pos.md): its admin account, the API key from ERPNext, then the outlet; then your first sale
 
 Then set up what your restaurant needs:
 
@@ -47,7 +47,7 @@ Use this to see what is left. Each line links to the page that explains it.
 - [ ] ERPNext is installed and its setup wizard is finished ([install](install.md))
 - [ ] Serve POS is installed on the site ([install](install.md))
 - [ ] A Branch for each outlet ([outlet setup](outlet-setup.md#2-add-a-branch-for-the-outlet))
-- [ ] A warehouse for each outlet ([outlet setup](outlet-setup.md#3-add-a-warehouse-for-the-outlet))
+- [ ] A warehouse for each outlet, recommended ([outlet setup](outlet-setup.md#3-add-a-warehouse-for-the-outlet))
 - [ ] A walk-in customer ([outlet setup](outlet-setup.md#4-add-a-walk-in-customer))
 - [ ] An account on each payment method ([outlet setup](outlet-setup.md#5-check-the-payment-methods))
 - [ ] A POS Profile for each outlet ([outlet setup](outlet-setup.md#7-create-the-pos-profile))

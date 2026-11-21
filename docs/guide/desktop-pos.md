@@ -8,11 +8,27 @@ order: 5
 
 The desktop POS runs at the counter. It keeps its own copy of the menu and saves every sale on the computer first, so it keeps selling when the internet drops. It sends the sales to ERPNext in the background.
 
-Before you start, have ready:
+## Before you start: do these in ERPNext first
+
+The POS reads everything from ERPNext, so set up ERPNext **before** you install the POS. If you skip this, the POS connects but has no outlet to choose.
+
+1. **The outlet's POS Profile.** Create it in ERPNext ([Set up an outlet](outlet-setup.md#7-create-the-pos-profile)). The POS lists only the POS Profiles that exist, so an outlet you have not created yet does not appear.
+2. **A warehouse for the outlet** (recommended). Create one warehouse per outlet and choose it in the outlet's POS Profile, so each outlet's stock is counted on its own ([Add a warehouse](outlet-setup.md#3-add-a-warehouse-for-the-outlet)).
+3. **The POS user and its API key.** Create a user for the outlet's POS and generate its API key, as in the next section.
+
+Then have these ready at the counter:
 
 - The site address, for example `https://your.site`
-- The **API Key** and **API Secret** of the outlet's POS user ([Users and roles](users.md#the-pos-user-and-its-api-key))
-- The outlet's POS Profile name
+- The **API Key** and **API Secret**
+
+### Get the API key from ERPNext
+
+1. In ERPNext, open **User** and open the outlet's POS user (for example *pos.marina@yourcompany.com*). If you have not created it yet, see [The POS user and its API key](users.md#the-pos-user-and-its-api-key): it needs the roles **ServePOS Cashier** and **Accounts User**.
+2. Open the **Settings** tab and scroll down to **API Access**.
+3. Click **Generate Keys**.
+4. Copy the **API Key** and the **API Secret**. ERPNext shows the secret only once, so keep it until it is typed into the POS.
+
+![API Access on the POS user](images/erp-user-api.webp)
 
 ## 1. Install it
 
@@ -30,29 +46,47 @@ Once installed, the POS updates itself: when a new version is out, a supervisor 
 
 ## 2. First-time setup
 
-The first time it opens, the POS walks you through five steps.
+The first time it opens, the POS walks you through five steps, in this order:
 
-![First-time setup](images/pos-setup-1.webp)
+1. **Admin Account**: the super admin of this POS
+2. **ERPNext & Profile**: connect with the API key, then choose the outlet
+3. **Settings**: branch code and terminal number
+4. **Supervisor**: the first supervisor PIN
+5. **Complete**: the menu downloads
 
-### Admin account
+### Step 1: Admin Account
 
-A username and password for **Supervisor tools**, the admin screens on this POS (connection, receipt layout, supervisors). This is not an ERPNext user: it only exists on this computer. Keep it somewhere safe.
+Create the POS's super admin: a **Username** and a **Password** (at least 6 characters), typed twice under **Confirm Password**.
 
-### ERPNext and profile
+![Step 1: the admin account](images/pos-setup-1.webp)
+
+This account opens **Supervisor tools** on the sign-in screen: the ERPNext connection, the receipt layout, supervisors and updates. It is not an ERPNext user; it exists only on this computer. Write it down somewhere safe: without it, nobody can change the connection or the receipt later.
+
+### Step 2: Connect to ERPNext and choose the outlet
 
 | Field | What to enter |
 |---|---|
 | **ERPNext URL (Primary)** | Your site address, `https://your.site` |
 | **Fallback URL** | Optional: a second address for the same site (for example a local network address). The POS uses it when the first one is out of reach. |
-| **API Key** and **API Secret** | From the outlet's POS user |
+| **API Key** | The API Key you copied from ERPNext ([above](#get-the-api-key-from-erpnext)) |
+| **API Secret** | The API Secret you copied with it |
 
-Click **Verify Connection**. The POS signs in and lists the companies and POS Profiles it can see. Pick the **Company** and the outlet's **POS Profile**.
+![Step 2: connecting to ERPNext](images/pos-setup-2.webp)
 
-![Connecting to ERPNext](images/pos-setup-2.webp)
+1. Click **Verify Connection**. The POS signs in to ERPNext as the POS user.
+2. **Company**: pick your company.
+3. **POS Profile**: the POS lists the POS Profiles in ERPNext. Pick this outlet's, for example *Marina Cafe*. The outlet name you choose here is the name the cashiers see.
+4. Click **Continue**.
 
-If it cannot connect, see [Troubleshooting](troubleshooting.md#the-pos-cannot-connect).
+If **Verify Connection** shows an error:
 
-### Settings
+| The POS says | What to do |
+|---|---|
+| *No POS Profiles found in ERPNext. Please create a POS Profile first.* | Create the outlet's POS Profile in ERPNext ([Set up an outlet](outlet-setup.md#7-create-the-pos-profile)). If it already exists, give the POS user the **Accounts User** role. Then click **Verify Connection** again. |
+| *No companies found in ERPNext.* | Finish the ERPNext setup wizard ([Install](install.md#2-finish-the-erpnext-setup-wizard)) |
+| *Invalid credentials* or *Failed to verify connection* | Check the address, the API Key and the API Secret ([Troubleshooting](troubleshooting.md#the-pos-cannot-connect)) |
+
+### Step 3: Settings
 
 | Field | What to enter |
 |---|---|
@@ -63,11 +97,11 @@ If it cannot connect, see [Troubleshooting](troubleshooting.md#the-pos-cannot-co
 
 Order numbers look like `MC-T01-0001`. The number is saved on the Sales Invoice, and the POS checks it before posting, so a sale never posts twice even if the network drops in the middle.
 
-### Supervisor
+### Step 4: Supervisor
 
 The first supervisor: a **Name** and a **PIN** of 6 to 8 digits. Supervisors open **Settings** on the POS, approve voids and larger discounts, and add cashiers.
 
-### Complete
+### Step 5: Complete
 
 The POS downloads the menu, payment methods, tables, modifiers and offers. You land on the sign-in screen.
 

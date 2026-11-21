@@ -12,7 +12,7 @@ So before you install the POS, set up each outlet in ERPNext. One outlet needs:
 
 1. The Branch accounting dimension (Serve POS adds it for you)
 2. A Branch
-3. A warehouse
+3. A warehouse for the outlet (recommended)
 4. A walk-in customer (once, shared by all outlets)
 5. Payment methods with accounts
 6. A tax template, if you charge VAT
@@ -44,7 +44,9 @@ Open **Branch**, click **Add Branch**, type the outlet's name (**Marina Cafe**) 
 
 ## 3. Add a warehouse for the outlet
 
-Each outlet sells from its own warehouse, so its stock is counted on its own.
+**Recommended.** Give each outlet its own warehouse and choose it in the outlet's POS Profile (step 7). Each outlet then sells from its own stock, so you can see what each outlet has, what it used and what it is short of.
+
+It is optional: the POS Profile needs a warehouse, but it can be one you already have, such as *Stores - SR*. Use that only if you do not track stock per outlet, for example a single café that keeps everything in one store.
 
 1. Open **Warehouse** and click **Add Warehouse**.
 2. **Warehouse Name**: *Marina Cafe*. ERPNext saves it as *Marina Cafe - SR*.
@@ -100,7 +102,7 @@ The POS Profile is the outlet. Open **POS Profile** and click **Add POS Profile*
 | **Name** | The outlet's name, for example *Marina Cafe*. Cashiers see this name. |
 | **Company** | Your company |
 | **Customer** | *Walk In* |
-| **Warehouse** | The outlet's warehouse, *Marina Cafe - SR* |
+| **Warehouse** | The outlet's warehouse, *Marina Cafe - SR* (recommended), or an existing one such as *Stores - SR* |
 
 ![POS Profile, Details tab](images/erp-pos-profile.webp)
 
@@ -135,7 +137,7 @@ Save the POS Profile.
 
 ## Repeat for each outlet
 
-For a second outlet, add its Branch, its warehouse and its POS Profile. The walk-in customer and the payment method accounts are shared.
+For a second outlet, add its Branch, its warehouse (recommended) and its POS Profile. The walk-in customer and the payment method accounts are shared.
 
 If an outlet has two counters (for example a bar and a pool counter), you can give each its own POS Profile with the same branch, or use one profile on two POS computers with different terminal numbers. Use two profiles if the counters sell from different warehouses or see different menus.
 

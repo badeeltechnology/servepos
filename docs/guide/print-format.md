@@ -9,7 +9,7 @@ order: 7
 What the receipt, bill and kitchen ticket look like is set on each POS, in **Supervisor tools** › **Print Format**. Which printer they go to is set in [Printers](printers.md).
 
 1. On the POS sign-in screen, click **Supervisor tools**.
-2. Sign in with the POS admin account (made during [first-time setup](desktop-pos.md#admin-account)).
+2. Sign in with the POS admin account (made during [first-time setup](desktop-pos.md#step-1-admin-account)).
 3. Open the **Print Format** tab. Change what you need and click **Save Changes** at the bottom.
 
 ![Print Format in Supervisor tools](images/pos-admin.webp)
