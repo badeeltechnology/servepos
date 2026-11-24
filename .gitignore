@@ -59,3 +59,10 @@ SERVEPOS_PLANNING_DOCUMENT.md
 
 # ServePOS Stock Orders frontend (built into servepos/public/stock)
 stock_ui/node_modules/
+
+# local scripts and settings that must never be committed
+upload_items.py
+*.env
+.env*
+site_config.json
+Claude outputs/

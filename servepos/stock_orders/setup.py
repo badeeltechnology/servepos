@@ -24,8 +24,8 @@ DOCTYPES = [
 
 ROLES = ["ServePOS Outlet User", "ServePOS CK Provider", "ServePOS Pastry Provider"]
 
-# Pastry products found among the CK "Semi Finished Goods" (by name); confirm with Harbour Lane.
-PASTRY_PATTERNS = re.compile(r"CROISSANT|PAIN AU|PAIN SUISSE|CAKE|SAN SEBASTIAN|TIRAMISU|COCO MANGO|CRUNCHY CHOCOLATE|COOKIES|BROWNIES|PROTEIN BAR", re.I)
+# Semi-finished items whose names look like pastry go to the pastry kitchen by default; the rest to the central kitchen.
+PASTRY_PATTERNS = re.compile(r"CROISSANT|PAIN AU|DANISH|PASTRY|CAKE|TART|MUFFIN|COOKIE|BROWNIE|ECLAIR|MACARON", re.I)
 
 
 def sync_doctypes():
@@ -138,52 +138,54 @@ def seed_settings():
 
 
 def _location(name, wh, ltype, **kw):
+	if not wh or not frappe.db.exists("Warehouse", wh):
+		return None
 	if frappe.db.exists("ServePOS Stock Location", {"warehouse": wh}):
 		return frappe.db.get_value("ServePOS Stock Location", {"warehouse": wh}, "name")
-	if not frappe.db.exists("Warehouse", wh):
-		return None
 	doc = frappe.get_doc({"doctype": "ServePOS Stock Location", "location_name": name, "warehouse": wh, "location_type": ltype, **kw})
 	doc.insert(ignore_permissions=True)
 	return doc.name
 
 
+def _warehouse_like(pattern):
+	return frappe.db.get_value("Warehouse", {"name": ["like", pattern], "is_group": 0}, "name")
+
+
+def _label(wh):
+	"""'Marina Cafe - SR' -> 'Marina Cafe': the warehouse name without the company abbreviation."""
+	return re.sub(r"\s+-\s+[A-Za-z0-9]{1,8}$", "", wh or "").strip()
+
+
 def seed_locations():
-	"""Providers from the known warehouses; outlets from POS Profiles and User Permissions."""
+	"""A first set of locations on a site that has none: the store, central kitchen and pastry kitchen when
+	warehouses with those names exist, and an outlet for each warehouse people order for (User Permissions)
+	and each POS Profile. Review them in ServePOS Stock Location afterwards."""
 	if frappe.db.count("ServePOS Stock Location"):
 		return
-	ck_wh = frappe.db.get_value("Warehouse", {"name": ["like", "Central Kitchen%"], "is_group": 0}, "name")
-	store = _location("Store", "Stores - N", "Provider", color="#5F9E45", buys_from_suppliers=1, ship_role="Stock Manager")
-	if ck_wh:
-		_location("Central Kitchen", ck_wh, "Provider", color="#D9432F", orders_from=store, markup_percent=2.5,
-			ship_role="ServePOS CK Provider", record_production_for_shortfall=1)
-	_location("Pastry", "PASTRY - N", "Provider", color="#E2B23B", orders_from=store,
+	store = _location("Store", _warehouse_like("Stores%"), "Provider", color="#5F9E45", buys_from_suppliers=1, ship_role="Stock Manager")
+	_location("Central Kitchen", _warehouse_like("Central Kitchen%"), "Provider", color="#D9432F", orders_from=store,
+		ship_role="ServePOS CK Provider", record_production_for_shortfall=1)
+	_location("Pastry", _warehouse_like("%Pastry%"), "Provider", color="#E2B23B", orders_from=store,
 		ship_role="ServePOS Pastry Provider", record_production_for_shortfall=1)
 
-	excluded = {"Salad Bar - N"}
 	labels = set()
-
-	def label_of(wh):
-		return re.sub(r"\s*-\s*N$", "", wh).replace("GH - ", "GH ").strip()
-
 	# 1. Warehouses users actually work in (User Permissions) come first.
 	for wh in frappe.get_all("User Permission", filters={"allow": "Warehouse"}, pluck="for_value", distinct=True):
-		if wh in excluded or frappe.db.get_value("Warehouse", wh, "is_group") or frappe.db.exists("ServePOS Stock Location", {"warehouse": wh}):
+		if frappe.db.get_value("Warehouse", wh, "is_group") or frappe.db.exists("ServePOS Stock Location", {"warehouse": wh}):
 			continue
-		label = label_of(wh)
+		label = _label(wh)
 		profile = frappe.db.get_value("POS Profile", {"warehouse": wh, "disabled": 0}, ["name", "branch"], as_dict=True) or {}
 		labels.add(label.lower())
-		_location(label, wh, "Outlet", location_group="GH" if label.upper().startswith("GH") else "BEACH",
-			pos_profile=profile.get("name"), branch=profile.get("branch"))
+		_location(label, wh, "Outlet", pos_profile=profile.get("name"), branch=profile.get("branch"))
 	# 2. POS Profile warehouses not already covered under the same outlet name.
 	for p in frappe.get_all("POS Profile", fields=["name", "warehouse", "branch"], filters={"disabled": 0}):
-		if not p.warehouse or p.warehouse in excluded or frappe.db.exists("ServePOS Stock Location", {"warehouse": p.warehouse}):
+		if not p.warehouse or frappe.db.exists("ServePOS Stock Location", {"warehouse": p.warehouse}):
 			continue
-		if p.name.lower() in labels or label_of(p.warehouse).lower() in labels:
+		if p.name.lower() in labels or _label(p.warehouse).lower() in labels:
 			frappe.log_error(f"POS Profile {p.name} uses {p.warehouse}, but users order for another warehouse with the same outlet name. Resolve the duplicate.", "ServePOS Stock Orders setup")
 			continue
 		labels.add(p.name.lower())
-		_location(p.name, p.warehouse, "Outlet", branch=p.branch, pos_profile=p.name,
-			location_group="GH" if p.name.upper().startswith("GH") else "BEACH")
+		_location(p.name, p.warehouse, "Outlet", branch=p.branch, pos_profile=p.name)
 
 
 def seed_item_providers():
@@ -203,7 +205,7 @@ def seed_item_providers():
 
 
 def _norm(name):
-	"""Branch names on site carry invisible characters and word order differs ('Grill House Pizza & Burger')."""
+	"""Branch names can carry invisible characters, and word order may differ ('Pizza & Burger Marina')."""
 	import unicodedata
 	clean = "".join(ch for ch in (name or "") if unicodedata.category(ch)[0] != "C")
 	return frozenset(w for w in re.split(r"[^a-z0-9]+", clean.lower()) if w)
