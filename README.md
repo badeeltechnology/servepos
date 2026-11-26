@@ -2,6 +2,16 @@
 
 An intuitive POS solution built for restaurants to handle orders, payments, and kitchen coordination seamlessly.
 
+### Download the apps
+
+| App | Download |
+|---|---|
+| Desktop POS for **Windows** | [Download](https://github.com/badeeltechnology/servepos-releases/releases/download/v2.19.3/servepos-desktop-2.19.3-setup.exe) |
+| Desktop POS for **macOS** (Apple silicon) | [Download](https://github.com/badeeltechnology/servepos-releases/releases/download/v2.19.3/ServePOS-2.19.3-arm64-mac.zip) |
+| Waiter app for **Android** | [Download the APK](https://github.com/badeeltechnology/waiterapp/releases/latest/download/ServePOS-Waiter.apk) |
+
+Source: [servepos-desktop](https://github.com/badeeltechnology/servepos-desktop) and [waiterapp](https://github.com/badeeltechnology/waiterapp).
+
 ### Installation
 
 You can install this app using the [bench](https://github.com/frappe/bench) CLI:
