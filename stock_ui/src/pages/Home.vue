@@ -4,7 +4,7 @@
     <Header title="Today" :subtitle="home.data ? 'Deliveries for ' + fmtDate(home.data.for_date) : ''">
       <Badge v-if="cut.order_cutoff" :theme="cut.orders_open ? 'green' : 'amber'" variant="subtle" size="md"
         :label="cut.orders_open ? 'Orders open until ' + cut.order_cutoff : 'Past ' + cut.order_cutoff + ': late orders'" />
-      <Button variant="solid" icon-left="lucide-plus" label="New order" route="/order" />
+      <Button variant="solid" icon-left="lucide-plus" label="New order" route="/stock/order" />
     </Header>
 
     <div v-if="home.data" class="space-y-6 px-3 pb-10 pt-5 sm:px-5">
@@ -13,12 +13,12 @@
         <template v-if="money">
           <NumberCard title="Stock on hand" :value="home.data.stock_value" :prefix="cur" :format="fmtMoney" :delta-caption="home.data.items_in_stock + ' items in stock'" />
           <NumberCard title="Received this week" :value="home.data.received_week_total" :prefix="cur" :format="fmtMoney"
-            :sparkline="{ data: home.data.received_week.map((d) => d.value), type: 'bar' }" />
+            :sparkline="home.data.received_week.some((d) => d.value) ? { data: home.data.received_week.map((d) => d.value), type: 'bar' } : undefined" />
         </template>
         <template v-else>
           <NumberCard title="Items in stock" :value="home.data.items_in_stock" delta-caption="items with stock in your outlet" />
           <NumberCard title="Received this week" :value="home.data.received_week_orders" suffix=" deliveries"
-            :sparkline="{ data: home.data.received_week.map((d) => d.orders), type: 'bar' }" />
+            :sparkline="home.data.received_week.some((d) => d.orders) ? { data: home.data.received_week.map((d) => d.orders), type: 'bar' } : undefined" />
         </template>
         <NumberCard title="To receive" :value="home.data.incoming.length" :delta-caption="home.data.discrepancies.length ? home.data.discrepancies.length + ' with a discrepancy' : 'deliveries on the way'" />
         <NumberCard title="Next inventory" :value="invValue" :delta-caption="invCaption" />
@@ -40,7 +40,7 @@
             <p v-else class="text-p-sm text-ink-gray-5">No list yet: search and add items.</p>
             <p class="text-p-sm text-ink-gray-5">{{ cardHint(c) }}</p>
             <div class="mt-auto">
-              <Button :variant="c.order && c.order.status !== 'Draft' ? 'subtle' : 'solid'" :route="'/order/' + encodeURIComponent(c.provider)"
+              <Button :variant="c.order && c.order.status !== 'Draft' ? 'subtle' : 'solid'" :route="'/stock/order/' + encodeURIComponent(c.provider)"
                 :label="c.order ? (c.order.status === 'Draft' ? 'Continue draft' : 'Open ' + c.order.name) : 'Order from ' + c.provider" />
             </div>
           </div>
@@ -52,13 +52,13 @@
         <section class="space-y-2">
           <h2 class="text-lg-semibold">To receive</h2>
           <List :columns="['auto', 'minmax(0,1fr)', 'auto']" class="rounded-6 border border-outline-gray-1 list-row-px-3">
-            <ListRow v-for="o in home.data.incoming" :key="o.name" :route="'/o/' + o.name" class="min-h-14">
+            <ListRow v-for="o in home.data.incoming" :key="o.name" :route="'/stock/o/' + o.name" class="min-h-14">
               <ListCell><span class="size-2 rounded-full" :style="{ background: providerColor(o.from_location) }" aria-hidden="true" /></ListCell>
               <ListCell class="flex-col !items-start"><span class="text-base-medium">{{ o.order_type === 'Order' ? o.from_location : o.order_type + ' from ' + o.from_location }}</span>
                 <span class="mt-1 text-sm text-ink-gray-5">{{ o.name }} · {{ o.lines }} items · shipped {{ fmtTime(o.shipped_on) }}</span></ListCell>
-              <ListCell><Button variant="solid" label="Receive" :route="'/o/' + o.name" /></ListCell>
+              <ListCell><Button variant="solid" label="Receive" :route="'/stock/o/' + o.name" /></ListCell>
             </ListRow>
-            <ListRow v-for="o in home.data.discrepancies" :key="o.name" :route="'/o/' + o.name" class="min-h-14">
+            <ListRow v-for="o in home.data.discrepancies" :key="o.name" :route="'/stock/o/' + o.name" class="min-h-14">
               <ListCell><span class="size-2 rounded-full bg-surface-red-7" aria-hidden="true" /></ListCell>
               <ListCell class="flex-col !items-start"><span class="text-base-medium">{{ o.from_location }}</span><span class="mt-1 text-sm text-ink-gray-5">{{ o.name }} · received less than shipped</span></ListCell>
               <ListCell><StatusBadge status="Discrepancy" /></ListCell>
@@ -69,13 +69,13 @@
 
         <!-- transfers -->
         <section class="space-y-2">
-          <div class="flex items-center"><h2 class="flex-1 text-lg-semibold">Transfers</h2><Button variant="ghost" icon-left="lucide-arrow-left-right" label="Ask another outlet" route="/transfers" /></div>
+          <div class="flex items-center"><h2 class="flex-1 text-lg-semibold">Transfers</h2><Button variant="ghost" icon-left="lucide-arrow-left-right" label="Ask another outlet" route="/stock/transfers" /></div>
           <List :columns="['minmax(0,1fr)', 'auto']" class="rounded-6 border border-outline-gray-1 list-row-px-3">
-            <ListRow v-for="o in home.data.transfers_asked" :key="o.name" :route="'/o/' + o.name" class="min-h-14">
+            <ListRow v-for="o in home.data.transfers_asked" :key="o.name" :route="'/stock/o/' + o.name" class="min-h-14">
               <ListCell class="flex-col !items-start"><span class="text-base-medium">{{ o.to_location }} asks you for stock</span><span class="mt-1 text-sm text-ink-gray-5">{{ o.name }} · {{ fmtTime(o.submitted_on) }}</span></ListCell>
-              <ListCell><Button theme="blue" variant="solid" label="Review" :route="'/o/' + o.name" /></ListCell>
+              <ListCell><Button theme="blue" variant="solid" label="Review" :route="'/stock/o/' + o.name" /></ListCell>
             </ListRow>
-            <ListRow v-for="o in home.data.transfers_mine" :key="o.name" :route="'/o/' + o.name" class="min-h-14">
+            <ListRow v-for="o in home.data.transfers_mine" :key="o.name" :route="'/stock/o/' + o.name" class="min-h-14">
               <ListCell class="flex-col !items-start"><span class="text-base-medium">You asked {{ o.from_location }}</span><span class="mt-1 text-sm text-ink-gray-5">{{ o.name }} · {{ fmtTime(o.submitted_on) }}</span></ListCell>
               <ListCell><StatusBadge :status="o.status" /></ListCell>
             </ListRow>

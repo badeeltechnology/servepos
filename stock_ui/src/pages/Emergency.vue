@@ -42,7 +42,7 @@ async function send() {
     const r = await sender.submit({ location_name: state.location.name, provider: provider.value, reason: reason.value, note: note.value,
       lines: lines.value.filter((l) => Number(l.qty) > 0).map((l) => ({ item_code: l.item_code, qty: Number(l.qty), uom: l.uom })) })
     toast.success(`${r.name} sent to ${provider.value} as an emergency order`)
-    router.push('/o/' + r.name)
+    router.push('/stock/o/' + r.name)
   } catch (e) { toast.error(errText(e)) }
 }
 </script>

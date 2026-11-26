@@ -27,7 +27,15 @@
   "show_system_qty",
   "access_section",
   "role_access",
-  "amount_access_seeded"
+  "amount_access_seeded",
+  "day_close_section",
+  "day_start_hour",
+  "auto_day_close",
+  "close_waits_for_deliveries",
+  "cb_dc",
+  "food_cost_account",
+  "waste_account",
+  "day_close_seeded"
  ],
  "fields": [
   {
@@ -170,10 +178,59 @@
    "label": "Amount access seeded",
    "hidden": 1,
    "read_only": 1
+  },
+  {
+   "fieldname": "day_close_section",
+   "fieldtype": "Section Break",
+   "label": "Recipes and day close"
+  },
+  {
+   "fieldname": "day_start_hour",
+   "fieldtype": "Int",
+   "label": "Business day starts at (hour)",
+   "default": "5",
+   "description": "Sales before this hour count for the evening before. Day close runs automatically after this hour."
+  },
+  {
+   "fieldname": "auto_day_close",
+   "fieldtype": "Check",
+   "label": "Close each day automatically",
+   "default": "1"
+  },
+  {
+   "fieldname": "close_waits_for_deliveries",
+   "fieldtype": "Check",
+   "label": "Wait for deliveries not yet received",
+   "default": "0",
+   "description": "Off: close and warn. On: the day stays open while a delivery to the outlet is in transit."
+  },
+  {
+   "fieldname": "cb_dc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "food_cost_account",
+   "fieldtype": "Link",
+   "label": "Food cost account",
+   "options": "Account",
+   "description": "Where ingredients used at day close are expensed. Empty: the company stock adjustment account."
+  },
+  {
+   "fieldname": "waste_account",
+   "fieldtype": "Link",
+   "label": "Waste account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "day_close_seeded",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Day close defaults seeded",
+   "read_only": 1
   }
  ],
  "links": [],
- "modified": "2026-10-07 12:00:00.000000",
+ "modified": "2026-11-20 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Servepos",
  "name": "ServePOS Stock Settings",

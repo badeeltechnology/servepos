@@ -6,7 +6,7 @@ import { LoadingText } from 'frappe-ui'
 import { state } from '../state'
 const router = useRouter()
 onMounted(() => {
-  if (!state.location) return router.replace(state.ctx && state.ctx.is_buyer ? '/buy' : '/home')
-  router.replace('/home')
+  if (!state.location) return router.replace(state.ctx && state.ctx.is_buyer ? '/stock/buy' : '/stock/home')
+  router.replace('/stock/home')
 })
 </script>

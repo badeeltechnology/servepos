@@ -22,7 +22,7 @@
    "fieldname": "landing_page",
    "fieldtype": "Data",
    "label": "Lands on",
-   "default": "/stock",
+   "default": "/manage/stock",
    "in_list_view": 1
   },
   {
