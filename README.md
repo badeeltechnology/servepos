@@ -2,6 +2,16 @@
 
 An intuitive POS solution built for restaurants to handle orders, payments, and kitchen coordination seamlessly.
 
+### Download the apps
+
+| App | Download |
+|---|---|
+| Desktop POS for **Windows** | [Download](https://github.com/badeeltechnology/servepos-releases/releases/download/v2.19.3/servepos-desktop-2.19.3-setup.exe) |
+| Desktop POS for **macOS** (Apple silicon) | [Download](https://github.com/badeeltechnology/servepos-releases/releases/download/v2.19.3/ServePOS-2.19.3-arm64-mac.zip) |
+| Waiter app for **Android** | [Download the APK](https://github.com/badeeltechnology/waiterapp/releases/latest/download/ServePOS-Waiter.apk) |
+
+Source: [servepos-desktop](https://github.com/badeeltechnology/servepos-desktop) and [waiterapp](https://github.com/badeeltechnology/waiterapp).
+
 ### Guide
 
 The [Serve POS guide](docs/guide/index.md) takes you from a fresh ERPNext site to the first sale: the outlet's POS Profile, the branch dimension, users and API keys, the menu, the desktop POS, printers and receipt layout, the waiter app, recipes, stock orders and reports.
